@@ -1,0 +1,25 @@
+{application, grisp, [
+    {description, "GRiSP Erlang Runtime Library"},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {mod, {grisp_app, []}},
+    {applications, [
+        kernel,
+        stdlib
+    ]},
+    {env,[]},
+    {modules, []},
+
+    % Hex.pm
+    {maintainers, [
+        "Adam Lindberg",
+        "Peer Stritzinger"
+    ]},
+    {licenses, [
+        "Apache License 2.0"
+    ]},
+    {links, [
+        {"Homepage", "https://www.grisp.org"},
+        {"GitHub", "https://github.com/grisp/grisp"}
+    ]}
+]}.
