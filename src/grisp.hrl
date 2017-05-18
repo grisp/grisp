@@ -1,0 +1,4 @@
+-record(device, {
+    port,
+    driver
+}).
