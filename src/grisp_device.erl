@@ -34,19 +34,18 @@ setup(Configuration) ->
     ]),
 
     % TODO: Validate ports
-    Default = maps:fold(fun(Port, Driver, Default) ->
+    % FIXME: Use maps for devices in later Erlang versions
+    Default = lists:foldl(fun({Port, Driver}, Default) ->
         Device = #device{port = Port, driver = Driver},
         ets:insert(grisp_devices, Device),
         % FIXME: 19+: maps:update_with(Driver, fun(V) -> V end, Device, Default)
-        case maps:is_key(Driver, Default) of
+        case proplists:is_defined(Driver, Default) of
             true  -> Default;
-            false -> maps:put(Driver, Device, Default)
+            false -> [{Driver, Device}|Default]
         end
-    end, #{}, Configuration),
+    end, [], Configuration),
 
-    maps:map(fun(Driver, Device) ->
-        ets:insert(grisp_devices_default, {Driver, Device})
-    end, Default),
+    [ets:insert(grisp_devices_default, D) || D <- Default],
 
     [grisp_devices, grisp_devices_default].
 

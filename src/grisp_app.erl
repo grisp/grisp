@@ -11,7 +11,7 @@
 %--- API -----------------------------------------------------------------------
 
 start(_Type, _Args) ->
-    Devices = application:get_env(grisp, devices, #{}),
+    Devices = application:get_env(grisp, devices, []),
     DeviceState = grisp_device:setup(Devices),
     {ok, Sup} = grisp_sup:start_link(),
     {ok, Sup, DeviceState}.
