@@ -4,8 +4,8 @@
 
 % API
 -export([start_link/0]).
--export([send_recv/3]).
--export([send_recv/1]).
+-export([send_recv/4]).
+-export([send_recv/2]).
 
 % Callbacks
 -export([init/1]).
@@ -31,24 +31,24 @@
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, undefined, []).
 
-send_recv(Req, Skip, Pad) ->
+send_recv(SlaveSelect, Req, Skip, Pad) ->
     P = binary:copy(<<16#ff>>, Pad),
-    {ok, Resp} = send_recv(<<Req/binary, P/binary>>),
+    Resp = send_recv(SlaveSelect, <<Req/binary, P/binary>>),
     <<_:Skip/binary, R/binary>> = Resp,
-    {ok, R}.
+    R.
 
-send_recv(Req) when byte_size(Req) < ?RES_MAX_SIZE ->
-    gen_server:call(?MODULE, {send_recv, Req}).
+send_recv(SlaveSelect, Req) when byte_size(Req) < ?RES_MAX_SIZE ->
+    gen_server:call(?MODULE, {send_recv, SlaveSelect, Req}).
 
 %--- Callbacks -----------------------------------------------------------------
 
 init(undefined) ->
-    Port = undefined,
-    % Port = open_port({spawn, "grisp_spi_drv"}, [binary]),  % FIXME: Use spawn_driver here?
+    % Port = undefined,
+    Port = open_port({spawn, "grisp_spi_drv"}, [binary]),  % FIXME: Use spawn_driver here?
     {ok, #state{port = Port}}.
 
-handle_call({send_recv, Req}, _From, #state{port = Port} = State) ->
-    Port ! {self(), {command, Req}},
+handle_call({send_recv, SlaveSelect, Req}, _From, #state{port = Port} = State) ->
+    Port ! {self(), {command, <<(SlaveSelect + 1), Req/binary>>}},
     receive
         {Port, {data, Resp}} ->
             {reply, Resp, State}
