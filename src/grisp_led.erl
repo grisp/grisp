@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 % API
--export([start_link/0]).
+-export([start_link/1]).
 -export([color/2]).
 -export([off/1]).
 -export([flash/3]).
@@ -19,7 +19,7 @@
 
 %--- Records -------------------------------------------------------------------
 
--record(state, {port, leds}).
+-record(state, {driver, leds}).
 
 %--- Macros --------------------------------------------------------------------
 
@@ -27,8 +27,8 @@
 
 %--- API -----------------------------------------------------------------------
 
-start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, undefined, []).
+start_link(DriverMod) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, DriverMod, []).
 
 color(Pos, Color) -> pattern(Pos, [{infinity, Color}]).
 
@@ -41,10 +41,9 @@ pattern(Pos, Pattern) -> gen_server:cast(?MODULE, {pattern, Pos, Pattern}).
 
 %--- Callbacks -----------------------------------------------------------------
 
-init(undefined) ->
-    % Port = open_port({spawn, "grisp_led_drv"}, [binary]),
-    Port = undefined,
-    {ok, #state{port = Port, leds = [
+init(DriverMod) ->
+    Ref = DriverMod:open(),
+    {ok, #state{driver = {DriverMod, Ref}, leds = [
         {1, {[{infinity, black}], undefined}},
         {2, {[{infinity, black}], undefined}}
     ]}}.
@@ -69,30 +68,29 @@ terminate(_Reason, _State) -> ok.
 
 %--- Internal ------------------------------------------------------------------
 
-update_led(Pos, #state{port = Port, leds = Leds} = State, Fun) ->
-    State#state{leds = mod(Pos, Port, Fun, Leds)}.
+update_led(Pos, #state{driver = Driver, leds = Leds} = State, Fun) ->
+    State#state{leds = mod(Pos, Driver, Fun, Leds)}.
 
-mod(Pos, Port, Fun, [{Pos, Led}|Rest]) -> [{Pos, Fun(Port, Led)}|Rest];
-mod(Pos, Port, Fun, [Led|Rest])        -> [Led|mod(Pos, Port, Fun, Rest)];
-mod(Pos, _Port, _Fun, [])              -> error({led_not_found, Pos}).
+mod(Pos, Driver, Fun, [{Pos, Led}|Rest]) -> [{Pos, Fun(Driver, Led)}|Rest];
+mod(Pos, Driver, Fun, [Led|Rest])        -> [Led|mod(Pos, Driver, Fun, Rest)];
+mod(Pos, _Driver, _Fun, [])              -> error({led_not_found, Pos}).
 
-tick_pattern(Port, Pos, {[{infinity, Color} = Pattern|_Rest], Timer}) ->
+tick_pattern(Driver, Pos, {[{infinity, Color} = Pattern|_Rest], Timer}) ->
     cancel_timer(Timer),
-    write_color(Port, Pos, Color),
+    write_color(Driver, Pos, Color),
     {[Pattern], undefined};
-tick_pattern(Port, Pos, {[{Time, Color} = Step|Rest], Timer}) ->
+tick_pattern(Driver, Pos, {[{Time, Color} = Step|Rest], Timer}) ->
     cancel_timer(Timer),
-    write_color(Port, Pos, Color),
+    write_color(Driver, Pos, Color),
     NewTimer = erlang:send_after(Time, self(), {tick, Pos}),
     {Rest ++ [Step], NewTimer}.
 
 cancel_timer(undefined) -> ok;
 cancel_timer(Timer)     -> erlang:cancel_timer(Timer).
 
-write_color(Port, Pos, Color) ->
+write_color({DriverMod, Ref}, Pos, Color) ->
     {R, G, B} = translate(Color),
-    % Port ! {self(), {command, <<Pos:8, R:8, G:8, B:8>>}}.
-    io:format("WRITE COLOR ~p ~p {~p, ~p, ~p}~n", [Port, Pos, R, G, B]).
+    DriverMod:command(Ref, <<Pos:8, R:8, G:8, B:8>>).
 
 translate(Fun) when is_function(Fun) -> to_rgb(Fun());
 translate(Value)                     -> to_rgb(Value).

@@ -43,8 +43,8 @@ send_recv(SlaveSelect, Req) when byte_size(Req) < ?RES_MAX_SIZE ->
 %--- Callbacks -----------------------------------------------------------------
 
 init(undefined) ->
-    % Port = undefined,
-    Port = open_port({spawn, "grisp_spi_drv"}, [binary]),  % FIXME: Use spawn_driver here?
+    Port = undefined,
+    % Port = open_port({spawn, "grisp_spi_drv"}, [binary]),  % FIXME: Use spawn_driver here?
     {ok, #state{port = Port}}.
 
 handle_call({send_recv, SlaveSelect, Req}, _From, #state{port = Port} = State) ->
