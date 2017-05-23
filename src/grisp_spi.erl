@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 % API
--export([start_link/0]).
+-export([start_link/1]).
 -export([send_recv/4]).
 -export([send_recv/2]).
 
@@ -17,7 +17,7 @@
 
 %--- Records -------------------------------------------------------------------
 
--record(state, {port}).
+-record(state, {driver}).
 
 %--- Macros --------------------------------------------------------------------
 
@@ -28,8 +28,8 @@
 
 %--- API -----------------------------------------------------------------------
 
-start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, undefined, []).
+start_link(DriverMod) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, DriverMod, []).
 
 send_recv(SlaveSelect, Req, Skip, Pad) ->
     P = binary:copy(<<16#ff>>, Pad),
@@ -42,15 +42,15 @@ send_recv(SlaveSelect, Req) when byte_size(Req) < ?RES_MAX_SIZE ->
 
 %--- Callbacks -----------------------------------------------------------------
 
-init(undefined) ->
-    Port = undefined,
-    % Port = open_port({spawn, "grisp_spi_drv"}, [binary]),  % FIXME: Use spawn_driver here?
-    {ok, #state{port = Port}}.
+init(DriverMod) ->
+    Ref = DriverMod:open(),
+    {ok, #state{driver = {DriverMod, Ref}}}.
 
-handle_call({send_recv, SlaveSelect, Req}, _From, #state{port = Port} = State) ->
-    Port ! {self(), {command, <<(SlaveSelect + 1), Req/binary>>}},
+handle_call({send_recv, SlaveSelect, Req}, _From, State) ->
+    {DriverMod, Ref} = State#state.driver,
+    DriverMod:command(Ref, <<(SlaveSelect + 1), Req/binary>>),
     receive
-        {Port, {data, Resp}} ->
+        {Ref, {data, Resp}} ->
             {reply, Resp, State}
     after ?PORT_COMMAND_TIMEOUT ->
             exit(timeout)
