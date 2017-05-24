@@ -90,7 +90,7 @@ cancel_timer(Timer)     -> erlang:cancel_timer(Timer).
 
 write_color({DriverMod, Ref}, Pos, Color) ->
     {R, G, B} = translate(Color),
-    DriverMod:command(Ref, <<Pos:8, R:8, G:8, B:8>>).
+    DriverMod:command(Ref, Pos, <<R:8, G:8, B:8>>).
 
 translate(Fun) when is_function(Fun) -> to_rgb(Fun());
 translate(Value)                     -> to_rgb(Value).

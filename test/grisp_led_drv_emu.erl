@@ -2,11 +2,11 @@
 
 % API
 -export([open/0]).
--export([command/2]).
+-export([command/3]).
 
 %--- API -----------------------------------------------------------------------
 
 open() -> led_emu.
 
-command(led_emu, <<LED, R, G, B>>) ->
-    io:format("LED~p: {~p,~p,~p}\n", [LED, R, G, B]).
+command(led_emu, Pos, <<R, G, B>>) ->
+    io:format("LED~p: {~p,~p,~p}\n", [Pos, R, G, B]).

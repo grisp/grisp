@@ -31,14 +31,14 @@
 start_link(DriverMod) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, DriverMod, []).
 
-send_recv(SlaveSelect, Req, Skip, Pad) ->
+send_recv(Slot, Req, Skip, Pad) ->
     P = binary:copy(<<16#ff>>, Pad),
-    Resp = send_recv(SlaveSelect, <<Req/binary, P/binary>>),
+    Resp = send_recv(Slot, <<Req/binary, P/binary>>),
     <<_:Skip/binary, R/binary>> = Resp,
     R.
 
-send_recv(SlaveSelect, Req) when byte_size(Req) < ?RES_MAX_SIZE ->
-    gen_server:call(?MODULE, {send_recv, SlaveSelect, Req}).
+send_recv(Slot, Req) when byte_size(Req) < ?RES_MAX_SIZE ->
+    gen_server:call(?MODULE, {send_recv, Slot, Req}).
 
 %--- Callbacks -----------------------------------------------------------------
 
@@ -46,9 +46,9 @@ init(DriverMod) ->
     Ref = DriverMod:open(),
     {ok, #state{driver = {DriverMod, Ref}}}.
 
-handle_call({send_recv, SlaveSelect, Req}, _From, State) ->
+handle_call({send_recv, Slot, Req}, _From, State) ->
     {DriverMod, Ref} = State#state.driver,
-    DriverMod:command(Ref, <<(SlaveSelect + 1), Req/binary>>),
+    DriverMod:command(Ref, Slot, Req),
     receive
         {Ref, {data, Resp}} ->
             {reply, Resp, State}

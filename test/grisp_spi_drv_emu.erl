@@ -2,7 +2,7 @@
 
 % API
 -export([open/0]).
--export([command/2]).
+-export([command/3]).
 
 %--- API -----------------------------------------------------------------------
 
@@ -10,29 +10,23 @@ open() ->
     Devices = application:get_env(grisp, devices, []),
     spawn_link(fun() -> init(Devices) end).
 
-command(Pid, Command) -> Pid ! {self(), {command, Command}}.
+command(Pid, Slot, Command) -> Pid ! {self(), {command, Slot, Command}}.
 
 %--- Internal ------------------------------------------------------------------
 
 init(DeviceConfig) ->
-    Devices = [begin
-        Emu = emulator(Driver),
-        State = Emu:init(),
-        SlaveSelect = case Port of
-            spi1 -> 2;
-            spi2 -> 3
-        end,
-        {SlaveSelect, {Emu, State}}
-    end || {Port, Driver} <- DeviceConfig],
+    Devices = [{Slot, init_emulator(Driver)} || {Slot, Driver} <- DeviceConfig],
     loop(Devices).
 
 loop(Devices) ->
     receive
-        {From, {command, <<SlaveSelect, Command/binary>>}} ->
-            {Emu, State} = proplists:get_value(SlaveSelect, Devices),
+        {From, {command, Slot, Command}} ->
+            {Emu, State} = proplists:get_value(Slot, Devices),
             {Data, NewState} = Emu:command(State, Command),
             From ! {self(), {data, Data}},
-            loop(lists:keyreplace(SlaveSelect, 1, Devices, {SlaveSelect, {Emu, NewState}}))
+            loop(lists:keyreplace(Slot, 1, Devices, {Slot, {Emu, NewState}}))
     end.
 
-emulator(Driver) -> list_to_atom(atom_to_list(Driver) ++ "_emu").
+init_emulator(Driver) ->
+    Emu = list_to_atom(atom_to_list(Driver) ++ "_emu"),
+    {Emu, Emu:init()}.
