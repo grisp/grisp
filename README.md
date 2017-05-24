@@ -5,7 +5,7 @@ GRiSP Erlang Runtime Library
 
 <dl>
     <dt>Slot</dt>
-    <dd>A physical slot where a component can be connected. E.g. SPI1 where a Pmod can be connected.</dd>
+    <dd>A physical slot where a component can be connected. E.g. <em>SPI1</em> where a Pmod can be connected.</dd>
     <dt>Pmod</dt>
     <dd><em>TODO</em></dd>
     <dt>SPI</dt>
@@ -17,7 +17,7 @@ GRiSP Erlang Runtime Library
     <dt>Dallas 1-Wire</dt>
     <dd><em>TODO</em></dd>
     <dt>LED Position</dt>
-    <dd>Integer representing one of the two LEDs available on the GRiSP. E.g. `1` for the first LED.</dd>
+    <dd>Integer representing one of the two LEDs available on the GRiSP. E.g. <code>1</code> for the first LED.</dd>
     <dt>JTAG</dt>
     <dd><em>TODO</em></dd>
 </dl>
