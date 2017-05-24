@@ -3,29 +3,29 @@
 -include("grisp.hrl").
 
 % API
--export([port/1]).
+-export([slot/1]).
 -export([default/1]).
 -export([setup/1]).
 -export([teardown/1]).
 
 %--- API -----------------------------------------------------------------------
 
-port(Port) ->
-    case ets:lookup(grisp_devices, Port) of
-        [] -> error({no_device_connected, Port});
+slot(Slot) ->
+    case ets:lookup(grisp_devices, Slot) of
+        [] -> error({no_device_connected, Slot});
         [Device] -> Device
     end.
 
 default(Driver) ->
     case ets:lookup(grisp_devices_default, Driver) of
         [] -> error({no_device_present, Driver});
-        [Port] -> port(Port)
+        [Slot] -> slot(Slot)
     end.
 
 setup(Configuration) ->
     ets:new(grisp_devices, [
         named_table,
-        {keypos, #device.port},
+        {keypos, #device.slot},
         {read_concurrency, true}
     ]),
     ets:new(grisp_devices_default, [
@@ -35,8 +35,9 @@ setup(Configuration) ->
 
     % TODO: Validate ports
     % FIXME: Use maps for devices in later Erlang versions
-    Default = lists:foldl(fun({Port, Driver}, Default) ->
-        Device = #device{port = Port, driver = Driver},
+    Default = lists:foldl(fun({Slot, Driver}, Default) ->
+        Pid = grisp_device_sup:start_child(Slot, Driver),
+        Device = #device{slot = Slot, driver = Driver, instance = Pid},
         ets:insert(grisp_devices, Device),
         % FIXME: 19+: maps:update_with(Driver, fun(V) -> V end, Device, Default)
         case proplists:is_defined(Driver, Default) of

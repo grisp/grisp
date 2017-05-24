@@ -5,4 +5,4 @@
 
 %--- API -----------------------------------------------------------------------
 
-device(Port) -> grisp_device:port(Port).
+device(Slot) -> grisp_device:slot(Slot).

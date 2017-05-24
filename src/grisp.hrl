@@ -1,4 +1,5 @@
 -record(device, {
-    port,
-    driver
+    slot,
+    driver,
+    instance
 }).

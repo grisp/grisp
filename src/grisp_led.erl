@@ -51,14 +51,14 @@ init(DriverMod) ->
 handle_call(Request, From, _State) -> error({unknown_call, Request, From}).
 
 handle_cast({pattern, Pos, NewPattern}, State) ->
-    NewState = update_led(Pos, State, fun(Port, {_OldPattern, Timer}) ->
-        tick_pattern(Port, Pos, {NewPattern, Timer})
+    NewState = update_led(Pos, State, fun(Driver, {_OldPattern, Timer}) ->
+        tick_pattern(Driver, Pos, {NewPattern, Timer})
     end),
     {noreply, NewState}.
 
 handle_info({tick, Pos}, State) ->
-    NewState = update_led(Pos, State, fun(Port, Led) ->
-        tick_pattern(Port, Pos, Led)
+    NewState = update_led(Pos, State, fun(Driver, Led) ->
+        tick_pattern(Driver, Pos, Led)
     end),
     {noreply, NewState}.
 
