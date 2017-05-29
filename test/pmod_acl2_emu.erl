@@ -38,12 +38,13 @@ shake(State) ->
     end, State, [{?XDATA, ?XDATA_L}, {?YDATA, ?YDATA_L}, {?ZDATA, ?ZDATA_L}]).
 
 shake_axis(State, ShortReg, LongReg) ->
-    <<_:4, MSB8:8/bitstring, _:4>> = Data = axis_data_12bit(),
-    set_bits(set_bits(State, ShortReg*8, MSB8), LongReg*8, Data).
+    <<Low, High>> = Long = axis_data_12bit(),
+    Short = get_bits(<<High, Low>>, 4, 8),
+    set_bits(set_bits(State, ShortReg*8, Short), LongReg*8, Long).
 
 axis_data_12bit() ->
-    <<MSB:1/integer, Data:11/bitstring, _:4>> = crypto:strong_rand_bytes(2),
-    <<MSB:1, MSB:1, MSB:1, MSB:1, MSB:1, Data/bitstring>>.
+    <<MSB:1, High:3, Low:8, _:4>> = crypto:strong_rand_bytes(2),
+    <<Low:8, MSB:1, MSB:1, MSB:1, MSB:1, MSB:1, High:3>>.
 
 default() ->
     <<% Reset    Reg    Name            RW
