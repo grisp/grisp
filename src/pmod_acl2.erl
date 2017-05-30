@@ -17,6 +17,7 @@
 -export([code_change/3]).
 -export([terminate/2]).
 
+-include("grisp.hrl").
 -include("pmod_acl2.hrl").
 
 %--- Records -------------------------------------------------------------------
@@ -28,15 +29,13 @@
 
 %--- API -----------------------------------------------------------------------
 
-start_link(Slot) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, Slot, []).
+start_link(Slot) -> gen_server:start_link(?MODULE, Slot, []).
 
 raw() -> raw([]).
-
-raw(Opts) -> gen_server:call(?MODULE, {raw, Opts}).
+raw(Opts) -> call({raw, Opts}).
 
 g() -> g([]).
-g(Opts) -> gen_server:call(?MODULE, {g, Opts}).
+g(Opts) -> call({g, Opts}).
 
 %--- Callbacks -----------------------------------------------------------------
 
@@ -61,6 +60,10 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 terminate(_Reason, _State) -> ok.
 
 %--- Internal ------------------------------------------------------------------
+
+call(Call) ->
+    Dev = grisp_device:default(?MODULE),
+    gen_server:call(Dev#device.instance, Call).
 
 xyz(Slot, []) ->
     <<X/signed, Y/signed, Z/signed>>

@@ -17,9 +17,10 @@ slot(Slot) ->
     end.
 
 default(Driver) ->
+    % TODO: This means 2 ETS lookups for every default driver call, optimize?
     case ets:lookup(grisp_devices_default, Driver) of
-        [] -> error({no_device_present, Driver});
-        [Slot] -> slot(Slot)
+        []               -> error({no_device_present, Driver});
+        [{Driver, Slot}] -> slot(Slot)
     end.
 
 setup(Configuration) ->
@@ -42,7 +43,7 @@ setup(Configuration) ->
         % FIXME: 19+: maps:update_with(Driver, fun(V) -> V end, Device, Default)
         case proplists:is_defined(Driver, Default) of
             true  -> Default;
-            false -> [{Driver, Device}|Default]
+            false -> [{Driver, Slot}|Default]
         end
     end, [], Configuration),
 
