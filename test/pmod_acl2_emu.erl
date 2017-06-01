@@ -33,9 +33,18 @@ get_bits(Bin, Start, Len) ->
     Bytes.
 
 shake(State) ->
-    lists:foldl(fun({ShortReg, LongReg}, S) ->
-        shake_axis(S, ShortReg, LongReg)
-    end, State, [{?XDATA, ?XDATA_L}, {?YDATA, ?YDATA_L}, {?ZDATA, ?ZDATA_L}]).
+    case get_bits(State, ?POWER_CTL*8, 8) of
+        <<_:6, ?MEASUREMENT_MODE:2>> ->
+            lists:foldl(fun({ShortReg, LongReg}, S) ->
+                shake_axis(S, ShortReg, LongReg)
+            end, State, [
+                {?XDATA, ?XDATA_L},
+                {?YDATA, ?YDATA_L},
+                {?ZDATA, ?ZDATA_L}
+            ]);
+        _ ->
+            State
+    end.
 
 shake_axis(State, ShortReg, LongReg) ->
     <<Low, High>> = Long = axis_data_12bit(),
