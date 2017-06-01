@@ -5,9 +5,7 @@
 % API
 -export([start_link/1]).
 -export([raw/0]).
--export([raw/1]).
 -export([g/0]).
--export([g/1]).
 
 % Callbacks
 -export([init/1]).
@@ -31,11 +29,13 @@
 
 start_link(Slot) -> gen_server:start_link(?MODULE, Slot, []).
 
-raw() -> raw([]).
-raw(Opts) -> call({raw, Opts}).
+raw() ->
+    {_Mode, Result} = call(raw),
+    Result.
 
-g() -> g([]).
-g(Opts) -> call({g, Opts}).
+g() ->
+    {Mode, Result} = call(raw),
+    scale(Mode, Result).
 
 %--- Callbacks -----------------------------------------------------------------
 
@@ -44,12 +44,9 @@ init(Slot) ->
     grisp_spi:send_recv(Slot, Req),
     {ok, #state{slot = Slot}}.
 
-handle_call({raw, Opts}, _From, State) ->
-    Raw = xyz(State#state.slot, Opts),
-    {reply, Raw, State};
-handle_call({g, Opts}, _From, State) ->
-    Raw = xyz(State#state.slot, Opts),
-    {reply, scale(State#state.mode, Raw), State}.
+handle_call(raw, _From, State) ->
+    Raw = xyz(State#state.slot),
+    {reply, {State#state.mode, Raw}, State}.
 
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
@@ -65,11 +62,7 @@ call(Call) ->
     Dev = grisp_device:default(?MODULE),
     gen_server:call(Dev#device.instance, Call).
 
-xyz(Slot, []) ->
-    <<X/signed, Y/signed, Z/signed>>
-        = grisp_spi:send_recv(Slot, <<?READ_REGISTER, ?XDATA>>, 2, 3),
-    {X * 16, Y * 16, Z * 16};
-xyz(Slot, [high_precision]) ->
+xyz(Slot) ->
     <<
         XDATA_L,
         _:4, XDATA_H:4,
