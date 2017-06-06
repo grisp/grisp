@@ -1,7 +1,7 @@
 %--- Commands ------------------------------------------------------------------
 
--define(RW_READ,          2#0).
--define(RW_WRITE,         2#1).
+-define(RW_WRITE,         2#0).
+-define(RW_READ,          2#1).
 
 -define(MS_SAME,          2#0).
 -define(MS_INCR,          2#1).
