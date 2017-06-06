@@ -24,7 +24,6 @@
 %% Make sure to keep this at sync with the #define RES_MAX_SIZE
 %% in grisp_spi_drv.c
 -define(RES_MAX_SIZE, 256).
--define(PORT_COMMAND_TIMEOUT, 1000).
 
 %--- API -----------------------------------------------------------------------
 
@@ -48,15 +47,8 @@ init(DriverMod) ->
 
 handle_call({send_recv, Slot, Req}, _From, State) ->
     {DriverMod, Ref} = State#state.driver,
-    DriverMod:command(Ref, Slot, Req),
-    receive
-        {Ref, {data, Resp}} ->
-            {reply, Resp, State}
-    after ?PORT_COMMAND_TIMEOUT ->
-            exit(timeout)
-    end;
-handle_call(Request, From, _State) ->
-    error({unknown_request, Request, From}).
+    Resp = DriverMod:command(Ref, Slot, Req),
+    {reply, Resp, State}.
 
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
 

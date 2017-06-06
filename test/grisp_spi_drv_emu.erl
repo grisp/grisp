@@ -7,26 +7,8 @@
 %--- API -----------------------------------------------------------------------
 
 open() ->
-    Devices = application:get_env(grisp, devices, []),
-    spawn_link(fun() -> init(Devices) end).
+    {ok, _} = grisp_device_emu:start_link(),
+    undefined.
 
-command(Pid, Slot, Command) -> Pid ! {self(), {command, Slot, Command}}.
-
-%--- Internal ------------------------------------------------------------------
-
-init(DeviceConfig) ->
-    Devices = [{Slot, init_emulator(Driver)} || {Slot, Driver} <- DeviceConfig],
-    loop(Devices).
-
-loop(Devices) ->
-    receive
-        {From, {command, Slot, Command}} ->
-            {Emu, State} = proplists:get_value(Slot, Devices),
-            {Data, NewState} = Emu:command(State, Command),
-            From ! {self(), {data, Data}},
-            loop(lists:keyreplace(Slot, 1, Devices, {Slot, {Emu, NewState}}))
-    end.
-
-init_emulator(Driver) ->
-    Emu = list_to_atom(atom_to_list(Driver) ++ "_emu"),
-    {Emu, Emu:init()}.
+command(_State, Slot, Command) ->
+    grisp_device_emu:message(Slot, {spi, Command}).

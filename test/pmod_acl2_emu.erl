@@ -4,21 +4,21 @@
 
 % Callbacks
 -export([init/0]).
--export([command/2]).
+-export([message/2]).
 
 %--- Callbacks -----------------------------------------------------------------
 
 init() -> default().
 
-command(State, <<?WRITE_REGISTER, Reg, Value>>)
+message(State, {spi, <<?WRITE_REGISTER, Reg, Value>>})
   when Reg >= ?SOFT_RESET andalso Reg =< ?SELF_TEST ->
     NewState = set_bits(State, Reg*8, <<Value>>),
     {<<0, 0, 0>>, NewState};
-command(State, <<?READ_REGISTER, Reg, RespBytes/binary>>) ->
+message(State, {spi, <<?READ_REGISTER, Reg, RespBytes/binary>>}) ->
     NewState = shake(State),
     Result = get_bits(NewState, Reg*8, bit_size(RespBytes)),
     {<<0, 0, Result/binary>>, NewState};
-command(State, _Command) ->
+message(State, {spi, _Command}) ->
     {<<0, 0, 0>>, State}.
 
 %--- Internal ------------------------------------------------------------------
