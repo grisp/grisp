@@ -5,6 +5,7 @@
 % Callbacks
 -export([init/0]).
 -export([message/2]).
+-export([broadcast/2]).
 
 %--- Callbacks -----------------------------------------------------------------
 
@@ -20,6 +21,9 @@ message(State, {spi, <<?READ_REGISTER, Reg, RespBytes/binary>>}) ->
     {<<0, 0, Result/binary>>, NewState};
 message(State, {spi, _Command}) ->
     {<<0, 0, 0>>, State}.
+
+broadcast(State, _Message) ->
+    State.
 
 %--- Internal ------------------------------------------------------------------
 

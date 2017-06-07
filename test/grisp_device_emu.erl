@@ -5,6 +5,7 @@
 % API
 -export([start_link/0]).
 -export([message/2]).
+-export([broadcast/1]).
 
 % Callbacks
 -export([init/1]).
@@ -21,6 +22,9 @@ start_link() -> gen_server:start_link({local, ?MODULE}, ?MODULE, undefined, []).
 message(Slot, Message) ->
     gen_server:call(?MODULE, {message, Slot, Message}).
 
+broadcast(Message) ->
+    gen_server:call(?MODULE, {broadcast, Message}).
+
 %--- Callbacks -----------------------------------------------------------------
 
 init(undefined) ->
@@ -30,7 +34,13 @@ init(undefined) ->
 handle_call({message, Slot, Message}, _From, State) ->
     {Emu, EmuState} = proplists:get_value(Slot, State),
     {Data, NewEmuState} = Emu:message(EmuState, Message),
-    {reply, Data, lists:keyreplace(Slot, 1, State, {Slot, {Emu, NewEmuState}})}.
+    {reply, Data, lists:keyreplace(Slot, 1, State, {Slot, {Emu, NewEmuState}})};
+handle_call({broadcast, Message}, _From, State) ->
+    NewState = [
+        {Slot, {Emu, Emu:broadcast(EmuState, Message)}}
+        || {Slot, {Emu, EmuState}} <- State
+    ],
+    {reply, ok, NewState}.
 
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
 

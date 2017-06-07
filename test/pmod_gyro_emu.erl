@@ -5,6 +5,7 @@
 % Callbacks
 -export([init/0]).
 -export([message/2]).
+-export([broadcast/2]).
 
 %--- Callbacks -----------------------------------------------------------------
 
@@ -24,6 +25,9 @@ message(State, {spi, <<?RW_READ:1, ?MS_SAME:1, Reg:6, RespBytes/binary>>}) ->
 message(State, {spi, <<?RW_WRITE:1, ?MS_INCR:1, Reg:6, Value/binary>>}) ->
     NewState = set_bytes(State, Reg, Value),
     {<<0, 0, 0:(bit_size(Value))>>, NewState}.
+
+broadcast(State, _Message) ->
+    State.
 
 %--- Internal ------------------------------------------------------------------
 
