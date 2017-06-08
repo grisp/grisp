@@ -2,34 +2,34 @@
 
 % API
 -export([start/0]).
--export([forward/2]).
--export([backward/2]).
--export([turn/3]).
+-export([forward/1]).
+-export([backward/1]).
+-export([left/1]).
+-export([right/1]).
 
 %--- API -----------------------------------------------------------------------
 
 start() ->
     {ok, _} = application:ensure_all_started(grisp),
-    P = grisp_gpio_drv:open(),
-    commands(P, [{left, config}, {right, config}], 0),
-    P.
+    commands([{left, config}, {right, config}], 0).
 
-forward(P, Time) -> commands(P, [{left, forward}, {right, forward}], Time).
+forward(Time) -> commands([{left, forward}, {right, forward}], Time).
 
-backward(P, Time) -> commands(P, [{left, backward}, {right, backward}], Time).
+backward(Time) -> commands([{left, backward}, {right, backward}], Time).
 
-turn(P, Time, left)  -> commands(P, [{left, backward}, {right, forward}], Time);
-turn(P, Time, right) -> commands(P, [{left, forward}, {right, backward}], Time).
+left(Time) -> commands([{left, backward}, {right, forward}], Time).
+
+right(Time) -> commands([{left, forward}, {right, backward}], Time).
 
 %--- Internal ------------------------------------------------------------------
 
-commands(P, Commands, Time) ->
-    [command(P, Side, Command) || {Side, Command} <- Commands],
+commands(Commands, Time) ->
+    [command(Side, Command) || {Side, Command} <- Commands],
     timer:sleep(Time),
-    [command(P, Side, stop) || {Side, _} <- Commands].
+    [command(Side, stop) || {Side, _} <- Commands].
 
-command(P, right, Command) -> grisp_hb5:Command(P, gpio2);
+command(right, Command) -> grisp_hb5:Command(gpio2);
 % Left motor is mounted backwards, revers directions:
-command(P, left, forward) -> grisp_hb5:backward(P, gpio1);
-command(P, left, backward) -> grisp_hb5:forward(P, gpio1);
-command(P, left, Command) -> grisp_hb5:Command(P, gpio1).
+command(left, forward) -> grisp_hb5:backward(gpio1);
+command(left, backward) -> grisp_hb5:forward(gpio1);
+command(left, Command) -> grisp_hb5:Command(gpio1).
