@@ -13,14 +13,18 @@
 -export([code_change/3]).
 -export([terminate/2]).
 
+-include("pmod_gyro.hrl").
+
 %--- API -----------------------------------------------------------------------
 
-start_link(Port) ->
-    gen_server:start_link(?MODULE, Port, []).
+start_link(Slot) ->
+    gen_server:start_link(?MODULE, Slot, []).
 
 %--- Callbacks -----------------------------------------------------------------
 
-init(Port) -> {ok, Port}.
+init(Slot) ->
+    verify_device(Slot),
+    {ok, Slot}.
 
 handle_call(Request, From, _State) -> error({unknown_request, Request, From}).
 
@@ -31,3 +35,11 @@ handle_info(Info, _State) -> error({unknown_info, Info}).
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 terminate(_Reason, _State) -> ok.
+
+%--- Internal ------------------------------------------------------------------
+
+verify_device(Slot) ->
+    case grisp_spi:send_recv(Slot, <<?RW_READ:1, ?MS_SAME:1, ?WHO_AM_I:6>>, 1, 1) of
+        <<?DEVID>> -> ok;
+        Other      -> error({device_mismatch, {who_am_i, Other}})
+    end.

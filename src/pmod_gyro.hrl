@@ -8,12 +8,15 @@
 
 %--- Registers -----------------------------------------------------------------
 
--define(WHOAMI,           16#0F).
+-define(WHO_AM_I,         16#0F).
 -define(CTRL_REG1,        16#20).
 -define(OUT_TEMP,         16#26).
 -define(OUT_X_L,          16#28).
 
 %--- Bit Descriptions ----------------------------------------------------------
+
+% WHO_AM_I
+-define(DEVID,            2#11010011).
 
 % CTRL_REG1
 -define(PD_POWER_DOWN,    2#0).

@@ -6,6 +6,10 @@
 
 %--- Registers -----------------------------------------------------------------
 
+-define(DEVID_AD,         16#00).
+-define(DEVID_MST,        16#01).
+-define(PARTID,           16#02).
+
 -define(XDATA,            16#08).
 -define(YDATA,            16#09).
 -define(ZDATA,            16#0A).
@@ -26,3 +30,12 @@
 % POWER_CTL
 -define(STANDBY,          2#00).
 -define(MEASUREMENT_MODE, 2#10).
+
+% DEVID_AD
+-define(AD_DEVID,         16#AD).
+
+% DEVID_MST
+-define(AD_MEMS_DEVID,    16#1D).
+
+% PARTID
+-define(DEVID,            16#F2).

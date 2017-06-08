@@ -40,6 +40,7 @@ g() ->
 %--- Callbacks -----------------------------------------------------------------
 
 init(Slot) ->
+    verify_device(Slot),
     Req = <<?WRITE_REGISTER, ?POWER_CTL, 0:6, ?MEASUREMENT_MODE:2>>,
     grisp_spi:send_recv(Slot, Req),
     {ok, #state{slot = Slot}}.
@@ -77,3 +78,16 @@ xyz(Slot) ->
     {X, Y, Z}.
 
 scale('2g', {X, Y, Z}) -> {X / 1000, Y / 1000, Z / 1000}.
+
+verify_device(Slot) ->
+    [verify_device_reg(Slot, Msg, Reg, Val) || {Msg, Reg, Val} <- [
+        {analog_devices_device_id,      ?DEVID_AD,  ?AD_DEVID},
+        {analog_devices_mems_device_id, ?DEVID_MST, ?AD_MEMS_DEVID},
+        {device_id,                     ?PARTID,    ?DEVID}
+    ]].
+
+verify_device_reg(Slot, Message, Reg, Val) ->
+    case grisp_spi:send_recv(Slot, <<?READ_REGISTER, Reg>>, 2, 1) of
+        <<Val>> -> ok;
+        Other   -> error({device_mismatch, {Message, Other}})
+    end.

@@ -14,17 +14,17 @@ init() -> default().
 message(State, {spi, <<?RW_READ:1, ?MS_INCR:1, Reg:6, RespBytes/binary>>}) ->
     NewState = rotate(State),
     Result = get_bytes(NewState, Reg, byte_size(RespBytes)),
-    {<<0, 0, Result/binary>>, NewState};
+    {<<0, Result/binary>>, NewState};
 message(State, {spi, <<?RW_READ:1, ?MS_SAME:1, Reg:6, RespBytes/binary>>}) ->
     {Result, NewState} = lists:foldl(fun(_, {R, S}) ->
         NewS = rotate(S),
         IR = get_bytes(NewS, Reg, 1),
         {<<R/binary, IR/binary>>, NewS}
     end, {<<>>, State}, lists:seq(1, byte_size(RespBytes))),
-    {<<0, 0, Result/binary>>, NewState};
+    {<<0, Result/binary>>, NewState};
 message(State, {spi, <<?RW_WRITE:1, ?MS_INCR:1, Reg:6, Value/binary>>}) ->
     NewState = set_bytes(State, Reg, Value),
-    {<<0, 0, 0:(bit_size(Value))>>, NewState}.
+    {<<0, 0:(bit_size(Value))>>, NewState}.
 
 broadcast(State, _Message) ->
     State.
