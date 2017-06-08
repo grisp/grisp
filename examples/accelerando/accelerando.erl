@@ -14,11 +14,10 @@ run() ->
 %--- Internal ------------------------------------------------------------------
 
 process() ->
-    {X, Y, Z} = G = pmod_acl2:g(),
+    {X, Y, Z} = pmod_acl2:g(),
     Color = {color(X), color(Y), color(Z)},
-    io:format("~p -> ~p~n", [G, Color]),
     grisp_led:color(1, Color),
-    timer:sleep(100),
+    timer:sleep(10),
     process().
 
 color(Val) -> trunc((abs(Val) / 2.0) + 0.8) rem 2.
