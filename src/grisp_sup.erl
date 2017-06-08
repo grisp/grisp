@@ -16,10 +16,11 @@ start_link() ->
 %--- Callbacks -----------------------------------------------------------------
 
 init([]) ->
-    SPIDriver = proplists:get_value(spi, application:get_env(grisp, drivers, []), grisp_spi_drv),
-    GPIODriver = proplists:get_value(gpio, application:get_env(grisp, drivers, []), grisp_gpio_drv),
-    LEDDriver = proplists:get_value(led, application:get_env(grisp, drivers, []), grisp_led_drv),
-    {ok, {{one_for_one, 0, 1}, [
+    Drivers = application:get_env(grisp, drivers, []),
+    SPIDriver = proplists:get_value(spi, Drivers, grisp_spi_drv),
+    GPIODriver = proplists:get_value(gpio, Drivers, grisp_gpio_drv),
+    LEDDriver = proplists:get_value(led, Drivers, grisp_led_drv),
+    {ok, {{one_for_one, 1, 5}, [
         % FIXME: Erlang 19+: #{id => spi, start => {grisp_spi, start_link, []}},
         {spi, {grisp_spi, start_link, [SPIDriver]}, permanent, infinity, worker, [grisp_spi, grisp_spi_drv]},
         % FIXME: Erlang 19+: #{id => gpio, start => {grisp_gpio, start_link, []}},
