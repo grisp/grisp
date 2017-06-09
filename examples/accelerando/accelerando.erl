@@ -17,6 +17,7 @@ process() ->
     {X, Y, Z} = pmod_acl2:g(),
     Color = {color(X), color(Y), color(Z)},
     grisp_led:color(1, Color),
+    grisp_led:color(2, Color),
     timer:sleep(10),
     process().
 
