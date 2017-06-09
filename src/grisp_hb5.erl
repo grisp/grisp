@@ -23,7 +23,7 @@ backward(Slot) ->
     direction(Slot, backward),
     start(Slot).
 
-direction(gpio1, forward) -> grisp_gpio:clear(gpio1_1);
+direction(gpio1, forward)  -> grisp_gpio:clear(gpio1_1);
 direction(gpio1, backward) -> grisp_gpio:set(gpio1_1);
-direction(gpio2, forward) -> grisp_gpio:clear(gpio2_1);
+direction(gpio2, forward)  -> grisp_gpio:clear(gpio2_1);
 direction(gpio2, backward) -> grisp_gpio:set(gpio2_1).
