@@ -38,20 +38,18 @@ configure_slot(gpio1, {T1, T2, T3, T4}) ->
     configure(gpio1_1, T1),
     configure(gpio1_2, T2),
     configure(gpio1_3, T3),
-    configure(gpio1_4, T4);
+    configure(gpio1_4, T4),
+    ok;
 configure_slot(gpio2, {T1, T2, T3, T4}) ->
     configure(gpio2_1, T1),
     configure(gpio2_2, T2),
     configure(gpio2_3, T3),
-    configure(gpio2_4, T4);
-configure_slot(spi1, disable_cs) ->
-    configure(ss1, output_1);
-configure_slot(spi1, enable_cs) ->
-    configure(ss1, periph_c);
-configure_slot(spi2, disable_cs) ->
-    configure(ss2, output_1);
-configure_slot(spi2, enable_cs) ->
-    configure(ss2, periph_c).
+    configure(gpio2_4, T4),
+    ok;
+configure_slot(spi1, disable_cs) -> configure(ss1, output_1);
+configure_slot(spi1, enable_cs)  -> configure(ss1, periph_c);
+configure_slot(spi2, disable_cs) -> configure(ss2, output_1);
+configure_slot(spi2, enable_cs)  -> configure(ss2, periph_c).
 
 get(Pin) -> gen_server:call(?MODULE, {command, <<(index(Pin)):8, 2:8>>}).
 
@@ -68,8 +66,8 @@ init(DriverMod) ->
 
 handle_call({command, Command}, _From, State) ->
     {DriverMod, Ref} = State#state.driver,
-    DriverMod:command(Ref, Command),
-    {reply, ok, State}.
+    Result = DriverMod:command(Ref, Command),
+    {reply, bool(Result), State}.
 
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
@@ -116,3 +114,7 @@ map_type(output_0) -> 5; % default value 0
 map_type(output_1) -> 6. % default value 1
 
 map_attr([default]) -> 0.
+
+bool(<<0>>) -> false;
+bool(<<1>>) -> true;
+bool(Val)   -> Val.
