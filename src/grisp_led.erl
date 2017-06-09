@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 % API
--export([start_link/1]).
+-export([start_link/0]).
 -export([color/2]).
 -export([off/1]).
 -export([flash/3]).
@@ -27,8 +27,8 @@
 
 %--- API -----------------------------------------------------------------------
 
-start_link(DriverMod) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, DriverMod, []).
+start_link() ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, undefined, []).
 
 color(Pos, Color) -> pattern(Pos, [{infinity, Color}]).
 
@@ -41,9 +41,8 @@ pattern(Pos, Pattern) -> gen_server:cast(?MODULE, {pattern, Pos, Pattern}).
 
 %--- Callbacks -----------------------------------------------------------------
 
-init(DriverMod) ->
-    Ref = DriverMod:open(),
-    {ok, #state{driver = {DriverMod, Ref}, leds = [
+init(undefined) ->
+    {ok, #state{leds = [
         {1, {[{infinity, black}], undefined}},
         {2, {[{infinity, black}], undefined}}
     ]}}.
@@ -51,14 +50,14 @@ init(DriverMod) ->
 handle_call(Request, From, _State) -> error({unknown_call, Request, From}).
 
 handle_cast({pattern, Pos, NewPattern}, State) ->
-    NewState = update_led(Pos, State, fun(Driver, {_OldPattern, Timer}) ->
-        tick_pattern(Driver, Pos, {NewPattern, Timer})
+    NewState = update_led(Pos, State, fun({_OldPattern, Timer}) ->
+        tick_pattern(Pos, {NewPattern, Timer})
     end),
     {noreply, NewState}.
 
 handle_info({tick, Pos}, State) ->
-    NewState = update_led(Pos, State, fun(Driver, Led) ->
-        tick_pattern(Driver, Pos, Led)
+    NewState = update_led(Pos, State, fun(Led) ->
+        tick_pattern(Pos, Led)
     end),
     {noreply, NewState}.
 
@@ -68,29 +67,41 @@ terminate(_Reason, _State) -> ok.
 
 %--- Internal ------------------------------------------------------------------
 
-update_led(Pos, #state{driver = Driver, leds = Leds} = State, Fun) ->
-    State#state{leds = mod(Pos, Driver, Fun, Leds)}.
+update_led(Pos, #state{leds = Leds} = State, Fun) ->
+    State#state{leds = mod(Pos, Fun, Leds)}.
 
-mod(Pos, Driver, Fun, [{Pos, Led}|Rest]) -> [{Pos, Fun(Driver, Led)}|Rest];
-mod(Pos, Driver, Fun, [Led|Rest])        -> [Led|mod(Pos, Driver, Fun, Rest)];
-mod(Pos, _Driver, _Fun, [])              -> error({led_not_found, Pos}).
+mod(Pos, Fun, [{Pos, Led}|Rest]) -> [{Pos, Fun(Led)}|Rest];
+mod(Pos, Fun, [Led|Rest])        -> [Led|mod(Pos, Fun, Rest)];
+mod(Pos, _Fun, [])               -> error({led_not_found, Pos}).
 
-tick_pattern(Driver, Pos, {[{infinity, Color} = Pattern|_Rest], Timer}) ->
+tick_pattern(Pos, {[{infinity, Color} = Pattern|_Rest], Timer}) ->
     cancel_timer(Timer),
-    write_color(Driver, Pos, Color),
+    write_color(Pos, Color),
     {[Pattern], undefined};
-tick_pattern(Driver, Pos, {[{Time, Color} = Step|Rest], Timer}) ->
+tick_pattern(Pos, {[{Time, Color} = Step|Rest], Timer}) ->
     cancel_timer(Timer),
-    write_color(Driver, Pos, Color),
+    write_color(Pos, Color),
     NewTimer = erlang:send_after(Time, self(), {tick, Pos}),
     {Rest ++ [Step], NewTimer}.
 
 cancel_timer(undefined) -> ok;
 cancel_timer(Timer)     -> erlang:cancel_timer(Timer).
 
-write_color({DriverMod, Ref}, Pos, Color) ->
+write_color(Pos, Color) ->
     {R, G, B} = translate(Color),
-    DriverMod:command(Ref, Pos, <<R:8, G:8, B:8>>).
+    write_component(Pos, red, action(R)),
+    write_component(Pos, green, action(G)),
+    write_component(Pos, blue, action(B)).
+
+action(0) -> clear;
+action(1) -> set.
+
+write_component(1, red, Action)   -> grisp_gpio:Action(led1_r);
+write_component(1, green, Action) -> grisp_gpio:Action(led1_g);
+write_component(1, blue, Action)  -> grisp_gpio:Action(led1_b);
+write_component(2, red, Action)   -> grisp_gpio:Action(led2_r);
+write_component(2, green, Action) -> grisp_gpio:Action(led2_g);
+write_component(2, blue, Action)  -> grisp_gpio:Action(led2_b).
 
 translate(Fun) when is_function(Fun) -> to_rgb(Fun());
 translate(Value)                     -> to_rgb(Value).
