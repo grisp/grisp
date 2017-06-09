@@ -9,9 +9,7 @@
 
 %--- API -----------------------------------------------------------------------
 
-start() ->
-    {ok, _} = application:ensure_all_started(grisp),
-    commands([{left, config}, {right, config}], 0).
+start() -> commands([{left, config}, {right, config}], 0).
 
 forward(Time) -> commands([{left, forward}, {right, forward}], Time).
 
