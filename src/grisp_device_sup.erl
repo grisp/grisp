@@ -15,18 +15,10 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 start_child(Slot, Driver) ->
-    Child = {
-        Slot,
-        {Driver, start_link, [Slot]},
-        permanent,
-        1000,
-        worker,
-        [Driver]
-    },
+    Child = #{id => Slot, start => {Driver, start_link, [Slot]}},
     {ok, Pid} = supervisor:start_child(?MODULE, Child),
     Pid.
 
 %--- Callbacks -----------------------------------------------------------------
 
-init([]) ->
-    {ok, {{one_for_one, 1, 5}, []}}.
+init([]) -> {ok, {#{strategy => one_for_one}, []}}.
