@@ -27,7 +27,8 @@ init([]) ->
         worker(grisp_gpio_events, gen_event, [{local, grisp_gpio_events}]),
         worker(grisp_gpio_poller, []),
         worker(grisp_led, []),
-        supervisor(grisp_devices_sup, [])
+        supervisor(grisp_devices_sup, []),
+        worker(grisp_devices, [])
     ],
     {ok, {SupFlags, Children}}.
 

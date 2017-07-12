@@ -1,14 +1,26 @@
 -module(grisp_devices).
 
+-behavior(gen_server).
+
 -include("grisp.hrl").
 
 % API
+-export([start_link/0]).
 -export([slot/1]).
 -export([default/1]).
--export([setup/1]).
--export([teardown/1]).
+
+% Callbacks
+-export([init/1]).
+-export([handle_call/3]).
+-export([handle_cast/2]).
+-export([handle_info/2]).
+-export([code_change/3]).
+-export([terminate/2]).
+
 
 %--- API -----------------------------------------------------------------------
+
+start_link() -> gen_server:start_link({local, ?MODULE}, ?MODULE, undefined, []).
 
 slot(Slot) ->
     case ets:lookup(?MODULE, Slot) of
@@ -22,7 +34,10 @@ default(Driver) ->
         {[Device], _} -> Device
     end.
 
-setup(Configuration) ->
+%--- Callbacks -----------------------------------------------------------------
+
+init(undefined) ->
+    Devices = application:get_env(grisp, devices, []),
     ets:new(?MODULE, [
         named_table,
         ordered_set,
@@ -31,11 +46,19 @@ setup(Configuration) ->
     ]),
 
     % TODO: Validate ports
-    [init_device(Slot, Driver) || {Slot, Driver} <- Configuration],
-    [grisp_devices].
+    [init_device(Slot, Driver) || {Slot, Driver} <- Devices],
+    {ok, undefined}.
 
-teardown(Tables) ->
-    [ets:delete(T) || T <- Tables].
+handle_call(Request, From, _State) -> error({unknown_request, Request, From}).
+
+handle_cast(Request, _State) -> error({unknown_cast, Request}).
+
+handle_info(Info, _State) -> error({unknown_info, Info}).
+
+code_change(_OldVsn, State, _Extra) -> {ok, State}.
+
+terminate(_Reason, _State) ->
+    ets:delete(?MODULE).
 
 %--- Internal ------------------------------------------------------------------
 
