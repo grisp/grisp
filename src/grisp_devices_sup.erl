@@ -2,9 +2,12 @@
 
 -behaviour(supervisor).
 
+-include("grisp.hrl").
+
 % API
 -export([start_link/0]).
 -export([start_child/2]).
+-export([terminate_child/1]).
 
 % Callbacks
 -export([init/1]).
@@ -18,6 +21,10 @@ start_child(Slot, Driver) ->
     Child = #{id => Slot, start => {Driver, start_link, [Slot]}},
     {ok, Pid} = supervisor:start_child(?MODULE, Child),
     Pid.
+
+terminate_child(Device) ->
+    ok = supervisor:terminate_child(?MODULE, Device#device.slot),
+    ok = supervisor:delete_child(?MODULE, Device#device.slot).
 
 %--- Callbacks -----------------------------------------------------------------
 

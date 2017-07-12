@@ -7,6 +7,9 @@
 % API
 -export([start_link/0]).
 -export([setup/0]).
+-export([add_device/2]).
+-export([remove_device/1]).
+-export([list/0]).
 -export([slot/1]).
 -export([default/1]).
 -export([register/2]).
@@ -26,8 +29,17 @@ start_link() -> gen_server:start_link({local, ?MODULE}, ?MODULE, undefined, []).
 setup() ->
     Devices = application:get_env(grisp, devices, []),
     % TODO: Validate ports
-    [grisp_devices_sup:start_child(Slot, Driver) || {Slot, Driver} <- Devices],
+    [add_device(Slot, Driver) || {Slot, Driver} <- Devices],
     ok.
+
+add_device(Slot, Driver) ->
+    grisp_devices_sup:start_child(Slot, Driver).
+
+remove_device(Device) ->
+    grisp_devices_sup:terminate_child(Device).
+
+list() ->
+    ets:tab2list(?MODULE).
 
 slot(Slot) ->
     case ets:lookup(?MODULE, Slot) of
@@ -37,8 +49,8 @@ slot(Slot) ->
 
 default(Driver) ->
     case ets:match_object(?MODULE, #device{driver = Driver, _ = '_'}, 1) of
-        {[], _}       -> error({no_device_present, Driver});
-        {[Device], _} -> Device
+        {[Device], _} -> Device;
+        _             -> error({no_device_present, Driver})
     end.
 
 register(Slot, Driver) ->
