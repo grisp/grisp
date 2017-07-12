@@ -2,6 +2,8 @@
 
 -behaviour(gen_server).
 
+-include("pmod_gyro.hrl").
+
 % API
 -export([start_link/1]).
 
@@ -12,8 +14,6 @@
 -export([handle_info/2]).
 -export([code_change/3]).
 -export([terminate/2]).
-
--include("pmod_gyro.hrl").
 
 %--- API -----------------------------------------------------------------------
 

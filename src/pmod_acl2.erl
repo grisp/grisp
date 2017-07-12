@@ -2,6 +2,9 @@
 
 -behaviour(gen_server).
 
+-include("grisp.hrl").
+-include("pmod_acl2.hrl").
+
 % API
 -export([start_link/1]).
 -export([raw/0]).
@@ -14,9 +17,6 @@
 -export([handle_info/2]).
 -export([code_change/3]).
 -export([terminate/2]).
-
--include("grisp.hrl").
--include("pmod_acl2.hrl").
 
 %--- Records -------------------------------------------------------------------
 
