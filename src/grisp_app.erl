@@ -13,8 +13,8 @@
 start(_Type, _Args) ->
     Devices = application:get_env(grisp, devices, []),
     {ok, Sup} = grisp_sup:start_link(),
-    DeviceState = grisp_device:setup(Devices),
+    DeviceState = grisp_devices:setup(Devices),
     {ok, Sup, DeviceState}.
 
 stop(DeviceState) ->
-    grisp_device:teardown(DeviceState).
+    grisp_devices:teardown(DeviceState).

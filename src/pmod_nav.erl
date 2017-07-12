@@ -59,7 +59,7 @@ terminate(_Reason, _State) -> ok.
 %--- Internal ------------------------------------------------------------------
 
 call(Call) ->
-    Dev = grisp_device:default(?MODULE),
+    Dev = grisp_devices:default(?MODULE),
     gen_server:call(Dev#device.instance, Call).
 
 xyz(Slot) ->

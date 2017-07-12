@@ -1,4 +1,4 @@
--module(grisp_device).
+-module(grisp_devices).
 
 -include("grisp.hrl").
 
@@ -40,6 +40,6 @@ teardown(Tables) ->
 %--- Internal ------------------------------------------------------------------
 
 init_device(Slot, Driver) ->
-    Pid = grisp_device_sup:start_child(Slot, Driver),
+    Pid = grisp_devices_sup:start_child(Slot, Driver),
     Device = #device{slot = Slot, driver = Driver, instance = Pid},
     ets:insert(?MODULE, Device).

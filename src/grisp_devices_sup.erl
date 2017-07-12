@@ -1,4 +1,4 @@
--module(grisp_device_sup).
+-module(grisp_devices_sup).
 
 -behaviour(supervisor).
 
