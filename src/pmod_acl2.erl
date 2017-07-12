@@ -62,7 +62,7 @@ terminate(_Reason, _State) -> ok.
 
 call(Call) ->
     Dev = grisp_devices:default(?MODULE),
-    gen_server:call(Dev#device.instance, Call).
+    gen_server:call(Dev#device.pid, Call).
 
 xyz(Slot) ->
     <<

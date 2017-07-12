@@ -1,6 +1,6 @@
 -record(device, {
     slot,
     driver,
-    instance,
+    pid,
     monitor
 }).

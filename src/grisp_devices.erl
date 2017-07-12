@@ -63,7 +63,7 @@ handle_call({register, Slot, Driver, Pid}, _From, State) ->
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
 handle_info({'DOWN', Ref, process, Pid, _Reason}, State) ->
-    ets:match_delete(?MODULE, #device{instance = Pid, monitor = Ref, _ = '_'}),
+    ets:match_delete(?MODULE, #device{pid = Pid, monitor = Ref, _ = '_'}),
     {noreply, State};
 handle_info(Info, _State) ->
     error({unknown_info, Info}).
@@ -77,5 +77,5 @@ terminate(_Reason, _State) ->
 
 register_device(Slot, Driver, Pid) ->
     Ref = erlang:monitor(process, Pid),
-    Device = #device{slot = Slot, driver = Driver, instance = Pid, monitor = Ref},
+    Device = #device{slot = Slot, driver = Driver, pid = Pid, monitor = Ref},
     ets:insert_new(?MODULE, Device).
