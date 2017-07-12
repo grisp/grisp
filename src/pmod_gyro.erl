@@ -24,6 +24,7 @@ start_link(Slot) ->
 
 init(Slot) ->
     verify_device(Slot),
+    grisp_devices:register(Slot, ?MODULE),
     {ok, Slot}.
 
 handle_call(Request, From, _State) -> error({unknown_request, Request, From}).

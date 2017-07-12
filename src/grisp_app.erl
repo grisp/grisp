@@ -8,6 +8,9 @@
 
 %--- API -----------------------------------------------------------------------
 
-start(_Type, _Args) -> grisp_sup:start_link().
+start(_Type, _Args) ->
+    {ok, Pid} = grisp_sup:start_link(),
+    grisp_devices:setup(),
+    {ok, Pid}.
 
 stop(_State) -> ok.
