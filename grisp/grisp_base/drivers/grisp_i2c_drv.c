@@ -66,6 +66,11 @@ static struct grisp_i2c_data grisp_i2c_data = { NULL, 0, -1 };
 
 int grisp_i2c_init (void)
 {
+  int rv;
+
+  rv = atsam_register_i2c_0();
+  assert(rv == 0);
+
   return 0;
 }
 
@@ -113,12 +118,12 @@ void grisp_i2c_output (ErlDrvData drv_data, char *buf, ErlDrvSizeT len)
     grisp_i2c_data.cnt++;
 
     data_len = ubig16(buf);
-    write_buf += 2;
+    write_buf = buf + 2;
     q = write_buf + data_len;
     msg_count = ubig16(q);
     q += 2;
     assert (msg_count <= MSGS_MAX_COUNT);
-    assert (msg_count * 8 == len - (q - (uint8_t)buf));
+    assert (msg_count * 8 == len - (q - (uint8_t *)buf));
     p = res;
     for (i = 0; i < msg_count; i++)
       {
@@ -152,4 +157,3 @@ void grisp_i2c_output (ErlDrvData drv_data, char *buf, ErlDrvSizeT len)
 
     driver_output(grisp_i2c_data.port, (char *)res, p - res);
 }
-
