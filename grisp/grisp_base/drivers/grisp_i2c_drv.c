@@ -118,6 +118,7 @@ void grisp_i2c_output (ErlDrvData drv_data, char *buf, ErlDrvSizeT len)
     msg_count = ubig16(q);
     q += 2;
     assert (msg_count <= MSGS_MAX_COUNT);
+    assert (msg_count * 8 == len - (q - (uint8_t)buf));
     p = res;
     for (i = 0; i < msg_count; i++)
       {
