@@ -6,13 +6,12 @@
 
 %--- Macros --------------------------------------------------------------------
 
--define(PORT_COMMAND_TIMEOUT, 1000).
+-define(PORT_COMMAND_TIMEOUT, 2000).
 
 %--- API -----------------------------------------------------------------------
 
 open() -> open_port({spawn_driver, "grisp_i2c_drv"}, [binary]).
 
-% FIXME: Placeholder API
 command(Port, Command) ->
     Port ! {self(), {command, <<Command/binary>>}},
     receive

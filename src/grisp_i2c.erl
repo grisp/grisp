@@ -2,9 +2,11 @@
 
 -behavior(gen_server).
 
+-include("grisp_i2c.hrl").
+
 % API
 -export([start_link/1]).
--export([do_stuff/1]).
+-export([msgs/1]).
 
 % Callbacks
 -export([init/1]).
@@ -23,9 +25,9 @@
 start_link(DriverMod) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, DriverMod, []).
 
-% FIXME: Placeholder API
-do_stuff(Things) ->
-    gen_server:call(?MODULE, {do_stuff, Things}).
+msgs(Msgs) ->
+    Enc_msgs = encode_msgs(Msgs),
+    gen_server:call(?MODULE, {msgs, Enc_msgs}).
 
 %--- Callbacks -----------------------------------------------------------------
 
@@ -33,9 +35,9 @@ init(DriverMod) ->
     Ref = DriverMod:open(),
     {ok, #state{driver = {DriverMod, Ref}}}.
 
-handle_call({do_stuff, Things}, _From, State) ->
+handle_call({msgs, Enc_msgs}, _From, State) ->
     {DriverMod, Ref} = State#state.driver,
-    Resp = DriverMod:command(Ref, Things),
+    Resp = DriverMod:command(Ref, Enc_msgs),
     {reply, Resp, State}.
 
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
@@ -45,3 +47,23 @@ handle_info(Info, _State) -> error({unknown_info, Info}).
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 terminate(_Reason, _State) -> ok.
+
+encode_msgs(Msgs) ->
+    encode_msgs(Msgs, undefined, <<>>, <<>>).
+
+encode_msgs([Adr|Rest], _, W, M) when is_integer(Adr) ->
+    encode_msgs(Rest, Adr, W, M);
+encode_msgs([{Cmd, Data}|Rest], Adr, W, M) ->
+    encode_msgs([{Cmd, Data, 0}|Rest], Adr, W, M);
+encode_msgs([{write, Data, Flags}|Rest], Adr, W, M) ->
+    Offset = byte_size(W),
+    Len = byte_size(Data),
+    encode_msgs(Rest, Adr, <<W/binary, Data/binary>>,
+		<<M/binary, Adr:16, Flags:16, Len:16, Offset:16>>);
+encode_msgs([{read, Len, Flags}|Rest], Adr, W, M) when is_integer(Len) ->
+    F = Flags bor ?I2C_M_RD,
+    encode_msgs(Rest, Adr, W, <<M/binary, Adr:16, F:16, Len:16, 0:16>>);
+encode_msgs([], _Adr, W, M) when byte_size(M) rem 8 =:= 0 ->
+    Data_len = byte_size(W),
+    Msg_count = byte_size(M) div 8,
+    <<Data_len:16, W/binary, Msg_count:16, M/binary>>.
