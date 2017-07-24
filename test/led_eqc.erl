@@ -23,14 +23,14 @@
 %% -- Generators -------------------------------------------------------------
 
 color() ->
-  oneof([ {black,   {0, 0, 0}},
-          {blue,    {0, 0, 1}},
-          {green,   {0, 1, 0}},
-          {aqua,    {0, 1, 1}},
-          {red,     {1, 0, 0}},
-          {magenta, {1, 0, 1}},
-          {yellow,  {1, 1, 0}},
-          {white,   {1, 1, 1}}]).
+  elements([ {black,   {0, 0, 0}},
+             {blue,    {0, 0, 1}},
+             {green,   {0, 1, 0}},
+             {red,     {1, 0, 0}},
+             {aqua,    {0, 1, 1}},
+             {magenta, {1, 0, 1}},
+             {yellow,  {1, 1, 0}},
+             {white,   {1, 1, 1}}]).
 
 %% -- State ------------------------------------------------------------------
 initial_state() ->
@@ -41,30 +41,28 @@ postcondition_common(S, Call, Res) ->
 
 %% -- Operations -------------------------------------------------------------
 
-%% --- Operation: grisp_led ---
-grisp_led_args(_S) ->
+%% --- Operation: led_color ---
+led_color_args(_S) ->
   [choose(1, ?NR_LEDS), color(), elements([by_value, by_name])].
 
-grisp_led(Nr, {Name, _RGB}, by_name) ->
+led_color(Nr, {Name, _RGB}, by_name) ->
   grisp_led:color(Nr, Name),
   timer:sleep(10);
-grisp_led(Nr, {_Name, RGB}, by_value) ->
+led_color(Nr, {_Name, RGB}, by_value) ->
   grisp_led:color(Nr, RGB),
   timer:sleep(10).
 
-grisp_led_callouts(_S, [Nr, {_, {R, G, B}}, _]) ->
+led_color_callouts(_S, [Nr, {_, {R, G, B}}, _]) ->
   ?PAR([
-        ?CALLOUT(grisp_gpio_drv_emu, led, [Nr, red, onoff(R)], ok),
+        ?CALLOUT(grisp_gpio_drv_emu, led, [Nr, red,   onoff(R)], ok),
         ?CALLOUT(grisp_gpio_drv_emu, led, [Nr, green, onoff(G)], ok),
-        ?CALLOUT(grisp_gpio_drv_emu, led, [Nr, blue, onoff(B)], ok)]),
+        ?CALLOUT(grisp_gpio_drv_emu, led, [Nr, blue,  onoff(B)], ok)]),
+  ?RET(ok).
   ?RET(ok).
 
 
 onoff(1) -> on;
 onoff(0) -> off.
-  
-%% borrowed code, ugly!
-
 
 
 %% -- Property ---------------------------------------------------------------
@@ -83,6 +81,7 @@ prop_led() ->
                  eqc_cover:write_html(eqc_cover:stop(), [{out_dir, "cover"}])
              end %% Teardown function
          end,
+  eqc:dont_print_counterexample(
   ?FORALL(Cmds, commands(?MODULE),
   begin
     {H, S, Res} = run_commands(Cmds),
@@ -90,7 +89,7 @@ prop_led() ->
                         measure(length, commands_length(Cmds),
                                 pretty_commands(?MODULE, Cmds, {H, S, Res},
                                                 Res == ok)))
-  end)).
+  end))).
 
 %% -- API-spec ---------------------------------------------------------------
 api_spec() -> 
