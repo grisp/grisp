@@ -58,8 +58,21 @@ led_color_callouts(_S, [Nr, {_, {R, G, B}}, _]) ->
         ?CALLOUT(grisp_gpio_drv_emu, led, [Nr, green, onoff(G)], ok),
         ?CALLOUT(grisp_gpio_drv_emu, led, [Nr, blue,  onoff(B)], ok)]),
   ?RET(ok).
-  ?RET(ok).
 
+%% --- Operation: off ---
+led_off_args(_S) ->
+  [choose(1, ?NR_LEDS)].
+
+led_off(Nr) ->
+  grisp_led:off(Nr),
+  timer:sleep(10).
+
+led_off_callouts(_S, [Nr]) ->
+  ?PAR([
+        ?CALLOUT(grisp_gpio_drv_emu, led, [Nr, red,   off], ok),
+        ?CALLOUT(grisp_gpio_drv_emu, led, [Nr, green, off], ok),
+        ?CALLOUT(grisp_gpio_drv_emu, led, [Nr, blue,  off], ok)]),
+  ?RET(ok).
 
 onoff(1) -> on;
 onoff(0) -> off.
@@ -72,9 +85,7 @@ weight(_S, _Cmd) -> 1.
 prop_led() ->
   ?SETUP(fun() ->
              %% setup mocking here
-             application:stop(grisp),
              eqc_cover:start(),
-             ok = application:start(grisp),
              eqc_mocking:start_mocking(api_spec()),
              fun() -> 
                  eqc_mocking:stop_mocking(),
@@ -84,6 +95,10 @@ prop_led() ->
   eqc:dont_print_counterexample(
   ?FORALL(Cmds, commands(?MODULE),
   begin
+    application:stop(grisp),
+    timer:sleep(5),
+    ok = application:start(grisp),
+    timer:sleep(10),  
     {H, S, Res} = run_commands(Cmds),
     check_command_names(Cmds,
                         measure(length, commands_length(Cmds),

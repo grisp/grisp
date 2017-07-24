@@ -1,13 +1,12 @@
 %%% @author Thomas Arts 
 %%% @copyright (C) 2017, Thomas Arts
 %%% @doc A specific component that should be clustered using with_crashes_eqc.erl
-%%%      with a general component specification that has a supervisor structure
-%%%      to restart processes.
+%%%      with led_eqc.erl. It performs fault injections in the gpio driver.
 %%%
 %%%      We test that any N crashes in T seconds can be tolerated.
 %%%
 %%% @end
-%%% Created : 23 Jul 2017 by Thomas Arts
+%%% Created : 24 Jul 2017 by Thomas Arts
 
 -module(let_it_crash_eqc).
 
@@ -17,6 +16,9 @@
 -compile(export_all).
 
 -define(IFF(X,Y), (not(X) orelse Y) andalso (not(Y) orelse X)).
+
+%% How many milliseconds precision in "N crashes in T seconds"?
+-define(MARGIN, 20).  
 
 %% -- State ------------------------------------------------------------------
 -record(state,{crashes = [],  %% [ time() ]
@@ -36,8 +38,11 @@ initial_state(N, Period) ->
 %% 0 is not allowed, otherwise value returned is moment of crash
 crashing_allowed(Crashes, Period, Max) ->
   Now = dynamic_now(),
-  InPeriod = [ Crash || Crash <- Crashes, Crash > (Now - Period) ],
-  if length(InPeriod) < Max -> Now; true -> 0 end.
+  InPeriod = [ Crash || Crash <- Crashes, Crash > (Now - (Period + ?MARGIN)) ],
+%  MarginFromLast = 
+%    InPeriod == [] orelse lists:last(InPeriod) + ?MARGIN < Now,
+  if length(InPeriod) < Max -> Now;
+     true -> 0 end.
 
 %% --- Operation: crash ---
 crash_args(S) ->
@@ -61,10 +66,8 @@ crash(Processes, N, Crashes, Period, Max) ->
           %% Zero is always outside the period that we look at
           0;
         Now ->
-          io:format("Crashing proc ~p: ~p from total ~p\n",[Proc, (N rem length(NewProcs)) + 1, length(NewProcs) ]),
           Info = erlang:process_info(Proc),
-          timer:exit_after(7, Proc, killed_by_quickcheck),
-                                                % exit(Proc, killed_by_quickcheck),
+          exit(Proc, killed_by_quickcheck),
           let_it_crash:process(Info),
           Now
       end
@@ -77,7 +80,7 @@ crash_next(S, V, _Args) ->
   S#state{crashes = S#state.crashes ++ [ V ]}.
 
 crash_features(S, _Args, Res) ->
-  [{crashed, length(S#state.crashes) + 1} || Res =/= 0].
+  [{crashed, in_period(S#state.crashes, S#state.period)} || Res =/= 0].
 
 %% --- Operation: sleep ---
 sleep_pre(S) ->
@@ -90,21 +93,58 @@ sleep(Time) ->
   timer:sleep(Time).
 
 
+%% -- Driver Crashing --------------------------------------------------------
+driver_failure_args(S) ->
+  ?LET(Args, led_eqc:led_color_args(undefined), Args ++ 
+         [choose(1,3), S#state.crashes, S#state.period, S#state.max_crashes]).
 
+driver_failure_pre(S, [_, _, _, _Failure, Crashes, _, _]) ->
+  S#state.crashes == Crashes andalso S#state.crashes =/= [].
+
+driver_failure_adapt(S, [Nr, Color, Kind, Failure, _Crashes, Period, Max]) ->
+  [Nr, Color, Kind, Failure, S#state.crashes, Period, Max].
+
+driver_failure(Nr, Color, Kind, _Failure, Crashes, Period, Max) ->
+  case crashing_allowed(Crashes, Period, Max) of
+    0 ->
+      %% Zero is always outside the period that we look at
+      0;
+    Now ->
+      led_eqc:led_color(Nr, Color, Kind),
+      Now
+  end.
+
+driver_failure_callouts(_S, [Nr, _, _, Failure, _, _, _]) ->
+  Ok = fun(X) when X==Failure -> not_ok;
+          (_) -> ok
+       end,
+  ?PAR([
+        ?OPTIONAL(
+           ?CALLOUT(grisp_gpio_drv_emu, led, [Nr, red,   ?WILDCARD], Ok(1))),
+        ?OPTIONAL(
+           ?CALLOUT(grisp_gpio_drv_emu, led, [Nr, green, ?WILDCARD], Ok(2))),
+        ?OPTIONAL(
+           ?CALLOUT(grisp_gpio_drv_emu, led, [Nr, blue,  ?WILDCARD], Ok(3)))]).
+
+driver_failure_next(S, V, _Args) ->
+  S#state{crashes = S#state.crashes ++ [ V ]}.
+
+driver_failure_features(S,  _Args, Res) ->
+  [ {driver_crash, in_period(S#state.crashes, S#state.period)} || Res =/= 0 ].
 
 
 %% -- Exception raising operations -------------------------------------------
-%% led_fault_tolerant_args(S) ->
-%%   [choose(1, 2), {brown, {2,1,0}} elements([byname, by_value]), 
-%%    S#state.crashes, S#state.period, S#state.max_crashes].
+exceptions_args(S) ->
+  [choose(0, 3), {brown, {2,1,0}}, elements([by_name, by_value]), 
+   S#state.crashes, S#state.period, S#state.max_crashes].
 
-led_fault_tolerant_pre(S, [_, _, _, Crashes, _, _]) ->
+exceptions_pre(S, [_, _, _, Crashes, _, _]) ->
   S#state.crashes == Crashes.
 
-led_fault_tolerant_adapt(S, [Nr, Color, NameVal, _Crashes, Period, Max]) ->
+exceptions_adapt(S, [Nr, Color, NameVal, _Crashes, Period, Max]) ->
   [Nr, Color, NameVal, S#state.crashes, Period, Max].
 
-led_fault_tolerant(Nr, Color, NameVal, Crashes, Period, Max) ->
+exceptions(Nr, Color, NameVal, Crashes, Period, Max) ->
   case crashing_allowed(Crashes, Period, Max) of
     0 ->
       %% Zero is always outside the period that we look at
@@ -114,14 +154,22 @@ led_fault_tolerant(Nr, Color, NameVal, Crashes, Period, Max) ->
       Now
   end.
 
-led_fault_tolerant_next(S, V, _) ->
+exceptions_next(S, V, _) ->
   S#state{crashes = S#state.crashes ++ [ V ]}.
+
+exceptions_features(S, _Args, Res) ->
+  [ {exceptions, in_period(S#state.crashes, S#state.period)} || Res =/= 0 ].
 
 
 %% Now in milli seconds
 dynamic_now() ->
   {Mega, S, Micro} = os:timestamp(),
-  ((Mega * 1000 * 1000 + S) * 1000) + (Micro div 1000)  .
+  ((Mega * 1000 * 1000 + S) * 1000) + (Micro div 1000).
+
+in_period(Crashes, Period) ->
+  Now = dynamic_now(),
+  [ Crash || Crash <- Crashes,
+             Crash > Now - Period ]. 
 
 %% -- Property ---------------------------------------------------------------
 
