@@ -35,7 +35,7 @@ initial_state(N, Period) ->
 
 %% -- helpers ----------------------------------------------------------------
 
-%% 0 is not allowed, otherwise value returned is moment of crash
+%% 0 equals not allowed, other value returned is moment of crash
 crashing_allowed(Crashes, Period, Max) ->
   Now = dynamic_now(),
   InPeriod = [ Crash || Crash <- Crashes, Crash > (Now - (Period + ?MARGIN)) ],
@@ -73,6 +73,7 @@ crash(Processes, N, Crashes, Period, Max) ->
       end
   end.
 
+%% Only for failure output to see which process has been killed
 crash_callouts(_S, _Args) ->
   ?OPTIONAL(?CALLOUT(let_it_crash, process, [?WILDCARD], ok)).
 
@@ -99,7 +100,7 @@ driver_failure_args(S) ->
          [choose(1,3), S#state.crashes, S#state.period, S#state.max_crashes]).
 
 driver_failure_pre(S, [_, _, _, _Failure, Crashes, _, _]) ->
-  S#state.crashes == Crashes andalso S#state.crashes =/= [].
+  S#state.crashes == Crashes.
 
 driver_failure_adapt(S, [Nr, Color, Kind, Failure, _Crashes, Period, Max]) ->
   [Nr, Color, Kind, Failure, S#state.crashes, Period, Max].
