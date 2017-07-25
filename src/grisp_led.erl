@@ -78,7 +78,7 @@ tick_pattern(Pos, {[{infinity, Color} = Pattern|_Rest], Timer}) ->
     cancel_timer(Timer),
     write_color(Pos, Color),
     {[Pattern], undefined};
-tick_pattern(Pos, {[{Time, Color} = Step|Rest], Timer}) ->
+tick_pattern(Pos, {[{Time, Color} = Step|Rest], Timer}) when Time >= 1 ->
     cancel_timer(Timer),
     write_color(Pos, Color),
     NewTimer = erlang:send_after(Time, self(), {tick, Pos}),
