@@ -53,8 +53,10 @@ const uint32_t atsam_matrix_ccfg_sysio = GRISP_MATRIX_CCFG_SYSIO;
 static int start_dhcp = 0;
 static int wlan_enable = 0;
 
-static char *erl_args = "erl.rtems -- -root /media/mmcsd-0-0/otp"
-    " -home /media/mmcsd-0-0/home -boot start_sasl -pa /media/mmcsd-0-0/";
+static char *hostname = "defaulthostname";
+
+static char *erl_args = "erl.rtems -- -root otp"
+    " -home home -boot start_sasl -pa .";
 
 #define MAX_ARGC 256
 
@@ -94,7 +96,10 @@ static int ini_file_handler(void *arg, const char *section, const char *name,
 	  "section \"%s\", name \"%s\", value \"%s\"\n",
 	  section, name, value);
   if (strcmp(section, "network") == 0) {
-      if (strcmp(name, "ip_self") == 0) {
+      if (strcmp(name, "hostname") == 0) {
+	  hostname = strdup(value);
+      }
+      else if (strcmp(name, "ip_self") == 0) {
 	  if (strcmp(value, "dhcp") == 0) {
 	      start_dhcp = 1;
 	      ok = 1;
@@ -218,22 +223,11 @@ void parse_args(char *args)
 
 static void Init(rtems_task_argument arg)
 {
-#if 0
-    char *argv[] = { "erl.rtems", /* "-vsgMatpmX", */ "--", "-root", MNT "otp",
-		   "-home", MNT "home", "-boot", "start_sasl",
-		   "-pa", MNT
-		   /* "-noshell", "-noinput", */
-		   /* "-config", "/mnt/uid", */
-		   /* "-internal_epmd", "epmd_sup", "-sname", "uid" */
-		   /* "-init_debug", "-loader_debug" */
-  };
-
-  int argc = sizeof(argv)/sizeof(*argv);
-#endif
   rtems_status_code sc = RTEMS_SUCCESSFUL;
   int rv = 0;
-
-  printf("\nerl_main: starting ...\n");
+  static char pwd[1024];
+  char *p;
+  
   atexit(fatal_atexit);
   
   grisp_led_set1(false, false, false);
@@ -281,13 +275,31 @@ static void Init(rtems_task_argument arg)
   assert(rv == 0);
 
   printf("Setting environment\n");
-  setenv("BINDIR", MNT "otp/lib/erlang/bin", 1);
-  setenv("ROOTDIR", MNT "otp", 1);
+  setenv("BINDIR", "otp/lib/erlang/bin", 1);
+  setenv("ROOTDIR", "otp", 1);
   setenv("PROGNAME", "erl.rtems", 1);
-  /* setenv("ERL_INETRC", MNT "home/erl_inetrc", 1); */
-  /* setenv("ERL_LIBS", MNT "apps", 1); */
-  setenv("HOME", MNT "home", 1);
+  setenv("HOME", "/home", 1);
 
+  /* Need to change the directory here because some dunderheaded
+     library changes it back to root otherwise */
+  
+  printf("chdir(%s)\n", MNT);
+  rv = chdir(MNT);
+  if (rv < 0)
+    perror("can't chdir");
+  
+  printf("\nerl_main: starting ...\n");
+
+  p = getcwd(pwd, 1024);
+  if (p == NULL)
+    printf("getcwd error\n");
+  else
+    printf("getcwd: %s\n", p);
+
+  sethostname(hostname, strlen(hostname));
+  printf("hostname: %s\n", hostname);
+  
+  sleep(10);
   printf("starting erlang runtime\n");
   erl_start(argc, argv);
   printf("erlang runtime exited\n");
@@ -334,7 +346,7 @@ static void Init(rtems_task_argument arg)
 
 #define CONFIGURE_LIBIO_MAXIMUM_FILE_DESCRIPTORS 64
 
-#define CONFIGURE_MAXIMUM_TASKS 64
+#define CONFIGURE_MAXIMUM_TASKS 128
 #define CONFIGURE_MAXIMUM_DRIVERS 8
 #define CONFIGURE_MAXIMUM_SEMAPHORES 32
 #define CONFIGURE_MAXIMUM_MESSAGE_QUEUES 4
@@ -369,7 +381,7 @@ static void Init(rtems_task_argument arg)
 #define CONFIGURE_BDBUF_CACHE_MEMORY_SIZE (1 * 1024 * 1024)
 
 #define CONFIGURE_PIPES_ENABLED
-#define CONFIGURE_MAXIMUM_PIPES 16
+#define CONFIGURE_MAXIMUM_PIPES 32
 
 #define CONFIGURE_INIT
 
