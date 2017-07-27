@@ -34,6 +34,7 @@
 #include <bsp.h>
 #include <assert.h>
 #include <rtems/libio.h>
+#include <sysexits.h>
 
 #include <inih/ini.h>
 
@@ -149,6 +150,37 @@ static void evaluate_ini_file(const char *ini_file)
 }
 
 static void
+default_network_ifconfig_lo0(void)
+{
+   int exit_code;
+   char *lo0[] = {
+       "ifconfig",
+       "lo0",
+       "inet",
+       "127.0.0.1",
+       "netmask",
+       "255.255.255.0",
+       NULL
+   };
+   char *lo0_inet6[] = {
+       "ifconfig",
+       "lo0",
+       "inet6",
+       "::1",
+       "prefixlen",
+       "128",
+       "alias",
+       NULL
+   };
+
+   exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(lo0), lo0);
+   assert(exit_code == EX_OK);
+
+   exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(lo0_inet6), lo0_inet6);
+   assert(exit_code == EX_OK);
+}
+
+static void
 network_dhcpcd_task(rtems_task_argument arg)
 {
 	int exit_code;
@@ -236,6 +268,8 @@ static void Init(rtems_task_argument arg)
   grisp_init_sd_card();
   grisp_init_lower_self_prio();
   grisp_init_libbsd();
+  printf("ifconfig lo0\n");
+  default_network_ifconfig_lo0();
   
   /* Wait for the SD card */
   grisp_led_set2(true, false, true);
