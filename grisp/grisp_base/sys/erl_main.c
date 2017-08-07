@@ -35,6 +35,7 @@
 #include <assert.h>
 #include <rtems/libio.h>
 #include <sysexits.h>
+#include <sys/mman.h>
 
 #include <inih/ini.h>
 
@@ -44,6 +45,7 @@
 
 #define MNT "/media/mmcsd-0-0/"
 #define INI_FILE (MNT "grisp.ini")
+
 
 void parse_args(char *args);
 
@@ -63,6 +65,21 @@ static char *erl_args = "erl.rtems -- -root otp"
 
 static char *argv[MAX_ARGC];
 static int argc;
+
+
+void *
+mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset)
+{
+  errno = ENODEV;
+  return MAP_FAILED;
+}
+
+int
+munmap(void *addr, size_t len)
+{
+  errno = EINVAL;
+  return -1;
+}
 
 void 
 fatal_extension(uint32_t source, uint32_t is_internal, uint32_t error)
