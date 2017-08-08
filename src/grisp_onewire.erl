@@ -1,14 +1,13 @@
 -module(grisp_onewire).
 
+%% Chip: DS2482 - 1-Wire Master
+%% specification can be found at maximintegrated.com
+
 -include("grisp_i2c.hrl").
 
 % API
 -export([reset/0, write_config/1, detect/0, bus_reset/0,
-	 write_byte/1, write_triplet/1, read_byte/0, search/0,
-	 write_channel/2, read_channel/2]).
-
-% Random junk
--export([id/1]).
+	 write_byte/1, write_triplet/1, read_byte/0, search/0]).
 
 -define(ds2482_i2c_adr, 16#18).
 -define(cmd_drst, 16#f0).
@@ -25,6 +24,7 @@
 %--- API -----------------------------------------------------------------------
 
 
+%% Spec: | S | AD,0 ‖ A ‖ DRST ‖ A ‖ Sr | AD,1 ‖ A | <byte> ‖ A\ | P |
 reset() ->
     <<Status:8>> = grisp_i2c:msgs([?ds2482_i2c_adr, 
 				   {write, <<?cmd_drst>>}, 
@@ -34,6 +34,7 @@ reset() ->
 	Any -> error({invalid_status, Any})
     end.
 
+%% Spec: | S | AD,0 ‖ A ‖ WCFG ‖ A ‖ <byte> ‖ A ‖ Sr | AD,1 ‖ A | <byte> ‖ A\ | P |
 write_config(Conf) when is_list(Conf) ->
     write_config(lists:foldl(fun(X, A) -> A bor map_config(X) end, 0, Conf));
 write_config(Conf) when is_integer(Conf) ->
@@ -97,40 +98,7 @@ search() ->
     L = lists:reverse([ element(1, write_triplet(0)) || _ <- lists:seq(1,64) ]),
     lists:reverse([ Y || <<Y:8>> <= << <<X:1>> || X <- L >> ]).
 
-%% this is the bytes
-id(out) ->    
-    [41,174,104,130,25,0,0,89];
-id(in) ->
-    [41,220,249,18,0,0,0,240].
 
-write_channel(Sel, <<Byte:8>>) ->
-    init_select(Sel),
-    write_byte(16#5a),
-    write_byte(Byte),
-    write_byte(bnot Byte),
-    case read_byte() of
-	<<16#aa>> ->
-	    read_byte();
-	<<16#ff>> ->
-	    {error, write_channel_fail}
-    end.
-    
-read_channel(Sel, Count) ->
-    init_select(Sel),
-    write_byte(16#f5),
-    << (read_byte()) || _ <- lists:seq(1,Count) >>.
-
-init_select(skip_rom) ->
-    presence_detected = bus_reset(),
-    write_byte(16#cc);
-init_select(Id) when is_list(Id) ->
-    presence_detected = bus_reset(),
-    write_byte(16#55),
-    [ write_byte(X) || X <- Id ].
-
-    
-    
-    
     
 
 %%% For this to work we need a way to not sending a stop after a msg chain
