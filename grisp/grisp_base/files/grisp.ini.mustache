@@ -2,7 +2,7 @@
 image_path = /media/mmcsd-0-0/{{release_name}}/erts-{{erts_vsn}}/bin/beam.bin
 
 [erlang]
-args = erl.rtems -- -root /media/mmcsd-0-0/ -home /media/mmcsd-0-0/ -pa /media/mmcsd-0-0/ -boot /media/mmcsd-0-0/{{release_name}}/releases/{{release_version}}/{{release_name}}
+args = erl.rtems -- -home /media/mmcsd-0-0/ -pa /media/mmcsd-0-0/ -root /media/mmcsd-0-0/{{release_name}} -boot /media/mmcsd-0-0/{{release_name}}/releases/{{release_version}}/{{release_name}}
 
 [network]
 ip_self=dhcp
