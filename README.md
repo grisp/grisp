@@ -27,3 +27,6 @@ GRiSP Erlang Runtime Library
 
 To test it in the emulator run
 ```rebar3 as test shell```
+
+Run without QuickCheck
+```rebar3 as test,noqc shell```

@@ -13,6 +13,9 @@
 
 -module(led_eqc).
 
+% see ../rebar.config
+-ifndef(NO_QC).
+
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("eqc/include/eqc_component.hrl").
 
@@ -102,3 +105,4 @@ api_spec() ->
                     fallback = grisp_gpio_drv_emu,
                     functions =  [ #api_fun{ name = led, arity = 3} ]} 
                ]}.
+-endif.
