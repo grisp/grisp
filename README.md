@@ -21,3 +21,12 @@ GRiSP Erlang Runtime Library
     <dt>JTAG</dt>
     <dd><em>TODO</em></dd>
 </dl>
+
+
+## Testing
+
+To test it in the emulator run
+```rebar3 as test shell```
+
+Run without QuickCheck
+```rebar3 as test,noqc shell```
