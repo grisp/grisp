@@ -1,3 +1,4 @@
+% @private
 -module(grisp_devices_sup).
 
 -behaviour(supervisor).

@@ -1,3 +1,4 @@
+% @private
 -module(grisp_spi_drv).
 
 % API

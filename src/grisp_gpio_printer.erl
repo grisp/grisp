@@ -1,3 +1,4 @@
+% @private
 -module(grisp_gpio_printer).
 
 -behavior(gen_event).

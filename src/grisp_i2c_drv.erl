@@ -1,3 +1,4 @@
+% @private
 -module(grisp_i2c_drv).
 
 % API

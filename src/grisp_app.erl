@@ -1,3 +1,4 @@
+% @private
 -module(grisp_app).
 
 -behaviour(application).

@@ -1,3 +1,4 @@
+% @private
 -module(grisp_gpio_poller).
 
 -behaviour(gen_server).
