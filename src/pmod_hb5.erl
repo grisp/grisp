@@ -1,4 +1,4 @@
--module(grisp_hb5).
+-module(pmod_hb5).
 
 -export([config/1, stop/1, forward/1, backward/1]).
 

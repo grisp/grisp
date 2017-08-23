@@ -26,8 +26,8 @@ commands(Commands, Time) ->
     timer:sleep(Time),
     [command(Side, stop) || {Side, _} <- Commands].
 
-command(right, Command) -> grisp_hb5:Command(gpio2);
+command(right, Command) -> pmod_hb5:Command(gpio2);
 % Left motor is mounted backwards, revers directions:
-command(left, forward) -> grisp_hb5:backward(gpio1);
-command(left, backward) -> grisp_hb5:forward(gpio1);
-command(left, Command) -> grisp_hb5:Command(gpio1).
+command(left, forward) -> pmod_hb5:backward(gpio1);
+command(left, backward) -> pmod_hb5:forward(gpio1);
+command(left, Command) -> pmod_hb5:Command(gpio1).
