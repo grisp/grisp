@@ -5,7 +5,7 @@
 -include("grisp.hrl").
 
 % API
--export([start_link/0]).
+-export([start_link/1]).
 -export([start_child/2]).
 -export([terminate_child/1]).
 
@@ -14,8 +14,8 @@
 
 %--- API -----------------------------------------------------------------------
 
-start_link() ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+start_link(Name) ->
+    supervisor:start_link({local, Name}, ?MODULE, []).
 
 start_child(Slot, Driver) ->
     Child = #{id => Slot, start => {Driver, start_link, [Slot]}},

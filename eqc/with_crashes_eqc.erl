@@ -25,8 +25,10 @@ prop_with_crashes(N, Period) ->
   ?SETUP(fun() ->
              %% setup mocking here
              eqc_mocking:start_mocking(api_spec(), components()),
+             error_logger:tty(false),
              fun() ->  
                  eqc_mocking:stop_mocking(),
+                 error_logger:tty(true),
                  ok 
              end %% Teardown function
          end,
