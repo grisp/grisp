@@ -87,9 +87,13 @@ prop_led() ->
              %% setup mocking here
              eqc_cover:start(),
              eqc_mocking:start_mocking(api_spec()),
-             fun() -> 
+             {ok, Config} = file:consult("config/test.config"),
+             _ = rebar_utils:reread_config(Config),
+             error_logger:tty(false),
+             fun() ->
                  eqc_mocking:stop_mocking(),
-                 eqc_cover:write_html(eqc_cover:stop(), [{out_dir, "cover"}])
+                 eqc_cover:write_html(eqc_cover:stop(), [{out_dir, "cover"}]),
+                 error_logger:tty(true)
              end %% Teardown function
          end,
   eqc:dont_print_counterexample(
@@ -98,7 +102,7 @@ prop_led() ->
     application:stop(grisp),
     timer:sleep(5),
     ok = application:start(grisp),
-    timer:sleep(10),  
+    timer:sleep(10),
     {H, S, Res} = run_commands(Cmds),
     check_command_names(Cmds,
                         measure(length, commands_length(Cmds),
@@ -107,12 +111,12 @@ prop_led() ->
   end))).
 
 %% -- API-spec ---------------------------------------------------------------
-api_spec() -> 
-  #api_spec{ language = erlang, 
-             mocking = eqc_mocking, 
-             modules = 
-               [ #api_module{ 
+api_spec() ->
+  #api_spec{ language = erlang,
+             mocking = eqc_mocking,
+             modules =
+               [ #api_module{
                     name = grisp_gpio_drv_emu,
                     fallback = grisp_gpio_drv_emu,
-                    functions =  [ #api_fun{ name = led, arity = 3} ]} 
+                    functions =  [ #api_fun{ name = led, arity = 3} ]}
                ]}.

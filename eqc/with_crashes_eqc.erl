@@ -19,6 +19,8 @@ weight(_) -> 5.
 
 api_spec() -> eqc_cluster:api_spec(?MODULE).
 
+prop_with_crashes() -> prop_with_crashes(1, 5).
+
 prop_with_crashes(N, Period) ->
   ?SETUP(fun() ->
              %% setup mocking here
