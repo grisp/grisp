@@ -1,3 +1,6 @@
+% @doc GRiSP Runtime API.
+%
+% This module contains the main API for working with the GRiSP runtime.
 -module(grisp).
 
 % API
@@ -23,14 +26,37 @@
 
 %--- API -----------------------------------------------------------------------
 
+% @doc Add and start the device instance for a connected device.
+%
+% This starts a device driver instance of the specified module and connected to
+% the specified slot. No hardware validation is possible to check that the
+% correct device is actually connected, but many drivers run an initialization
+% check for specific device IDs and other similar characteristics which will
+% fail if no device or the wrong device is connected.
+%
+% Returns the created device instance.
 -spec add_device(slot(), module()) -> device().
 add_device(Slot, Driver) -> grisp_devices:add_device(Slot, Driver).
 
+% @doc Remove and stop the device instance for a device.
+%
+% This will gracefully stop the device instance and remove it from the runtime.
+% This includes running any termination code inside the device driver module
+% (see the specific driver module for your device for more information).
 -spec remove_device(device()) -> ok.
 remove_device(Device) -> grisp_devices:remove_device(Device).
 
+% @doc List all running devices instances.
+%
+% Returns a list of all running device instances as device objects.
 -spec devices() -> [device()].
 devices() -> grisp_devices:list().
 
+% @doc Return the device instance at the specified slot (if any).
+%
+% <h4>Errors</h4>
+% <ul>
+%   <li>`{no_device_connected, Slot}'.</li>
+% </ul>
 -spec device(slot()) -> device().
 device(Slot) -> grisp_devices:slot(Slot).
