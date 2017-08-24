@@ -19,3 +19,9 @@ doc/*.html
 doc/edoc-info
 doc/erlang.png
 doc/stylesheet.css
+
+# QuickCheck
+.eqc-info
+.eqc
+cover
+*.eqc
