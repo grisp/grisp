@@ -26,6 +26,7 @@
 % A color as either a shorthand name or a specific RGB value.
 
 -type color_name() ::
+    off |
     black |
     blue |
     green |
@@ -34,7 +35,7 @@
     magenta |
     yellow |
     white.
-% A color name.
+% A color name. `off' and `black' are shorthands for turning off the LED.
 
 -type color_value() :: {0 | 1, 0 | 1, 0 | 1}.
 % A color value, specifying the individual R, G and B components as 1's or 0's
@@ -74,9 +75,9 @@ start_link() ->
 color(Pos, Color) -> pattern(Pos, [{infinity, Color}]).
 
 % @doc Turn of an LED.
-% @equiv grisp_led:color(Pos, black)
+% @equiv grisp_led:color(Pos, off)
 -spec off(position()) -> ok.
-off(Pos) -> pattern(Pos, [{infinity, black}]).
+off(Pos) -> pattern(Pos, [{infinity, off}]).
 
 % @doc Flash an LED in an on/off pattern with the specified color.
 %
@@ -86,16 +87,16 @@ off(Pos) -> pattern(Pos, [{infinity, black}]).
 % ok
 % '''
 %
-% @equiv grisp_led:pattern(Position, [{Time, Color}, {Time, black}])
+% @equiv grisp_led:pattern(Position, [{Time, Color}, {Time, off}])
 -spec flash(position(), color(), time()) -> ok.
 flash(Pos, Color, Interval) ->
-    pattern(Pos, [{Interval, Color}, {Interval, black}]).
+    pattern(Pos, [{Interval, Color}, {Interval, off}]).
 
 % @doc Animate an LED with a pattern of colors and intervals.
 %
 % <h5>Examples</h5>
 % ```
-% 1> grisp_led:flash(1, [{300, red}, {500, green}, {700, blue}, {infinity, black}]).
+% 1> grisp_led:flash(1, [{300, green}, {500, yellow}, {700, red}, {infinity, off}]).
 % ok
 % 2> Rainbow = [{300, {R, G, B}} || R <- [0,1], G <- [0,1], B <- [0,1], {R, G, B} =/= {0, 0, 0}].
 % [{300,{0,0,1}},
@@ -116,8 +117,8 @@ pattern(Pos, Pattern) -> gen_server:cast(?MODULE, {pattern, Pos, Pattern}).
 % @private
 init(undefined) ->
     {ok, #state{leds = [
-        {1, {[{infinity, black}], undefined}},
-        {2, {[{infinity, black}], undefined}}
+        {1, {[{infinity, off}], undefined}},
+        {2, {[{infinity, off}], undefined}}
     ]}}.
 
 % @private
@@ -184,7 +185,8 @@ write_component(2, blue, Action)  -> grisp_gpio:Action(led2_b).
 translate(Fun) when is_function(Fun) -> to_rgb(Fun());
 translate(Value)                     -> to_rgb(Value).
 
-to_rgb(black)   -> {0, 0, 0};
+to_rgb(black)   -> to_rgb(off);
+to_rgb(off)     -> {0, 0, 0};
 to_rgb(blue)    -> {0, 0, 1};
 to_rgb(green)   -> {0, 1, 0};
 to_rgb(aqua)    -> {0, 1, 1};
