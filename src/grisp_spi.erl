@@ -27,6 +27,7 @@
 
 %--- API -----------------------------------------------------------------------
 
+% @private
 start_link(DriverMod) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, DriverMod, []).
 
@@ -41,19 +42,25 @@ send_recv(Slot, Req) when byte_size(Req) < ?RES_MAX_SIZE ->
 
 %--- Callbacks -----------------------------------------------------------------
 
+% @private
 init(DriverMod) ->
     Ref = DriverMod:open(),
     {ok, #state{driver = {DriverMod, Ref}}}.
 
+% @private
 handle_call({send_recv, Slot, Req}, _From, State) ->
     {DriverMod, Ref} = State#state.driver,
     Resp = DriverMod:command(Ref, Slot, Req),
     {reply, Resp, State}.
 
+% @private
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
+% @private
 handle_info(Info, _State) -> error({unknown_info, Info}).
 
+% @private
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
+% @private
 terminate(_Reason, _State) -> ok.

@@ -27,6 +27,7 @@
 
 %--- API -----------------------------------------------------------------------
 
+% @private
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, undefined, []).
 
@@ -41,28 +42,34 @@ pattern(Pos, Pattern) -> gen_server:cast(?MODULE, {pattern, Pos, Pattern}).
 
 %--- Callbacks -----------------------------------------------------------------
 
+% @private
 init(undefined) ->
     {ok, #state{leds = [
         {1, {[{infinity, black}], undefined}},
         {2, {[{infinity, black}], undefined}}
     ]}}.
 
+% @private
 handle_call(Request, From, _State) -> error({unknown_call, Request, From}).
 
+% @private
 handle_cast({pattern, Pos, NewPattern}, State) ->
     NewState = update_led(Pos, State, fun({_OldPattern, Timer}) ->
         tick_pattern(Pos, {NewPattern, Timer})
     end),
     {noreply, NewState}.
 
+% @private
 handle_info({tick, Pos}, State) ->
     NewState = update_led(Pos, State, fun(Led) ->
         tick_pattern(Pos, Led)
     end),
     {noreply, NewState}.
 
+% @private
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
+% @private
 terminate(_Reason, _State) -> ok.
 
 %--- Internal ------------------------------------------------------------------

@@ -27,6 +27,7 @@
 
 %--- API -----------------------------------------------------------------------
 
+% @private
 start_link(Slot) -> gen_server:start_link(?MODULE, Slot, []).
 
 raw() ->
@@ -39,22 +40,28 @@ g() ->
 
 %--- Callbacks -----------------------------------------------------------------
 
+% @private
 init(Slot) ->
     grisp_devices:register(Slot, ?MODULE),
     Req = <<?WRITE_REGISTER, ?POWER_CTL, 0:6, ?MEASUREMENT_MODE:2>>,
     grisp_spi:send_recv(Slot, Req),
     {ok, #state{slot = Slot}}.
 
+% @private
 handle_call(raw, _From, State) ->
     Raw = xyz(State#state.slot),
     {reply, {State#state.mode, Raw}, State}.
 
+% @private
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
+% @private
 handle_info(Info, _State) -> error({unknown_info, Info}).
 
+% @private
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
+% @private
 terminate(_Reason, _State) -> ok.
 
 %--- Internal ------------------------------------------------------------------

@@ -25,6 +25,7 @@
 
 %--- API -----------------------------------------------------------------------
 
+% @private
 start_link(DriverMod) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, DriverMod, []).
 
@@ -60,21 +61,27 @@ set(Pin) -> gen_server:call(?MODULE, {command, <<(index(Pin)):8, 4:8>>}).
 
 %--- Callbacks -----------------------------------------------------------------
 
+% @private
 init(DriverMod) ->
     Ref = DriverMod:open(),
     {ok, #state{driver = {DriverMod, Ref}}}.
 
+% @private
 handle_call({command, Command}, _From, State) ->
     {DriverMod, Ref} = State#state.driver,
     Result = DriverMod:command(Ref, Command),
     {reply, bool(Result), State}.
 
+% @private
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
+% @private
 handle_info(Info, _State) -> error({unknown_info, Info}).
 
+% @private
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
+% @private
 terminate(_Reason, _State) -> ok.
 
 %--- Internal ------------------------------------------------------------------

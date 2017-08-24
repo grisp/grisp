@@ -1,3 +1,4 @@
+% @private
 -module(grisp_devices).
 
 -behavior(gen_server).

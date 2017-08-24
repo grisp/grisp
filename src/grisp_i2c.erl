@@ -22,6 +22,7 @@
 
 %--- API -----------------------------------------------------------------------
 
+% @private
 start_link(DriverMod) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, DriverMod, []).
 
@@ -31,22 +32,30 @@ msgs(Msgs) ->
 
 %--- Callbacks -----------------------------------------------------------------
 
+% @private
 init(DriverMod) ->
     Ref = DriverMod:open(),
     {ok, #state{driver = {DriverMod, Ref}}}.
 
+% @private
 handle_call({msgs, Enc_msgs}, _From, State) ->
     {DriverMod, Ref} = State#state.driver,
     Resp = DriverMod:command(Ref, Enc_msgs),
     {reply, Resp, State}.
 
+% @private
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
+% @private
 handle_info(Info, _State) -> error({unknown_info, Info}).
 
+% @private
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
+% @private
 terminate(_Reason, _State) -> ok.
+
+%--- Internal ------------------------------------------------------------------
 
 encode_msgs(Msgs) ->
     encode_msgs(Msgs, undefined, <<>>, <<>>).
