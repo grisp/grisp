@@ -1,7 +1,7 @@
 % @private
 -module(grisp_devices_sup).
 
--behaviour(supervisor).
+-behavior(supervisor).
 
 -include("grisp.hrl").
 

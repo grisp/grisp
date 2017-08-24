@@ -1,6 +1,6 @@
 -module(pmod_nav).
 
--behaviour(gen_server).
+-behavior(gen_server).
 
 -include("grisp.hrl").
 -include("pmod_acl2.hrl").

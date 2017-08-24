@@ -1,6 +1,6 @@
 -module(pmod_gyro).
 
--behaviour(gen_server).
+-behavior(gen_server).
 
 -include("pmod_gyro.hrl").
 

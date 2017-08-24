@@ -1,7 +1,7 @@
 % @private
 -module(grisp_app).
 
--behaviour(application).
+-behavior(application).
 
 % API
 -export([start/2]).

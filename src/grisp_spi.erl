@@ -1,6 +1,6 @@
 -module(grisp_spi).
 
--behaviour(gen_server).
+-behavior(gen_server).
 
 % API
 -export([start_link/1]).

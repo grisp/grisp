@@ -1,7 +1,7 @@
 % @private
 -module(grisp_gpio_poller).
 
--behaviour(gen_server).
+-behavior(gen_server).
 
 % API
 -export([start_link/0]).
