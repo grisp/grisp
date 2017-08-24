@@ -2,8 +2,6 @@
 
 -behavior(gen_server).
 
--include("grisp.hrl").
-
 % API
 -export([start_link/0]).
 -export([setup/0]).
@@ -22,6 +20,8 @@
 -export([code_change/3]).
 -export([terminate/2]).
 
+-include("grisp.hrl").
+
 %--- API -----------------------------------------------------------------------
 
 start_link() -> gen_server:start_link({local, ?MODULE}, ?MODULE, undefined, []).
@@ -33,7 +33,8 @@ setup() ->
     ok.
 
 add_device(Slot, Driver) ->
-    grisp_devices_sup:start_child(Slot, Driver).
+    grisp_devices_sup:start_child(Slot, Driver),
+    slot(Slot).
 
 remove_device(Device) ->
     grisp_devices_sup:terminate_child(Device).
