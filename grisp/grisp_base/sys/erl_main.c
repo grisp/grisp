@@ -349,11 +349,7 @@ static void Init(rtems_task_argument arg)
 
   sethostname(hostname, strlen(hostname));
   printf("hostname: %s\n", hostname);
-  
-  if (wlan_enable || start_dhcp) {
-    sleep(10);
-  }
-  
+
   printf("starting erlang runtime\n");
   erl_start(argc, argv);
   printf("erlang runtime exited\n");
