@@ -127,27 +127,27 @@ void grisp_i2c_output (ErlDrvData drv_data, char *buf, ErlDrvSizeT len)
     p = res;
     for (i = 0; i < msg_count; i++)
       {
-	msgs[i].addr = ubig16(q);
-	q += 2;
-	msgs[i].flags = ubig16(q);
-	q += 2;
-	buf_len = ubig16(q);
-	q += 2;
-	buf_off = ubig16(q);
-	q += 2;
-	msgs[i].len = (uint16_t)buf_len;
-	if (msgs[i].flags & I2C_M_RD)
-	  {
-	    assert (p + buf_len < res + RES_MAX_SIZE);
-	    msgs[i].buf = p;
-	    p += buf_len;
-	  }
-	
-	else
-	  {
-	    assert(buf_off + buf_len <= data_len);
-	    msgs[i].buf = write_buf + buf_off;
-	  }
+        msgs[i].addr = ubig16(q);
+        q += 2;
+        msgs[i].flags = ubig16(q);
+        q += 2;
+        buf_len = ubig16(q);
+        q += 2;
+        buf_off = ubig16(q);
+        q += 2;
+        msgs[i].len = (uint16_t)buf_len;
+        if (msgs[i].flags & I2C_M_RD)
+          {
+            assert (p + buf_len < res + RES_MAX_SIZE);
+            msgs[i].buf = p;
+            p += buf_len;
+          }
+
+        else
+          {
+            assert(buf_off + buf_len <= data_len);
+            msgs[i].buf = write_buf + buf_off;
+          }
       }
 
     msgset.msgs = msgs;

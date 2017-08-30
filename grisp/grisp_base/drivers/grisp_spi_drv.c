@@ -101,17 +101,17 @@ void grisp_spi_stop (ErlDrvData drv_data)
 static void
 test_set_default_msg(struct spi_ioc_transfer *msg)
 {
-	msg->rx_buf = NULL;
-	msg->tx_buf = NULL;
-	msg->len = 0;
-	msg->speed_hz = 100000;
-	msg->delay_usecs = 1;
-	msg->bits_per_word = 8;
-	msg->cs_change = 1;
-	msg->rx_nbits = 0;
-	msg->tx_nbits = 0;
-	msg->mode = 0;
-	msg->cs = 2;
+    msg->rx_buf = NULL;
+    msg->tx_buf = NULL;
+    msg->len = 0;
+    msg->speed_hz = 100000;
+    msg->delay_usecs = 1;
+    msg->bits_per_word = 8;
+    msg->cs_change = 1;
+    msg->rx_nbits = 0;
+    msg->tx_nbits = 0;
+    msg->mode = 0;
+    msg->cs = 2;
 }
 
 void grisp_spi_output (ErlDrvData drv_data, char *buf, ErlDrvSizeT len)

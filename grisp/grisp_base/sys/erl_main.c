@@ -2,20 +2,20 @@
 
 /*
  * %CopyrightBegin%
- * 
+ *
  * Copyright Ericsson AB 2000-2009. All Rights Reserved.
- * 
+ *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- * 
+ *
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- * 
+ *
  * %CopyrightEnd%
  */
 #ifdef HAVE_CONFIG_H
@@ -81,14 +81,14 @@ munmap(void *addr, size_t len)
   return -1;
 }
 
-void 
+void
 fatal_extension(uint32_t source, uint32_t is_internal, uint32_t error)
 {
   printk ("fatal extension: source=%ld, is_internal=%ld, error=%ld\n",
 	  source, is_internal, error);
   if (source == RTEMS_FATAL_SOURCE_EXCEPTION)
     rtems_exception_frame_print((const rtems_exception_frame *)error);
-      
+
   /* rtems_stack_checker_report_usage(); */
   while(1)
     {
@@ -105,7 +105,7 @@ fatal_atexit(void)
     }
 }
 
-static int ini_file_handler(void *arg, const char *section, const char *name, 
+static int ini_file_handler(void *arg, const char *section, const char *name,
 			    const char *value)
 {
   int ok = 0;
@@ -159,7 +159,7 @@ static int ini_file_handler(void *arg, const char *section, const char *name,
 static void evaluate_ini_file(const char *ini_file)
 {
     int rv;
-    
+
     rv = ini_parse(ini_file, ini_file_handler, NULL);
     if (rv == -1) {
 	printf("WARNING: Can't find ini file %s -> using defaults\n", ini_file);
@@ -265,7 +265,7 @@ void parse_args(char *args)
 	        printf("ERROR: too many erl arguments\n");
 		exit(-1);
 	}
-		
+
 	argv[argc++] = p;
     }
 }
@@ -276,9 +276,9 @@ static void Init(rtems_task_argument arg)
   int rv = 0;
   static char pwd[1024];
   char *p;
-  
+
   atexit(fatal_atexit);
-  
+
   grisp_led_set1(false, false, false);
   grisp_led_set2(true, true, true);
   printf("mounting sd card\n");
@@ -287,7 +287,7 @@ static void Init(rtems_task_argument arg)
   grisp_init_libbsd();
   printf("ifconfig lo0\n");
   default_network_ifconfig_lo0();
-  
+
   /* Wait for the SD card */
   grisp_led_set2(true, false, true);
   sc = grisp_init_wait_for_sd();
@@ -333,12 +333,12 @@ static void Init(rtems_task_argument arg)
 
   /* Need to change the directory here because some dunderheaded
      library changes it back to root otherwise */
-  
+
   printf("chdir(%s)\n", MNT);
   rv = chdir(MNT);
   if (rv < 0)
     perror("can't chdir");
-  
+
   printf("\nerl_main: starting ...\n");
 
   p = getcwd(pwd, 1024);
@@ -390,7 +390,7 @@ static void Init(rtems_task_argument arg)
 #define CONFIGURE_FILESYSTEM_DOSFS
 
 /* increase max file size in IMFS to 64MB */
-#define CONFIGURE_IMFS_MEMFILE_BYTES_PER_BLOCK 256 
+#define CONFIGURE_IMFS_MEMFILE_BYTES_PER_BLOCK 256
 
 #define CONFIGURE_FILESYSTEM_IMFS
 

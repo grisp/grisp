@@ -42,13 +42,13 @@ static Pin pins[] =
     {PIO_PD9 , PIOD, ID_PIOD, PIO_INPUT, PIO_PULLUP},     /* 15: jumper 2 */
     {PIO_PC17, PIOC, ID_PIOC, PIO_INPUT, PIO_PULLUP},     /* 16: jumper 3 */
     {PIO_PD11, PIOD, ID_PIOD, PIO_INPUT, PIO_PULLUP},     /* 17: jumper 4 */
-    {PIO_PC10, PIOC, ID_PIOC, PIO_INPUT, PIO_PULLUP},     /* 18: jumper 5 */ 
+    {PIO_PC10, PIOC, ID_PIOC, PIO_INPUT, PIO_PULLUP},     /* 18: jumper 5 */
     {PIO_PA9, PIOA, ID_PIOA, PIO_INPUT, PIO_DEFAULT},     /* 19: spi1 pin 9 */
     {PIO_PA10, PIOA, ID_PIOA, PIO_INPUT, PIO_DEFAULT},    /* 20: spi1 pin10 */
     {PIO_PD12C_SPI0_NPCS2, PIOD, ID_PIOD,
-     PIO_PERIPH_C, PIO_DEFAULT},                          /* 21: SS1 */ 
+     PIO_PERIPH_C, PIO_DEFAULT},                          /* 21: SS1 */
     {PIO_PD27B_SPI0_NPCS3, PIOD, ID_PIOD,
-     PIO_PERIPH_B, PIO_DEFAULT}                           /* 22: SS2 */ 
+     PIO_PERIPH_B, PIO_DEFAULT}                           /* 22: SS2 */
 
   };
 
@@ -117,7 +117,7 @@ void grisp_gpio_output (ErlDrvData drv_data, char *buf, ErlDrvSizeT len)
     int rv;
     uint cs;
     uint8_t res, index, cmd, type, attribute;
-    
+
     ASSERT ((struct grisp_gpio_data *)drv_data == &grisp_gpio_data);
     ASSERT (grisp_gpio_data.port != NULL);
 
@@ -125,33 +125,33 @@ void grisp_gpio_output (ErlDrvData drv_data, char *buf, ErlDrvSizeT len)
     cmd = *buf++;
 
     if (index >= N_PINS) {
-	driver_failure_atom(grisp_gpio_data.port, "pin_index_range");
-	return;
+        driver_failure_atom(grisp_gpio_data.port, "pin_index_range");
+        return;
     }
 
     switch (cmd) {
     case CMD_PIN_CONFIG:
-	type = *buf++;
-	attribute = *buf++;
-	pins[index].type = type;
-	pins[index].attribute = attribute;
-	PIO_Configure(pins + index, 1);
-	driver_output(grisp_gpio_data.port, &res, 0);
-	break;
+        type = *buf++;
+        attribute = *buf++;
+        pins[index].type = type;
+        pins[index].attribute = attribute;
+        PIO_Configure(pins + index, 1);
+        driver_output(grisp_gpio_data.port, &res, 0);
+        break;
     case CMD_PIN_GET:
-	res = PIO_Get(pins + index);
-	driver_output(grisp_gpio_data.port, &res, 1);
-	break;
+        res = PIO_Get(pins + index);
+        driver_output(grisp_gpio_data.port, &res, 1);
+        break;
     case CMD_PIN_CLEAR:
-	PIO_Clear(pins + index);
-	driver_output(grisp_gpio_data.port, &res, 0);
-	break;
+        PIO_Clear(pins + index);
+        driver_output(grisp_gpio_data.port, &res, 0);
+        break;
     case CMD_PIN_SET:
-	PIO_Set(pins + index);
-	driver_output(grisp_gpio_data.port, &res, 0);
-	break;
+        PIO_Set(pins + index);
+        driver_output(grisp_gpio_data.port, &res, 0);
+        break;
     default:
-	driver_failure_atom(grisp_gpio_data.port, "pin_index_range");
-	return;
-    }	
+        driver_failure_atom(grisp_gpio_data.port, "pin_index_range");
+        return;
+    }
 }
