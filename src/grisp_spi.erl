@@ -4,8 +4,8 @@
 
 % API
 -export([start_link/1]).
--export([send_recv/4]).
--export([send_recv/2]).
+-export([send_recv/5]).
+-export([send_recv/3]).
 
 % Callbacks
 -export([init/1]).

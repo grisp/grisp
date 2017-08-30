@@ -3,7 +3,7 @@
 
 % API
 -export([open/0]).
--export([command/3]).
+-export([command/4]).
 
 -define(CPOL_LOW, 0).
 -define(CPOL_HIGH, 1).
@@ -32,7 +32,7 @@ command(Port, Slot, Mode, Command) ->
 slave_select(spi1) -> 2;
 slave_select(spi2) -> 3.
 
-mode(#{cpol := low,  cpha := leading})  -> ?CPOL_LOW  bor ?CPHA_LEADING; 
-mode(#{cpol := low,  cpha := trailing}) -> ?CPOL_LOW  bor ?CPHA_TRAILING; 
-mode(#{cpol := high, cpha := leading})  -> ?CPOL_HIGH bor ?CPHA_LEADING; 
+mode(#{cpol := low,  cpha := leading})  -> ?CPOL_LOW  bor ?CPHA_LEADING;
+mode(#{cpol := low,  cpha := trailing}) -> ?CPOL_LOW  bor ?CPHA_TRAILING;
+mode(#{cpol := high, cpha := leading})  -> ?CPOL_HIGH bor ?CPHA_LEADING;
 mode(#{cpol := high, cpha := trailing}) -> ?CPOL_HIGH bor ?CPHA_TRAILING.

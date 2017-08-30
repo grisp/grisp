@@ -19,7 +19,7 @@
 -export([terminate/2]).
 
 -define(SPI_MODE, #{cpol => low, cpha => leading}).
-	  
+
 %--- Records -------------------------------------------------------------------
 
 -record(state, {
@@ -47,7 +47,7 @@ init(Slot) ->
     verify_device(Slot),
     grisp_devices:register(Slot, ?MODULE),
     Req = <<?WRITE_REGISTER, ?POWER_CTL, 0:6, ?MEASUREMENT_MODE:2>>,
-    grisp_spi:send_recv(Slot, Req, ?SPI_MODE),
+    grisp_spi:send_recv(Slot, ?SPI_MODE, Req),
     {ok, #state{slot = Slot}}.
 
 % @private

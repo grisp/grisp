@@ -7,19 +7,21 @@
 -export([message/2]).
 -export([broadcast/2]).
 
+-define(SPI_MODE, #{cpol := low, cpha := leading}).
+
 %--- Callbacks -----------------------------------------------------------------
 
 init() -> default().
 
-message(State, {spi, <<?WRITE_REGISTER, Reg, Value>>})
+message(State, {spi, ?SPI_MODE, <<?WRITE_REGISTER, Reg, Value>>})
   when Reg >= ?SOFT_RESET andalso Reg =< ?SELF_TEST ->
     NewState = set_bits(State, Reg*8, <<Value>>),
     {<<0, 0, 0>>, NewState};
-message(State, {spi, <<?READ_REGISTER, Reg, RespBytes/binary>>}) ->
+message(State, {spi, ?SPI_MODE, <<?READ_REGISTER, Reg, RespBytes/binary>>}) ->
     NewState = shake(State),
     Result = get_bits(NewState, Reg*8, bit_size(RespBytes)),
     {<<0, 0, Result/binary>>, NewState};
-message(State, {spi, _Command}) ->
+message(State, {spi, ?SPI_MODE, _Command}) ->
     {<<0, 0, 0>>, State}.
 
 broadcast(State, _Message) ->
