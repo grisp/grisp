@@ -105,12 +105,13 @@ void grisp_spi_stop (ErlDrvData drv_data)
 void grisp_spi_output (ErlDrvData drv_data, char *buf, ErlDrvSizeT len)
 {
     int rv;
-    uint cs;
+    char cs;
+    char mode;
     char res[RES_MAX_SIZE];
     struct spi_ioc_transfer msg;
 
     /* parse argument buffer:  <<Cs:8, Mode:8, Tx_data/binary>> */
-    cs = buf[0];		
+    cs = buf[0];
     mode = buf[1];
     buf += 2;
     len -= 2;
@@ -121,7 +122,6 @@ void grisp_spi_output (ErlDrvData drv_data, char *buf, ErlDrvSizeT len)
     grisp_spi_data.cnt++;
 
     assert(len <= RES_MAX_SIZE);
-    test_set_default_msg(&msg);
 
     msg.speed_hz = 100000;
     msg.delay_usecs = 1;
