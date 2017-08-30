@@ -17,6 +17,10 @@
 #include "erl_driver.h"
 #include "sys.h"
 
+#define CPOL_LOW 0
+#define CPOL_HIGH 1
+#define CPHA_LEADING 0
+#define CPHA_TRAILING 2
 
 int grisp_spi_init (void);
 ErlDrvData grisp_spi_start (ErlDrvPort port, char *command);
@@ -98,22 +102,6 @@ void grisp_spi_stop (ErlDrvData drv_data)
     grisp_spi_data.port = NULL;
 }
 
-static void
-test_set_default_msg(struct spi_ioc_transfer *msg)
-{
-    msg->rx_buf = NULL;
-    msg->tx_buf = NULL;
-    msg->len = 0;
-    msg->speed_hz = 100000;
-    msg->delay_usecs = 1;
-    msg->bits_per_word = 8;
-    msg->cs_change = 1;
-    msg->rx_nbits = 0;
-    msg->tx_nbits = 0;
-    msg->mode = 0;
-    msg->cs = 2;
-}
-
 void grisp_spi_output (ErlDrvData drv_data, char *buf, ErlDrvSizeT len)
 {
     int rv;
@@ -121,10 +109,11 @@ void grisp_spi_output (ErlDrvData drv_data, char *buf, ErlDrvSizeT len)
     char res[RES_MAX_SIZE];
     struct spi_ioc_transfer msg;
 
-    // Grab first byte as chip select, and shorten buffer by 1
-    cs = buf[0];
-    buf++;
-    len -= 1;
+    /* parse argument buffer:  <<Cs:8, Mode:8, Tx_data/binary>> */
+    cs = buf[0];		
+    mode = buf[1];
+    buf += 2;
+    len -= 2;
 
     ASSERT ((struct grisp_spi_data *)drv_data == &grisp_spi_data);
     ASSERT (grisp_spi_data.port != NULL);
@@ -133,7 +122,17 @@ void grisp_spi_output (ErlDrvData drv_data, char *buf, ErlDrvSizeT len)
 
     assert(len <= RES_MAX_SIZE);
     test_set_default_msg(&msg);
+
+    msg.speed_hz = 100000;
+    msg.delay_usecs = 1;
+    msg.bits_per_word = 8;
+    msg.cs_change = 1;
+    msg.rx_nbits = 0;
+    msg.tx_nbits = 0;
+
     msg.cs = cs;
+    msg.mode = ((mode & CPOL_HIGH) ? SPI_CPOL : 0) | ((mode & CPHA_TRAILING) ? SPI_CPHA : 0);
+
     msg.tx_buf = buf;
     msg.rx_buf = res;
     msg.len = len;

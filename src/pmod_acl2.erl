@@ -18,6 +18,8 @@
 -export([code_change/3]).
 -export([terminate/2]).
 
+-define(SPI_MODE, #{cpol => low, cpha => leading}).
+	  
 %--- Records -------------------------------------------------------------------
 
 -record(state, {
@@ -45,7 +47,7 @@ init(Slot) ->
     verify_device(Slot),
     grisp_devices:register(Slot, ?MODULE),
     Req = <<?WRITE_REGISTER, ?POWER_CTL, 0:6, ?MEASUREMENT_MODE:2>>,
-    grisp_spi:send_recv(Slot, Req),
+    grisp_spi:send_recv(Slot, Req, ?SPI_MODE),
     {ok, #state{slot = Slot}}.
 
 % @private
@@ -79,7 +81,7 @@ xyz(Slot) ->
         _:4, YDATA_H:4,
         ZDATA_L,
         _:4, ZDATA_H:4
-    >> = grisp_spi:send_recv(Slot, <<?READ_REGISTER, ?XDATA_L>>, 2, 6),
+    >> = grisp_spi:send_recv(Slot, ?SPI_MODE, <<?READ_REGISTER, ?XDATA_L>>, 2, 6),
     <<X:12/signed>> = <<XDATA_H:4, XDATA_L>>,
     <<Y:12/signed>> = <<YDATA_H:4, YDATA_L>>,
     <<Z:12/signed>> = <<ZDATA_H:4, ZDATA_L>>,
@@ -95,7 +97,7 @@ verify_device(Slot) ->
     ]].
 
 verify_device_reg(Slot, Message, Reg, Val) ->
-    case grisp_spi:send_recv(Slot, <<?READ_REGISTER, Reg>>, 2, 1) of
+    case grisp_spi:send_recv(Slot, ?SPI_MODE, <<?READ_REGISTER, Reg>>, 2, 1) of
         <<Val>> -> ok;
         Other   -> error({device_mismatch, {Message, Other}})
     end.

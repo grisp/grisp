@@ -15,6 +15,8 @@
 -export([code_change/3]).
 -export([terminate/2]).
 
+-define(SPI_MODE, #{cpol => high, cpha => trailing}).
+
 %--- API -----------------------------------------------------------------------
 
 % @private
@@ -47,7 +49,7 @@ terminate(_Reason, _State) -> ok.
 %--- Internal ------------------------------------------------------------------
 
 verify_device(Slot) ->
-    case grisp_spi:send_recv(Slot, <<?RW_READ:1, ?MS_SAME:1, ?WHO_AM_I:6>>, 1, 1) of
+    case grisp_spi:send_recv(Slot, ?SPI_MODE, <<?RW_READ:1, ?MS_SAME:1, ?WHO_AM_I:6>>, 1, 1) of
         <<?DEVID>> -> ok;
         Other      -> error({device_mismatch, {who_am_i, Other}})
     end.
