@@ -19,11 +19,12 @@
 
 -define(SPI_MODE, #{cpol => high, cpha => trailing}).
 
+% TODO: Make a termination fun for grisp_devices:register
+
 %--- Records -------------------------------------------------------------------
 
 -record(state, {
-    slot,
-    chip
+    slot
 }).
 
 %--- API -----------------------------------------------------------------------
@@ -44,7 +45,7 @@ init(Slot = spi1) ->
     grisp_gpio:configure(spi1_pin9, output_1),
     grisp_gpio:configure(spi1_pin10, output_1),
     % ss1 pulled low and pin 9 and 10 pulled high means accelerometer is active
-    State = #state{slot = Slot, chip = accelerometer},
+    State = #state{slot = Slot},
     State2 = verify_device(State),
     grisp_devices:register(State2#state.slot, ?MODULE),
     {ok, State2}.
@@ -73,38 +74,38 @@ call(Call) ->
     Dev = grisp_device:default(?MODULE),
     gen_server:call(Dev#device.pid, Call).
 
-verify_device(State) ->
-    Verifications = [
-        {accelerometer, <<?RW_READ:1, ?WHO_AM_I:7>>, <<?WHO_AM_I_DEFAULT>>},
-        {magnetometer, <<?RW_READ:1, ?MS_INCR:1, ?WHO_AM_I_M:6>>, <<?WHO_AM_I_M_DEFAULT>>}
-    ],
-    lists:foldl(fun verify_device_who_am_i/2, State, Verifications).
+verify_device(#state{slot = Slot}) ->
+    [verify_device_who_am_i(Slot, V) || V <- [
+        {accelerometer,
+            <<?RW_READ:1, ?WHO_AM_I:7>>,
+            <<?WHO_AM_I_DEFAULT>>
+        },
+        {magnetometer,
+            <<?RW_READ:1, ?MS_INCR:1, ?WHO_AM_I_M:6>>,
+            <<?WHO_AM_I_M_DEFAULT>>
+        }
+    ]].
 
-verify_device_who_am_i({Component, Request, Val}, State) ->
-    case request(State, Component, Request, byte_size(Val)) of
-        {NewState, Val} -> NewState;
-        {_State, Other} -> error({device_mismatch, Component, who_am_i, Other})
+verify_device_who_am_i(Slot, {Component, Request, Val}) ->
+    select(Component, fun() ->
+        case request(Slot, Request, byte_size(Val)) of
+            Val   -> ok;
+            Other -> error({device_mismatch, Component, who_am_i, Other})
+        end
+    end).
+
+request(Slot, Request, Pad) ->
+    grisp_spi:send_recv(Slot, ?SPI_MODE, Request, byte_size(Request), Pad).
+
+select(Component, Fun) ->
+    Pin = pin(Component),
+    try
+        grisp_gpio:clear(Pin),
+        Fun()
+    after
+        grisp_gpio:set(Pin)
     end.
 
-request(State, Component, Request, Pad) ->
-    NewState = chip_select(State, Component),
-    Result = grisp_spi:send_recv(State#state.slot, ?SPI_MODE, Request, byte_size(Request), Pad),
-    {NewState, Result}.
-
-chip_select(#state{chip = Chip} = State, Chip) ->
-    State;
-chip_select(State, accelerometer) ->
-    grisp_gpio:set(spi1_pin9),
-    grisp_gpio:set(spi1_pin10),
-    grisp_gpio:clear(ss1),
-    State#state{chip = accelerometer};
-chip_select(State, magnetometer) ->
-    grisp_gpio:set(ss1),
-    grisp_gpio:set(spi1_pin10),
-    grisp_gpio:clear(spi1_pin9),
-    State#state{chip = magnetometer};
-chip_select(State, altimeter) ->
-    grisp_gpio:set(ss1),
-    grisp_gpio:set(spi1_pin9),
-    grisp_gpio:clear(spi1_pin10),
-    State#state{chip = altimeter}.
+pin(accelerometer) -> ss1;
+pin(magnetometer)  -> spi1_pin9;
+pin(altimeter)     -> spi1_pin10.

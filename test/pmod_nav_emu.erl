@@ -7,7 +7,13 @@
 -export([message/2]).
 -export([broadcast/2]).
 
--define(SPI_MODE, #{cpol := low, cpha := trailing}).
+-define(SPI_MODE, #{cpol := high, cpha := trailing}).
+
+-define(ACCEL(State), State#state.pins =:= #{
+    spi1_pin9  => 1,
+    spi1_pin10 => 1,
+    ss1        => 0
+}).
 
 %--- Records -------------------------------------------------------------------
 
@@ -15,7 +21,7 @@
     pins    = #{
         spi1_pin9  => 1,
         spi1_pin10 => 1,
-        ss1        => 0
+        ss1        => 1
     },
     acc_gyro = default_acc_gyro(),
     mag      = default_mag()
@@ -25,10 +31,27 @@
 
 init() -> #state{}.
 
-message(State, {spi, ?SPI_MODE, <<>>}) -> {<<0, 0, 0>>, State}.
+message(State, {spi, ?SPI_MODE, <<?RW_READ:1, ?WHO_AM_I:7, _>>}) when ?ACCEL(State) ->
+    {<<0, 0>>, State}.
 
 broadcast(#state{pins = Pins} = State, {gpio, Pin, {configure, Mode, _}}) ->
-    State#state{pins = maps:update(Pin, value(Mode), Pins)}.
+    % State#state{pins = maps:update(Pin, value(Mode), Pins)};
+    % TODO: Emulate pin configuration
+    State;
+broadcast(#state{pins = Pins} = State, {gpio, Pin, clear}) ->
+    State#state{pins = maps:update(Pin, 0, Pins)};
+broadcast(#state{pins = Pins} = State, {gpio, Pin, set}) ->
+    State#state{pins = maps:update(Pin, 1, Pins)};
+broadcast(State, {gpio, jumper_1, get}) ->
+    State;
+broadcast(State, {gpio, jumper_2, get}) ->
+    State;
+broadcast(State, {gpio, jumper_3, get}) ->
+    State;
+broadcast(State, {gpio, jumper_4, get}) ->
+    State;
+broadcast(State, {gpio, jumper_5, get}) ->
+    State.
 
 %--- Internal ------------------------------------------------------------------
 
