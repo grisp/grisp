@@ -3,6 +3,7 @@
 -behavior(gen_server).
 
 -include("grisp.hrl").
+-include("pmod_ad5.hrl").
 
 % API
 -export([start_link/1]).
@@ -27,6 +28,8 @@
 
 % @private
 start_link(Slot) -> gen_server:start_link(?MODULE, Slot, []).
+
+
 
 %--- Callbacks -----------------------------------------------------------------
 
@@ -53,14 +56,8 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 terminate(_Reason, _State) -> ok.
 
 verify_device(Slot) ->
-    [verify_device_reg(Slot, Msg, Reg, Val) || {Msg, Reg, Val} <- [
-        {analog_devices_device_id,      ?DEVID_AD,  ?AD_DEVID},
-        {analog_devices_mems_device_id, ?DEVID_MST, ?AD_MEMS_DEVID},
-        {device_id,                     ?PARTID,    ?DEVID}
-    ]].
+    <<_:4, 2:4>> = read(Slot, 2#100, 1).
 
-verify_device_reg(Slot, Message, Reg, Val) ->
-    case grisp_spi:send_recv(Slot, ?SPI_MODE, <<?READ_REGISTER, Reg>>, 2, 1) of
-        <<Val>> -> ok;
-        Other   -> error({device_mismatch, {Message, Other}})
-    end.
+read(Slot, Reg, Size) ->
+    grisp_spi:send_recv(Slot, ?SPI_MODE, <<0:1, 1:1, Reg:3, 0:1, 0:2>>, 
+			1, Size).
