@@ -44,11 +44,9 @@ init(Slot = spi1) ->
     % Configure pin 9 and 10 for output pulled high
     grisp_gpio:configure(spi1_pin9, output_1),
     grisp_gpio:configure(spi1_pin10, output_1),
-    % ss1 pulled low and pin 9 and 10 pulled high means accelerometer is active
-    State = #state{slot = Slot},
-    State2 = verify_device(State),
-    grisp_devices:register(State2#state.slot, ?MODULE),
-    {ok, State2}.
+    verify_device(Slot),
+    grisp_devices:register(Slot, ?MODULE),
+    {ok, #state{slot = Slot}}.
 
 % @private
 handle_call(Request, _From, _State) -> error({unknown_call, Request}).
@@ -74,7 +72,7 @@ call(Call) ->
     Dev = grisp_device:default(?MODULE),
     gen_server:call(Dev#device.pid, Call).
 
-verify_device(#state{slot = Slot}) ->
+verify_device(Slot) ->
     [verify_device_who_am_i(Slot, V) || V <- [
         {accelerometer,
             <<?RW_READ:1, ?WHO_AM_I:7>>,
