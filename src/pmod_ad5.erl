@@ -1,5 +1,4 @@
 -module(pmod_ad5).
--compile([export_all]).
 
 -behavior(gen_server).
 
@@ -8,6 +7,7 @@
 
 % API
 -export([start_link/1]).
+-export([single/2]).
 
 % Callbacks
 -export([init/1]).
@@ -18,8 +18,8 @@
 -export([terminate/2]).
 
 -define(SPI_MODE, #{cpol => high, cpha => trailing}).
--define(wait_ready_timeout, 1000).
--define(wait_ready_poll, 10).
+-define(WAIT_READY_TIMEOUT, 1000).
+-define(WAIT_READY_POLL, 10).
 
 %--- Records -------------------------------------------------------------------
 
@@ -32,6 +32,12 @@
 % @private
 start_link(Slot) -> gen_server:start_link(?MODULE, Slot, []).
 
+single(Config, Mode) ->
+    BinConfig = calc_flags(Config, ?CONFIG_BITS),
+    {BinMode, ModeFlags} = calc_flags(Mode#{md => 1}, ?MODE_BITS),
+    ChanCount = count_channels(Config),
+    ValSize = value_size(ModeFlags),
+    call({single, BinConfig, BinMode, ValSize, ChanCount}).
 
 %--- Callbacks -----------------------------------------------------------------
 
@@ -42,8 +48,9 @@ init(Slot) ->
     {ok, #state{slot = Slot}}.
 
 % @private
-handle_call(tbd, _From, State) ->
-    {reply, not_implemented, State}.
+handle_call({single, BinConfig, BinMode, ValSize, ChanCount}, _From, State) ->
+    write(State#state.slot, ?CONFIGURATION, BinConfig),
+    {reply, get_values(State#state.slot, BinMode, ValSize, ChanCount), State}.
 
 % @private
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
@@ -57,95 +64,57 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 % @private
 terminate(_Reason, _State) -> ok.
 
+%--- Internal ------------------------------------------------------------------
+
+call(Call) ->
+    Dev = grisp_devices:default(?MODULE),
+    gen_server:call(Dev#device.pid, Call).
+
 verify_device(Slot) ->
-    <<_:4, 2:4>> = read(Slot, 2#100, 1).
+    case read(Slot, ?ID, 1) of
+        <<_:4, ?DEVID:4>> -> ok;
+        <<_:4, Other:4>>  -> error({device_mismatch, {id, Other}})
+    end.
 
-
-single(Slot, Config, Mode) ->
-    {C, Cf} = config_flags(Config),
-    {M, Mf} = mode_flags(Mode#{md => 1}),
-    N = count_channels(Cf),
-    Val_size = val_size(Mf),
-    write_config(Slot, C),
-    get_values(Slot, M, Val_size, N).
-
-get_values(_Slot, _M, _Val_size, 0) ->
+get_values(_Slot, _M, _ValSize, 0) ->
     [];
-get_values(Slot, M, Val_size, N) when N > 0 ->
-    write_mode(Slot, M),
-    ok = wait_ready(Slot, ?wait_ready_timeout),
-    [ read(Slot, 3, Val_size) | get_values(Slot, M, Val_size, N-1) ].
-    
+get_values(Slot, M, ValSize, N) when N > 0 ->
+    write(Slot, ?MODE, M),
+    ok = wait_ready(Slot, ?WAIT_READY_TIMEOUT),
+    [read(Slot, ?DATA, ValSize) | get_values(Slot, M, ValSize, N - 1)].
+
+count_channels(Config) ->
+    lists:sum(maps:values(maps:with(?CONFIG_CHANNELS, Config))).
+
+% Common
 
 wait_ready(_Slot, Timeout) when Timeout =< 0 ->
     {error, timeout};
 wait_ready(Slot, Timeout) ->
-    case read(Slot, 0, 1) of
-	<<1:1, _:7>> ->
-	    timer:sleep(?wait_ready_poll),
-	    wait_ready(Slot, Timeout-?wait_ready_poll);
-	<<0:1, _:7>> ->
-	    ok
+    case read(Slot, ?COMMUNICATIONS, 1) of
+        <<?RDY_READY:1, _:7>> ->
+            timer:sleep(?WAIT_READY_POLL),
+            wait_ready(Slot, Timeout - ?WAIT_READY_POLL);
+        <<?RDY_WAIT:1, _:7>> ->
+            ok
     end.
-    
-    
-count_channels(Config) ->
-    lists:sum(maps:values(maps:with([short, temp, ch7, ch6, ch5, 
-				     ch4, ch3, ch2, ch1, ch0], Config))).
 
-val_size(#{dat_sta := 0}) -> 3;
-val_size(#{dat_sta := 1}) -> 4.
-    
-write_mode(Slot, <<_:24>>=Flags) ->
-    <<>> = write(Slot, 1, Flags);
-write_mode(Slot, Flags) ->
-    {F, _} = mode_flags(Flags),
-    write_mode(Slot, F).
+value_size(#{dat_sta := ?DAT_STA_DISABLE}) -> 3;
+value_size(#{dat_sta := ?DAT_STA_ENABLE})  -> 4.
 
-mode_flags(Flags) ->
-    Default = #{0 => 0, 1 => 1,
-		md => 0, dat_sta => 0, clk => 2, avg => 0, 
-		sinc3 => 0, enpar => 0, clk_div => 0, single => 0, 
-		rej60 => 0, fs => 16#60},
-    Bits = [{md, 3}, dat_sta, {clk, 2}, {avg, 2}, 
-	    sinc3, 0, enpar, clk_div, single, rej60, {fs, 10}],
-    calc_flags(Flags, Default, Bits).
+calc_flags(Flags, Bits) ->
+    << <<(flag(F, Flags, Default)):Size>> || {F, Size, Default} <- Bits >>.
 
-write_config(Slot, <<_:24>>=Flags) ->
-    <<>> = write(Slot, 2, Flags);
-write_config(Slot, Flags) ->
-    {F, _} = config_flags(Flags),
-    write_config(Slot, F).
+flag(0, _Flags, _Default)  -> 0;
+flag(Flag, Flags, Default) -> maps:get(Flag, Flags, Default).
 
-config_flags(Flags) ->
-    Default = #{0 => 0, 1 => 1, 
-		chop => 0, refsel => 0, pseudo => 0,
-		short => 0, temp => 0, 
-		ch7 => 0, ch6 => 0, ch5 => 0, ch4 => 0, 
-		ch3 => 0, ch2 => 0, ch1 => 0, ch0 => 0, 
-		burn => 0, refdet => 0, buf => 1, unb => 0, 
-		gain => 7},
-    Bits = [chop, 0, 0, refsel, 0, pseudo, short, temp, 
-	    ch7, ch6, ch5, ch4, ch3, ch2, ch1, ch0, 
-	    burn, refdet, 0, buf, unb, {gain, 3}],
-    calc_flags(Flags, Default, Bits).
+read(Slot, Reg, Size) -> send_recv(Slot, ?RW_READ, Reg, <<>>, Size).
 
-calc_flags(Flags, Default, Bits) ->
-    F = maps:merge(Default, Flags),
-    {<< <<(flag_chunk(B, F))/bits>> || B <- Bits>>, F}.
+write(Slot, Reg, Data) -> send_recv(Slot, ?RW_WRITE, Reg, Data, 0).
 
-flag_chunk({B, S}, F) ->
-    <<(maps:get(B, F)):S>>;
-flag_chunk(B, F) ->
-    <<(maps:get(B, F)):1>>.
+send_recv(Slot, RW, Reg, Data, Size) ->
+    Req = req(RW, Reg, Data),
+    grisp_spi:send_recv(Slot, ?SPI_MODE, Req, byte_size(Data) + 1, Size).
 
-read(Slot, Reg, Size) ->
-    grisp_spi:send_recv(Slot, ?SPI_MODE, <<0:1, 1:1, Reg:3, 0:1, 0:2>>, 
-			1, Size).
-
-write(Slot, Reg, Data) ->
-    grisp_spi:send_recv(Slot, ?SPI_MODE, 
-			<<0:1, 0:1, Reg:3, 0:1, 0:2, Data/binary>>, 
-			byte_size(Data)+1, 0).
-    
-
+req(RW, Reg, Data) ->
+    <<?WRITE_ENABLE:1, RW:1, Reg:3, ?CONT_READ_DISABLE:1, 0:2, Data/binary>>.
