@@ -80,6 +80,7 @@ get_values(_Slot, _M, _ValSize, 0) ->
     [];
 get_values(Slot, M, ValSize, N) when N > 0 ->
     write(Slot, ?MODE, M),
+    % TODO: Return timeout error to caller instead of crashing gen_server
     ok = wait_ready(Slot, ?WAIT_READY_TIMEOUT),
     [read(Slot, ?DATA, ValSize) | get_values(Slot, M, ValSize, N - 1)].
 
@@ -92,10 +93,10 @@ wait_ready(_Slot, Timeout) when Timeout =< 0 ->
     {error, timeout};
 wait_ready(Slot, Timeout) ->
     case read(Slot, ?COMMUNICATIONS, 1) of
-        <<?RDY_READY:1, _:7>> ->
+        <<?RDY_WAIT:1, _:7>> ->
             timer:sleep(?WAIT_READY_POLL),
             wait_ready(Slot, Timeout - ?WAIT_READY_POLL);
-        <<?RDY_WAIT:1, _:7>> ->
+        <<?RDY_READY:1, _:7>> ->
             ok
     end.
 
