@@ -73,7 +73,7 @@ call(Call) ->
 verify_device(Slot) ->
     case read(Slot, ?ID, 1) of
         <<_:4, ?DEVID:4>> -> ok;
-        <<_:4, Other:4>>  -> error({device_mismatch, {id, Other}})
+        Other             -> error({device_mismatch, {id, Other}})
     end.
 
 get_values(_Slot, _M, _ValSize, 0) ->
