@@ -34,9 +34,9 @@ start_link(Slot) -> gen_server:start_link(?MODULE, Slot, []).
 
 single(Config, Mode) ->
     BinConfig = calc_flags(Config, ?CONFIG_BITS),
-    {BinMode, ModeFlags} = calc_flags(Mode#{md => 1}, ?MODE_BITS),
+    BinMode = calc_flags(Mode#{md => 1}, ?MODE_BITS),
     ChanCount = count_channels(Config),
-    ValSize = value_size(ModeFlags),
+    ValSize = value_size(Mode),
     call({single, BinConfig, BinMode, ValSize, ChanCount}).
 
 %--- Callbacks -----------------------------------------------------------------
@@ -99,8 +99,8 @@ wait_ready(Slot, Timeout) ->
             ok
     end.
 
-value_size(#{dat_sta := ?DAT_STA_DISABLE}) -> 3;
-value_size(#{dat_sta := ?DAT_STA_ENABLE})  -> 4.
+value_size(#{dat_sta := ?DAT_STA_ENABLE})  -> 4;
+value_size(_)                              -> 3.
 
 calc_flags(Flags, Bits) ->
     << <<(flag(F, Flags, Default)):Size>> || {F, Size, Default} <- Bits >>.
