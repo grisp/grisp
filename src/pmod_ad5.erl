@@ -37,7 +37,10 @@ single(Config, Mode) ->
     BinMode = calc_flags(Mode#{md => 1}, ?MODE_BITS),
     ChanCount = count_channels(Config),
     ValSize = value_size(Mode),
-    call({single, BinConfig, BinMode, ValSize, ChanCount}).
+    case call({single, BinConfig, BinMode, ValSize, ChanCount}) of
+        {error, Reason} -> error(Reason);
+        Result          -> Result
+    end.
 
 %--- Callbacks -----------------------------------------------------------------
 
@@ -50,7 +53,12 @@ init(Slot) ->
 % @private
 handle_call({single, BinConfig, BinMode, ValSize, ChanCount}, _From, State) ->
     write(State#state.slot, ?CONFIGURATION, BinConfig),
-    {reply, get_values(State#state.slot, BinMode, ValSize, ChanCount), State}.
+    Reply = try
+        get_values(State#state.slot, BinMode, ValSize, ChanCount)
+    catch
+        {error, _} = Error -> Error
+    end,
+    {reply, Reply, State}.
 
 % @private
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
@@ -78,11 +86,11 @@ verify_device(Slot) ->
 
 get_values(_Slot, _M, _ValSize, 0) ->
     [];
-get_values(Slot, M, ValSize, N) when N > 0 ->
-    write(Slot, ?MODE, M),
+get_values(Slot, BinMode, ValSize, N) when N > 0 ->
+    write(Slot, ?MODE, BinMode),
     % TODO: Return timeout error to caller instead of crashing gen_server
     ok = wait_ready(Slot, ?WAIT_READY_TIMEOUT),
-    [read(Slot, ?DATA, ValSize) | get_values(Slot, M, ValSize, N - 1)].
+    [read(Slot, ?DATA, ValSize) | get_values(Slot, BinMode, ValSize, N - 1)].
 
 count_channels(Config) ->
     lists:sum(maps:values(maps:with(?CONFIG_CHANNELS, Config))).
@@ -90,7 +98,7 @@ count_channels(Config) ->
 % Common
 
 wait_ready(_Slot, Timeout) when Timeout =< 0 ->
-    {error, timeout};
+    throw({error, timeout});
 wait_ready(Slot, Timeout) ->
     case read(Slot, ?COMMUNICATIONS, 1) of
         <<?RDY_WAIT:1, _:7>> ->
