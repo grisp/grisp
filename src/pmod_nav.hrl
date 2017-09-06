@@ -10,18 +10,33 @@
 
 %--- Registers -----------------------------------------------------------------
 
--define(WHO_AM_I,         16#0F).
+-define(ACC_WHO_AM_I, 16#0F).
+-define(ACC_OUT_X_XL, 16#28).
+-define(ACC_OUT_Y_XL, 16#2A).
+-define(ACC_OUT_Z_XL, 16#2C).
+-define(CTRL_REG5_XL, 16#1F).
+-define(CTRL_REG6_XL, 16#20).
 
 %--- Bit Descriptions ----------------------------------------------------------
 
--define(WHO_AM_I_DEFAULT, 2#01101000).
+-define(ACC_WHO_AM_I_DEFAULT, 2#01101000).
 
 %=== Magnetometer ==============================================================
 
 %--- Registers -----------------------------------------------------------------
 
--define(WHO_AM_I_M,       16#0F).
+-define(MAG_WHO_AM_I, 16#0F).
 
 %--- Bit Descriptions ----------------------------------------------------------
 
--define(WHO_AM_I_M_DEFAULT, 2#00111101).
+-define(MAG_WHO_AM_I_DEFAULT, 2#00111101).
+
+%=== Altimeter =================================================================
+
+%--- Registers -----------------------------------------------------------------
+
+-define(ALT_WHO_AM_I, 16#0F).
+
+%--- Bit Descriptions ----------------------------------------------------------
+
+-define(ALT_WHO_AM_I_DEFAULT, 2#10111101).
