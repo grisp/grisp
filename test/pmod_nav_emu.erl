@@ -24,6 +24,7 @@
     spi1_pin9  => {output_1, 1},
     spi1_pin10 => {output_1, 0}
 }).
+-define(PIN(Pin), Pin == ss1 orelse Pin == spi1_pin9 orelse Pin == spi1_pin10).
 
 %--- Records -------------------------------------------------------------------
 
@@ -53,7 +54,7 @@ message(State, {spi, ?SPI_MODE, Req}) when ?ALT(State) ->
 message(State, {spi, ?SPI_MODE, <<_Req, Value/binary>>}) ->
     {<<0, (binary:copy(<<0>>, byte_size(Value)))/binary>>, State}.
 
-broadcast(#state{pins = Pins} = State, {gpio, Pin, {configure, Mode, _}}) ->
+broadcast(#state{pins = Pins} = State, {gpio, Pin, {configure, Mode, _}}) when ?PIN(Pin) ->
     State#state{pins = maps:update(Pin, {Mode, value(Mode)}, Pins)};
 broadcast(#state{pins = Pins} = State, {gpio, Pin, clear}) ->
     NewPins = maps:update_with(Pin, fun({Mode, _}) -> {Mode, 0} end, Pins),
@@ -103,7 +104,7 @@ write(Bin, Reg, Value) ->
     {<<0, (binary:copy(<<0>>, byte_size(Value)))/binary>>, NewBin}.
 
 value(output_1) -> 1;
-value(periph_c) -> undefined.
+value(_)        -> undefined.
 
 shake(acc_gyro, Bin) ->
     case grisp_bitmap:get_bytes(Bin, ?CTRL_REG6_XL, 1) of
