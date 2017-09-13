@@ -6,7 +6,7 @@
     {applications, [
         kernel,
         stdlib,
-        subtree
+        mapz
     ]},
     {env,[]},
     {modules, []},

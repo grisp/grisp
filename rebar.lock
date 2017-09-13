@@ -1,6 +1,6 @@
 {"1.1.0",
-[{<<"subtree">>,{pkg,<<"subtree">>,<<"0.1.0">>},0}]}.
+[{<<"mapz">>,{pkg,<<"mapz">>,<<"0.2.0">>},0}]}.
 [
 {pkg_hash,[
- {<<"subtree">>, <<"DCBC3FC10A24E1413B885C1968A26F7F5D4DBB0082F0E869AE1FFB1CBC34FD5C">>}]}
+ {<<"mapz">>, <<"51862869557D2DDF5053FF328DE8B3D8369BFA849F7808F29F11F6B290A6311A">>}]}
 ].

@@ -126,9 +126,9 @@ write(Slot, Comp, Reg, Value) ->
 write_config(#{slot := Slot} = State, Comp, Options) ->
     Partitions = partition(Comp, Options),
     Cache = maps:with(maps:keys(Partitions), maps:get(Comp, State, #{})),
-    Final = subtree:deep_merge(Cache, Partitions),
+    Final = mapz:deep_merge(Cache, Partitions),
     Result = write(Slot, Comp, compile(Comp, Final)),
-    NewState = subtree:deep_merge(State, #{Comp => Final}),
+    NewState = mapz:deep_merge(State, #{Comp => Final}),
     {Result, NewState}.
 
 partition(Comp, Options) ->
@@ -175,7 +175,7 @@ conv(_Comp, Value, _State, _Opts, _Defs) ->
 setting([Reg, Opt] = Path, {Comp, CompState}) ->
     {_Addr, _RegSize, Defs} = maps:get(Reg, registers(Comp)),
     {Opt, {_OptSize, Default, _Mapping}} = lists:keyfind(Opt, 1, Defs),
-    subtree:get(Path, CompState, Default).
+    mapz:deep_get(Path, CompState, Default).
 
 write_request(acc, Reg, Value) -> <<?RW_WRITE:1, Reg:7, Value/binary>>.
 
