@@ -107,11 +107,11 @@ value(output_1) -> 1;
 value(_)        -> undefined.
 
 shake(acc_gyro, Bin) ->
-    case grisp_bitmap:get_bytes(Bin, ?CTRL_REG6_XL, 1) of
+    case grisp_bitmap:get_bytes(Bin, 16#20, 1) of
         <<2#000:3, _:5>> -> % ODR in power-down mode
             Bin;
         _ ->
-            grisp_bitmap:set_bytes(Bin, ?ACC_OUT_X_XL, crypto:strong_rand_bytes(6))
+            grisp_bitmap:set_bytes(Bin, 16#28, crypto:strong_rand_bytes(6))
     end.
 
 default_acc_gyro() ->
