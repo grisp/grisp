@@ -15,6 +15,10 @@
 -export([code_change/3]).
 -export([terminate/2]).
 
+% TODO: Enable custom pin pulling for reading SPI
+% TODO: Implement multi-read interface for reading multiple registers
+%       (including custom pin pulling per register?)
+
 %--- Records -------------------------------------------------------------------
 
 -record(state, {driver}).

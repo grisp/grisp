@@ -37,7 +37,12 @@ read(Comp, Registers, Opts) -> call({read, Comp, Registers, Opts}).
 % @private
 init(Slot = spi1) ->
     State = try
-        S = #{slot => Slot},
+        S = #{
+            slot => Slot,
+            acc => {{registers(acc), reverse_opts(registers(acc))}, #{}},
+            mag => {{registers(mag), reverse_opts(registers(mag))}, #{}},
+            alt => {{registers(alt), reverse_opts(registers(alt))}, #{}}
+        },
         configure_pins(Slot),
         verify_device(S),
         initialize_device(S)
@@ -52,19 +57,10 @@ init(Slot) ->
     error({incompatible_slot, Slot}).
 
 % @private
-% FIXME: Handle throws in every call
-handle_call({config, Comp, Options}, _From, State) ->
-    {Result, NewState} = try
-        write_config(State, Comp, Options)
-    catch
-        throw:Reason ->
-            {{error, Reason}, State}
-    end,
-    {reply, Result, NewState};
-handle_call({read, Comp, Registers, Opts}, _From, State) ->
-    {reply, read_regs(State, Comp, Registers, Opts), State};
-handle_call(Request, _From, _State) ->
-    error({unknown_call, Request}).
+handle_call(Call, _From, State) ->
+    try execute_call(Call, State)
+    catch throw:Reason -> {reply, {error, Reason}, State}
+    end.
 
 % @private
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
@@ -86,6 +82,14 @@ call(Call) ->
         {error, Reason} -> error(Reason);
         Result          -> Result
     end.
+
+execute_call({config, Comp, Options}, State) ->
+    {Result, NewState} = write_config(State, Comp, Options),
+    {reply, Result, NewState};
+execute_call({read, Comp, Registers, Opts}, State) ->
+    {reply, read_regs(State, Comp, Registers, Opts), State};
+execute_call(Request, _State) ->
+    error({unknown_call, Request}).
 
 configure_pins(Slot) ->
     % Disable chip select for SPI1
@@ -114,70 +118,75 @@ initialize_device(State) ->
     {_Result, NewState} = write_config(State, acc, #{odr_xl => {hz, 10}}),
     NewState.
 
-write(Slot, Comp, Registers) ->
-    [write(Slot, Comp, Reg, Value)|| {Reg, Value} <- Registers],
-    ok.
-
-write(Slot, Comp, Reg, Value) ->
-    select(Comp, fun() ->
-        <<>> = request(Slot, write_request(Comp, Reg, Value), 0)
-    end).
-
 write_config(#{slot := Slot} = State, Comp, Options) ->
-    Partitions = partition(Comp, Options),
-    Cache = maps:with(maps:keys(Partitions), maps:get(Comp, State, #{})),
-    Final = mapz:deep_merge(Cache, Partitions),
-    Result = write(Slot, Comp, compile(Comp, Final)),
-    NewState = mapz:deep_merge(State, #{Comp => Final}),
-    {Result, NewState}.
+    {{Registers, RevOpts}, Cache} = maps:get(Comp, State),
+    Partitions = partition(Options, RevOpts),
+    NewCache = maps:map(fun(Reg, Opts) ->
+        Bin = case maps:find(Reg, Cache) of
+            {ok, Value} ->
+                Value;
+            error ->
+                {Value, _Conv} = read_bin(Slot, Comp, Reg),
+                Value
+        end,
+        {Addr, _Size, Defs} = maps:get(Reg, Registers),
+        NewBin = render_bits(Defs, Bin, Opts),
+        write_bin(Slot, Comp, Addr, NewBin)
+    end, Partitions),
+    {ok, mapz:deep_merge(State, #{Comp => {{Registers, RevOpts}, NewCache}})}.
 
-partition(Comp, Options) ->
+partition(Options, RevOpts) ->
     maps:fold(fun(K, V, Acc) ->
         Reg = try
-            maps:get(K, rev_opts(Comp))
+            maps:get(K, RevOpts)
         catch error:{badkey, K} ->
             throw({unknown_option, K})
         end,
         maps:update_with(Reg, fun(M) -> maps:put(K, V, M) end, #{K => V}, Acc)
     end, #{}, Options).
 
-compile(Comp, Options) ->
-    maps:fold(fun(Reg, Opts, Acc) -> [render(Comp, Reg, Opts)|Acc] end, [], Options).
-
-render(Comp, Reg, Opts) ->
-    {Addr, _Size, Defs} = maps:get(Reg, registers(Comp)),
-    {Addr, << <<(render_opt(D, Opts))/bitstring>> || D <- Defs >>}.
-
-render_opt({0, {Size, Default}}, _Opts) ->
-    <<Default:Size>>;
-render_opt({Opt, {Size, Default, Mapping}}, Opts) ->
-    case maps:get(Opt, Opts, Default) of
-        Raw when is_integer(Raw) -> <<Raw:Size>>; % TODO: Detect overflow here?
-        Alias                    -> <<(maps:get(Alias, Mapping)):Size>>
-    end.
+reverse_opts(Registers) ->
+    maps:fold(fun
+        (Reg, {_Addr, _Size, Defs}, Rev) when is_list(Defs) ->
+            lists:foldl(fun(D, R) ->
+                maps:put(D, Reg, R)
+            end, Rev, proplists:get_keys(Defs));
+        (_Reg, _Spec, Rev) ->
+            Rev
+    end, #{}, Registers).
 
 read_regs(State, Comp, Registers, Opts) ->
-    % FIXME: Not pulling pins between requests creates garbage data?!
+    % FIXME: Not pulling pins between requests creates garbage data?
     select(Comp, fun() ->
         [read_reg(State, Comp, Reg, Opts) || Reg <- Registers]
     end).
 
 read_reg(#{slot := Slot} = State, Comp, Reg, Opts) ->
-    {Addr, Size, Conv} = maps:get(Reg, registers(Comp)),
-    Value = request(Slot, read_request(Comp, Addr), Size),
-    conv(Comp, Value, State, Opts, Conv).
+    {Value, Def} = read_bin(Slot, Comp, Reg),
+    conv(Comp, Def, Value, State, Opts).
 
-conv(Comp, Value, State, Opts, Conv) when is_function(Conv) ->
-    Conv(Value, {Comp, maps:get(acc, State)}, Opts);
-conv(_Comp, Value, _State, _Opts, _Defs) ->
+write_bin(Slot, Comp, Reg, Value) ->
+    select(Comp, fun() ->
+        <<>> = request(Slot, write_request(Comp, Reg, Value), 0)
+    end),
     Value.
 
-setting([Reg, Opt] = Path, {Comp, CompState}) ->
-    {_Addr, _RegSize, Defs} = maps:get(Reg, registers(Comp)),
-    {Opt, {_OptSize, Default, _Mapping}} = lists:keyfind(Opt, 1, Defs),
-    mapz:deep_get(Path, CompState, Default).
+read_bin(Slot, Comp, Reg) ->
+    {Addr, Size, Conv} = maps:get(Reg, registers(Comp)),
+    {request(Slot, read_request(Comp, Addr), Size), {Addr, Size, Conv}}.
 
-write_request(acc, Reg, Value) -> <<?RW_WRITE:1, Reg:7, Value/binary>>.
+conv(_Comp, _Reg, Value, _State, #{unit := raw}) ->
+    Value;
+conv(Comp, {_Addr, _Size, Conv}, Value, State, Opts) when is_function(Conv) ->
+    Conv(Value, {Comp, maps:get(acc, State)}, Opts);
+conv(_Comp, {_Addr, _Size, Conv}, Value, _State, Opts) when is_list(Conv) ->
+    convert_opts(Conv, Value, Opts);
+conv(_Comp, {_Addr, _Size, raw}, Value, _State, _Opts) ->
+    Value.
+
+write_request(acc, Reg, Val) -> <<?RW_WRITE:1, Reg:7, Val/binary>>;
+write_request(mag, Reg, Val) -> <<?RW_WRITE:1, ?MS_INCR:1, Reg:6, Val/binary>>;
+write_request(alt, Reg, Val) -> <<?RW_WRITE:1, ?MS_INCR:1, Reg:6, Val/binary>>.
 
 read_request(acc, Reg) -> <<?RW_READ:1, Reg:7>>;
 read_request(mag, Reg) -> <<?RW_READ:1, ?MS_SAME:1, Reg:6>>;
@@ -195,18 +204,46 @@ select(Component, Fun) ->
         grisp_gpio:set(Pin)
     end.
 
+render_bits(Defs, Bin, Opts) ->
+    render_bits(Defs, Bin, Opts, 0).
+
+render_bits([{Name, {Size, _Default, Mapping}}|Defs], Bin, Opts, Pos) ->
+    NewBin = case maps:find(Name, Opts) of
+        {ok, Value} ->
+            % TODO: Detect value overflow in regards to Size here?
+            Real = case maps:find(Value, Mapping) of
+                {ok, V} -> V;
+                error when is_integer(Value) -> Value;
+                error -> throw({invalid_option, Name, Value})
+            end,
+            grisp_bitmap:set_bits(Bin, Pos, <<Real:Size>>);
+        error ->
+            Bin
+    end,
+    render_bits(Defs, NewBin, Opts, Pos + Size);
+render_bits([], Bin, _Opts, Pos) when bit_size(Bin) == Pos ->
+    Bin.
+
+parse_bits(Defs, Bin) -> parse_bits(Defs, Bin, #{}).
+
+parse_bits([{Name, {Size, _Default, Map}}|Defs], Bin, Opts) ->
+    <<Val:Size, Rest/bitstring>> = Bin,
+    Values = mapz:inverse(Map),
+    parse_bits(Defs, Rest, maps:put(Name, maps:get(Val, Values), Opts));
+parse_bits([{0, {Size, _Default}}|Defs], Bin, Opts) ->
+    <<_:Size, Rest/bitstring>> = Bin,
+    parse_bits(Defs, Rest, Opts);
+parse_bits([], <<>>, Opts) ->
+    Opts.
+
+setting([Reg, Opt] = Path, {Comp, CompState}) ->
+    {_Addr, _RegSize, Defs} = maps:get(Reg, registers(Comp)),
+    {Opt, {_OptSize, Default, _Mapping}} = lists:keyfind(Opt, 1, Defs),
+    mapz:deep_get(Path, CompState, Default).
+
 pin(acc) -> ss1;
 pin(mag) -> spi1_pin9;
 pin(alt) -> spi1_pin10.
-
-rev_opts(acc) ->
-    #{
-        dec    => ctrl_reg5_xl,
-        zen_xl => ctrl_reg5_xl,
-        fs_xl  => ctrl_reg6_xl,
-        hr     => ctrl_reg6_xl,
-        odr_xl => ctrl_reg6_xl
-    }.
 
 registers(acc) ->
     #{
@@ -269,8 +306,6 @@ registers(alt) ->
         who_am_i => {16#0F, 1, raw}
     }.
 
-convert_g(Value, _State, #{unit := raw}) ->
-    Value;
 convert_g(<<Value:16/signed-little>>, State, Opts) ->
     Scale = case maps:get(unit, Opts, g) of
         g     -> 0.001;
@@ -284,3 +319,6 @@ convert_g(<<Value:16/signed-little>>, State, Opts) ->
         {g, 16} -> Value * 0.732 * Scale;
         _       -> Value
     end.
+
+convert_opts(Defs, Value, _Opts) ->
+    parse_bits(Defs, Value).
