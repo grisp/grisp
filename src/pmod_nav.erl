@@ -26,11 +26,12 @@
 % @private
 start_link(Slot) -> gen_server:start_link(?MODULE, Slot, []).
 
-config(Comp, Options) -> call({config, Comp, Options}).
+config(Comp, Options) when is_map(Options) -> call({config, Comp, Options}).
 
 read(Comp, Registers) -> read(Comp, Registers, #{}).
 
-read(Comp, Registers, Opts) -> call({read, Comp, Registers, Opts}).
+read(Comp, Registers, Opts) when is_list(Registers) ->
+    call({read, Comp, Registers, Opts}).
 
 %--- Callbacks -----------------------------------------------------------------
 
@@ -211,8 +212,12 @@ write_bin(#{slot := Slot}, Comp, Reg, Value) ->
     Value.
 
 read_bin(#{slot := Slot} = State, Comp, Reg) ->
-    {Addr, Size, _Conv} = mapz:deep_get([Comp, regs, Reg], State),
-    request(Slot, read_request(Comp, Addr), Size).
+    case mapz:deep_find([Comp, regs, Reg], State) of
+        {ok, {Addr, Size, _Conv}} ->
+            request(Slot, read_request(Comp, Addr), Size);
+        error ->
+            throw({unknown_register, Comp, Reg})
+    end.
 
 write_request(acc, Reg, Val) -> <<?RW_WRITE:1, Reg:7, Val/binary>>;
 write_request(mag, Reg, Val) -> <<?RW_WRITE:1, ?MS_INCR:1, Reg:6, Val/binary>>;
