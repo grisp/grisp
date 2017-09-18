@@ -39,10 +39,9 @@ init(Slot = spi1) ->
     State = try
         S = #{
             slot => Slot,
-            % FIXME: Change to #{regs => , rev => , cache => }
-            acc => {{registers(acc), reverse_opts(registers(acc))}, #{}},
-            mag => {{registers(mag), reverse_opts(registers(mag))}, #{}},
-            alt => {{registers(alt), reverse_opts(registers(alt))}, #{}}
+            acc => init_comp(acc),
+            mag => init_comp(mag),
+            alt => init_comp(alt)
         },
         configure_pins(Slot),
         NewS = verify_device(S),
@@ -83,6 +82,10 @@ call(Call) ->
         {error, Reason} -> error(Reason);
         Result          -> Result
     end.
+
+init_comp(Comp) ->
+    Regs = registers(Comp),
+    #{regs => Regs, rev => reverse_opts(Regs), cache => #{}}.
 
 execute_call({config, Comp, Options}, State) ->
     {Result, NewState} = write_config(State, Comp, Options),
@@ -125,18 +128,18 @@ initialize_device(State) ->
     NewState.
 
 write_config(State, Comp, Options) ->
-    {{Defs, RevOpts}, Cache} = maps:get(Comp, State),
-    Partitions = partition(Options, RevOpts),
+    % TODO: Move component upwards?
+    Partitions = partition(Options, mapz:deep_get([Comp, rev], State)),
     NewCache = maps:map(fun(Reg, Opts) ->
-        Bin = case maps:find(Reg, Cache) of
+        Bin = case maps:find(Reg, mapz:deep_get([Comp, cache], State)) of
             {ok, Value} -> Value;
             error       -> read_bin(State, Comp, Reg)
         end,
-        {Addr, _Size, Conv} = maps:get(Reg, Defs),
+        {Addr, _Size, Conv} = maps:get(Reg, mapz:deep_get([Comp, regs], State)),
         NewBin = render_bits(Conv, Bin, Opts),
         write_bin(State, Comp, Addr, NewBin)
     end, Partitions),
-    {ok, mapz:deep_merge(State, #{Comp => {{Defs, RevOpts}, NewCache}})}.
+    {ok, mapz:deep_put([Comp, cache], NewCache, State)}.
 
 partition(Options, RevOpts) ->
     maps:fold(fun(K, V, Acc) ->
@@ -150,10 +153,10 @@ partition(Options, RevOpts) ->
 
 reverse_opts(Registers) ->
     maps:fold(fun
-        (Reg, {_Addr, _Size, Defs}, Rev) when is_list(Defs) ->
+        (Reg, {_Addr, _Size, Conv}, Rev) when is_list(Conv) ->
             lists:foldl(fun(D, R) ->
                 maps:put(D, Reg, R)
-            end, Rev, proplists:get_keys(Defs));
+            end, Rev, proplists:get_keys(Conv));
         (_Reg, _Spec, Rev) ->
             Rev
     end, #{}, Registers).
@@ -163,21 +166,21 @@ read_and_convert(State, Comp, Registers, Opts) ->
     convert_regs(NewState, Comp, Opts, Values).
 
 read_regs(State, Comp, Registers) ->
-    {{Defs, RevOpts}, Cache} = maps:get(Comp, State),
+    % TODO: Move comp higher?
     % FIXME: Not pulling pins between requests creates garbage data?
-    {Values, NewCache} = lists:foldl(fun(Reg, {Acc, C}) ->
+    {Values, NewCache} = lists:foldl(fun(Reg, {Acc, Cache}) ->
         select(Comp, fun() ->
             Value = read_bin(State, Comp, Reg),
-            NewC = case maps:get(Reg, Defs) of
+            NewC = case mapz:deep_get([Comp, regs, Reg], State) of
                 {_Addr, _Size, Conv} when is_list(Conv) ->
-                    maps:put(Reg, Value, C);
+                    maps:put(Reg, Value, Cache);
                 _ReadOnlyReg ->
-                    C
+                    Cache
             end,
             {[{Reg, Value}|Acc], NewC}
         end)
-    end, {[], Cache}, Registers),
-    {lists:reverse(Values), maps:put(Comp, {{Defs, RevOpts}, NewCache}, State)}.
+    end, {[], mapz:deep_get([Comp, cache], State)}, Registers),
+    {lists:reverse(Values), mapz:deep_put([Comp, cache], NewCache, State)}.
 
 convert_regs(State, Comp, Opts, Values) ->
     {Results, NewState} = lists:foldl(fun(R, {Acc, S}) ->
@@ -189,15 +192,13 @@ convert_regs(State, Comp, Opts, Values) ->
 convert_reg(State, _Comp, #{unit := raw}, {_Reg, Value}) ->
     {Value, State};
 convert_reg(State, Comp, Opts, {Reg, Value}) ->
-    % FIXME: Move component upwards
-    {{Defs, RevOpts}, Cache} = maps:get(Comp, State),
-    case maps:get(Reg, Defs) of
+    % TODO: Move component upwards
+    case mapz:deep_get([Comp, regs, Reg], State) of
         {_Addr, _Size, Conv} when is_function(Conv) ->
             Conv(Value, {Comp, State}, Opts);
         {_Addr, _Size, Conv} when is_list(Conv) ->
             % FIXME: Put reg in cache here instead of in read_regs!!!?
-            NewCache = maps:put(Reg, Value, Cache),
-            NewS = maps:put(Comp, {{Defs, RevOpts}, NewCache}, State),
+            NewS = mapz:deep_put([Comp, cache, Reg], Value, State),
             {parse_bits(Conv, Value), NewS};
         {_Addr, _Size, raw} ->
             {Value, State}
@@ -210,8 +211,7 @@ write_bin(#{slot := Slot}, Comp, Reg, Value) ->
     Value.
 
 read_bin(#{slot := Slot} = State, Comp, Reg) ->
-    {{Registers, _RevOpts}, _Cache} = maps:get(Comp, State),
-    {Addr, Size, _Conv} = maps:get(Reg, Registers),
+    {Addr, Size, _Conv} = mapz:deep_get([Comp, regs, Reg], State),
     request(Slot, read_request(Comp, Addr), Size).
 
 write_request(acc, Reg, Val) -> <<?RW_WRITE:1, Reg:7, Val/binary>>;
@@ -251,14 +251,17 @@ render_bits([{Name, {Size, Mapping}}|Defs], Bin, Opts, Pos) ->
             Bin
     end,
     render_bits(Defs, NewBin, Opts, Pos + Size);
+render_bits([{0, {Size}}|Defs], Bin, Opts, Pos) ->
+    NewBin = grisp_bitmap:set_bits(Bin, Pos, <<0:Size>>),
+    render_bits(Defs, NewBin, Opts, Pos + Size);
 render_bits([], Bin, _Opts, Pos) when bit_size(Bin) == Pos ->
     Bin.
 
 parse_bits(Conv, Bin) -> parse_bits(Conv, Bin, #{}).
 
-parse_bits([{Name, {Size, Map}}|Conv], Bin, Opts) ->
+parse_bits([{Name, {Size, Defs}}|Conv], Bin, Opts) ->
     <<Val:Size, Rest/bitstring>> = Bin,
-    Values = mapz:inverse(Map),
+    Values = mapz:inverse(Defs),
     parse_bits(Conv, Rest, maps:put(Name, maps:get(Val, Values), Opts));
 parse_bits([{0, {Size}}|Conv], Bin, Opts) ->
     <<_:Size, Rest/bitstring>> = Bin,
@@ -267,10 +270,9 @@ parse_bits([], <<>>, Opts) ->
     Opts.
 
 setting(Reg, Opt, {Comp, State}) ->
-    {{Registers, _RevOpts}, Cache} = maps:get(Comp, State),
-    {_Addr, _RegSize, Defs} = maps:get(Reg, Registers),
-    {Parsed, NewState} = case maps:find(Reg, Cache) of
-        {ok, Cached} -> {parse_bits(Defs, Cached), State};
+    {_Addr, _RegSize, Conv} = mapz:deep_get([Comp, regs, Reg], State),
+    {Parsed, NewState} = case mapz:deep_find([Comp, cache, Reg], State) of
+        {ok, Cached} -> {parse_bits(Conv, Cached), State};
         error        -> read_and_convert(State, Comp, [Reg], #{})
     end,
     {maps:get(Opt, Parsed), NewState}.
@@ -340,13 +342,13 @@ registers(alt) ->
         who_am_i => {16#0F, 1, raw}
     }.
 
-convert_g(<<Value:16/signed-little>>, State, Opts) ->
+convert_g(<<Value:16/signed-little>>, Context, Opts) ->
     Scale = case maps:get(unit, Opts, g) of
         g     -> 0.001;
         mg    -> 1;
         Other -> throw({unknown_option, #{unit => Other}})
     end,
-    {FS, NewState} = setting(ctrl_reg6_xl, fs_xl, State),
+    {FS, NewContext} = setting(ctrl_reg6_xl, fs_xl, Context),
     Result = case FS of
         {g, 2}  -> Value * 0.061 * Scale;
         {g, 4}  -> Value * 0.122 * Scale;
@@ -354,4 +356,4 @@ convert_g(<<Value:16/signed-little>>, State, Opts) ->
         {g, 16} -> Value * 0.732 * Scale;
         _       -> Value
     end,
-    {Result, NewState}.
+    {Result, NewContext}.
