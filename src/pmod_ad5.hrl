@@ -1,7 +1,8 @@
 
 %--- Registers -----------------------------------------------------------------
 
--define(COMMUNICATIONS, 2#000).
+-define(COMMUNICATIONS, 2#000).			% for write operations
+-define(STATUS,         2#000).			% for read operations
 -define(MODE,           2#001).
 -define(CONFIGURATION,  2#010).
 -define(DATA,           2#011).
@@ -19,8 +20,8 @@
 -define(CONT_READ_DISABLE, 2#0).
 -define(CONT_READ_ENABLE,  2#1).
 
--define(RDY_READY,         2#1).
--define(RDY_WAIT,          2#0).
+-define(RDY_READY,         2#0).
+-define(RDY_WAIT,          2#1).
 
 % ID
 -define(DEVID, 2).
