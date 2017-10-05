@@ -33,8 +33,8 @@
 start_link(Slot) -> gen_server:start_link(?MODULE, Slot, []).
 
 single(Config, Mode) ->
-    BinConfig = calc_flags(Config, ?CONFIG_BITS),
-    BinMode = calc_flags(Mode#{md => 1}, ?MODE_BITS),
+    BinConfig = bin_config(Config), 
+    BinMode = bin_mode(Mode#{md => 1}),
     ChanCount = count_channels(Config),
     ValSize = value_size(Mode),
     case call({single, BinConfig, BinMode, ValSize, ChanCount}) of
@@ -42,19 +42,32 @@ single(Config, Mode) ->
         Result          -> Result
     end.
 
+bin_config(Config) -> calc_flags(Config, ?CONFIG_BITS).
+bin_mode(Mode) -> calc_flags(Mode, ?MODE_BITS).
+    
 %--- Callbacks -----------------------------------------------------------------
 
 % @private
 init(Slot) ->
-    verify_device(Slot),
+    State = try
+		configure_pins(Slot),
+		verify_device(Slot),
+		#state{slot = Slot}
+	    catch
+		Class:Reason ->
+		    restore_pins(Slot),
+		    erlang:raise(Class, Reason, erlang:get_stacktrace())
+	    end,
     grisp_devices:register(Slot, ?MODULE),
-    {ok, #state{slot = Slot}}.
+    {ok, State}.
 
 % @private
-handle_call({single, BinConfig, BinMode, ValSize, ChanCount}, _From, State) ->
+handle_call({single, BinConfig, BinMode, ValSize, ChanCount}, _From, 
+	    #state{slot=Slot}=State) ->
+    reset_communication(Slot),
     write(State#state.slot, ?CONFIGURATION, BinConfig),
     Reply = try
-        get_values(State#state.slot, BinMode, ValSize, ChanCount)
+        get_values(State#state.slot, BinMode, ValSize, ChanCount+1)
     catch
         {error, _} = Error -> Error
     end,
@@ -70,7 +83,7 @@ handle_info(Info, _State) -> error({unknown_info, Info}).
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 % @private
-terminate(_Reason, _State) -> ok.
+terminate(_Reason, State) -> restore_pins(State#state.slot).
 
 %--- Internal ------------------------------------------------------------------
 
@@ -78,19 +91,37 @@ call(Call) ->
     Dev = grisp_devices:default(?MODULE),
     gen_server:call(Dev#device.pid, Call).
 
+configure_pins(Slot) ->
+    % Disable automatic chip select (gets configured to output_1)
+    grisp_gpio:configure_slot(Slot, disable_cs).
+
+restore_pins(Slot) ->
+    grisp_gpio:configure_slot(Slot, enable_cs).
+
+
 verify_device(Slot) ->
     case read(Slot, ?ID, 1) of
         <<_:4, ?DEVID:4>> -> ok;
         Other             -> error({device_mismatch, {id, Other}})
     end.
 
-get_values(_Slot, _M, _ValSize, 0) ->
+
+get_values(Slot, BinMode, ValSize, N) ->
+    try
+        grisp_gpio:clear(chip_select(Slot)),
+	write_no_cs(Slot, ?MODE, BinMode),
+	get_values1(Slot, BinMode, ValSize, N)
+    after
+        grisp_gpio:set(chip_select(Slot))
+    end.
+
+get_values1(_Slot, _M, _ValSize, 0) ->
     [];
-get_values(Slot, BinMode, ValSize, N) when N > 0 ->
-    write(Slot, ?MODE, BinMode),
+get_values1(Slot, BinMode, ValSize, N) when N > 0 ->
     % TODO: Return timeout error to caller instead of crashing gen_server
     ok = wait_ready(Slot, ?WAIT_READY_TIMEOUT),
-    [read(Slot, ?DATA, ValSize) | get_values(Slot, BinMode, ValSize, N - 1)].
+    [read_no_cs(Slot, ?DATA, ValSize) 
+     | get_values(Slot, BinMode, ValSize, N - 1)].
 
 count_channels(Config) ->
     lists:sum(maps:values(maps:with(?CONFIG_CHANNELS, Config))).
@@ -100,7 +131,7 @@ count_channels(Config) ->
 wait_ready(_Slot, Timeout) when Timeout =< 0 ->
     throw({error, timeout});
 wait_ready(Slot, Timeout) ->
-    case read(Slot, ?COMMUNICATIONS, 1) of
+    case read_no_cs(Slot, ?STATUS, 1) of
         <<?RDY_WAIT:1, _:7>> ->
             timer:sleep(?WAIT_READY_POLL),
             wait_ready(Slot, Timeout - ?WAIT_READY_POLL);
@@ -117,9 +148,29 @@ calc_flags(Flags, Bits) ->
 flag(0, _Flags, _Default)  -> 0;
 flag(Flag, Flags, Default) -> maps:get(Flag, Flags, Default).
 
-read(Slot, Reg, Size) -> send_recv(Slot, ?RW_READ, Reg, <<>>, Size).
+reset_communication(Slot) -> 
+    grisp_gpio:clear(chip_select(Slot)),
+    <<>> = grisp_spi:send_recv(Slot, ?SPI_MODE, <<16#ffffffffffff:48>>, 6, 0),
+    grisp_gpio:set(chip_select(Slot)).
 
-write(Slot, Reg, Data) -> send_recv(Slot, ?RW_WRITE, Reg, Data, 0).
+
+read(Slot, Reg, Size) -> 
+    grisp_gpio:clear(chip_select(Slot)),
+    Res = read_no_cs(Slot, Reg, Size),
+    grisp_gpio:set(chip_select(Slot)),
+    Res.
+
+read_no_cs(Slot, Reg, Size) -> 
+    send_recv(Slot, ?RW_READ, Reg, <<>>, Size).
+
+write(Slot, Reg, Data) -> 
+    grisp_gpio:clear(chip_select(Slot)),
+    Res = write_no_cs(Slot, Reg, Data),
+    grisp_gpio:set(chip_select(Slot)),
+    Res.
+
+write_no_cs(Slot, Reg, Data) -> 
+    send_recv(Slot, ?RW_WRITE, Reg, Data, 0).
 
 send_recv(Slot, RW, Reg, Data, Size) ->
     Req = req(RW, Reg, Data),
@@ -127,3 +178,8 @@ send_recv(Slot, RW, Reg, Data, Size) ->
 
 req(RW, Reg, Data) ->
     <<?WRITE_ENABLE:1, RW:1, Reg:3, ?CONT_READ_DISABLE:1, 0:2, Data/binary>>.
+
+chip_select(spi1) ->
+    ss1;
+chip_select(spi2) ->
+    ss2.
