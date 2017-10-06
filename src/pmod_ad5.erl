@@ -1,5 +1,4 @@
 -module(pmod_ad5).
-
 -behavior(gen_server).
 
 -include("grisp.hrl").
@@ -34,13 +33,14 @@ start_link(Slot) -> gen_server:start_link(?MODULE, Slot, []).
 
 single(Config, Mode) ->
     BinConfig = bin_config(Config), 
-    BinMode = bin_mode(Mode#{md => 1}),
-    ChanCount = count_channels(Config),
-    ValSize = value_size(Mode),
-    case call({single, BinConfig, BinMode, ValSize, ChanCount}) of
-        {error, Reason} -> error(Reason);
-        Result          -> Result
-    end.
+    %% since the last bit of a measurement can't be read reliably we
+    %% allways append the status and ignore its last bit
+    BinMode = bin_mode(Mode#{md => 1, dat_sta => 1}),
+    case count_channels(Config) of
+	1 -> ok;
+	C -> error({only_one_channel_in_single, C})
+    end,
+    call({single, BinConfig, BinMode, maps:get(enpar,Mode,0)}).
 
 bin_config(Config) -> calc_flags(Config, ?CONFIG_BITS).
 bin_mode(Mode) -> calc_flags(Mode, ?MODE_BITS).
@@ -62,15 +62,32 @@ init(Slot) ->
     {ok, State}.
 
 % @private
-handle_call({single, BinConfig, BinMode, ValSize, ChanCount}, _From, 
+handle_call({single, BinConfig, BinMode, Check_parity}, _From, 
 	    #state{slot=Slot}=State) ->
+    %% When in measurement mode MISO doubles as ready line, mode
+    %% switch is only 10ns after the trailing clock which makes us
+    %% receive the last bit as 1.  Only communication reset gets us
+    %% out of this mode.  Probably not necessary here since we don't
+    %% read registers but only write use it just in case.
     reset_communication(Slot),
     write(State#state.slot, ?CONFIGURATION, BinConfig),
     Reply = try
-        get_values(State#state.slot, BinMode, ValSize, ChanCount+1)
-    catch
-        {error, _} = Error -> Error
-    end,
+		get_values(State#state.slot, BinMode, 4, 1)
+	    of 
+		[<<_:24, _Rdy:1, _Err:1, 1:1, _Parity:1, _:4>>] -> 
+		    {error, no_reference_voltage};
+		[<<0:24, _Rdy:1, 1:1, _Noref:1, _Parity:1, _:4>>] -> 
+		    {error, underrange};
+		[<<16#ffffff:24, _Rdy:1, 1:1, _Noref:1, _Parity:1, _:4>>] -> 
+		    {error, overrange};
+		[<<Val:24, _Rdy:1, 0:1, 0:1, Parity:1, _:4>>] 
+		  when Check_parity =:= 1 -> 
+		    check_parity(Val, Parity);
+		[<<Val:24, _Rdy:1, 0:1, 0:1, _Parity:1, _:4>>] -> 
+		    {ok, Val}
+	    catch
+		{error, _} = Error -> Error
+	    end,
     {reply, Reply, State}.
 
 % @private
@@ -105,6 +122,15 @@ verify_device(Slot) ->
         Other             -> error({device_mismatch, {id, Other}})
     end.
 
+check_parity(X, Parity) ->
+    Y1 = X bxor (X bsr 1),
+    Y2 = Y1 bxor (Y1 bsr 2),
+    Y3 = Y2 bxor (Y2 bsr 4),
+    Y4 = Y3 bxor (Y3 bsr 8),
+    case (Y4 bxor (Y4 bsr 16)) band 1 of
+	Parity -> {ok, X};
+	_ -> {error, parity_check}
+    end.
 
 get_values(Slot, BinMode, ValSize, N) ->
     try
@@ -139,8 +165,9 @@ wait_ready(Slot, Timeout) ->
             ok
     end.
 
-value_size(#{dat_sta := ?DAT_STA_ENABLE})  -> 4;
-value_size(_)                              -> 3.
+%% currently not needed but laters
+%% value_size(#{dat_sta := ?DAT_STA_ENABLE})  -> 4;
+%% value_size(_)                              -> 3.
 
 calc_flags(Flags, Bits) ->
     << <<(flag(F, Flags, Default)):Size>> || {F, Size, Default} <- Bits >>.
