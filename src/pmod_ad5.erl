@@ -1,4 +1,6 @@
 -module(pmod_ad5).
+-compile([export_all]).
+
 -behavior(gen_server).
 
 -include("grisp.hrl").
@@ -51,6 +53,8 @@ bin_mode(Mode) -> calc_flags(Mode, ?MODE_BITS).
 init(Slot) ->
     State = try
 		configure_pins(Slot),
+		reset_communication(Slot),
+		timer:sleep(500),
 		verify_device(Slot),
 		#state{slot = Slot}
 	    catch
@@ -64,12 +68,6 @@ init(Slot) ->
 % @private
 handle_call({single, BinConfig, BinMode, Check_parity}, _From, 
 	    #state{slot=Slot}=State) ->
-    %% When in measurement mode MISO doubles as ready line, mode
-    %% switch is only 10ns after the trailing clock which makes us
-    %% receive the last bit as 1.  Only communication reset gets us
-    %% out of this mode.  Probably not necessary here since we don't
-    %% read registers but only write use it just in case.
-    reset_communication(Slot),
     write(State#state.slot, ?CONFIGURATION, BinConfig),
     Reply = try
 		get_values(State#state.slot, BinMode, 4, 1)
