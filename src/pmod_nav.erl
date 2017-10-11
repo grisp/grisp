@@ -37,23 +37,24 @@ read(Comp, Registers, Opts) when is_list(Registers) ->
 
 % @private
 init(Slot = spi1) ->
-    State = try
-        S = #{
-            slot => Slot,
-            acc => init_comp(acc),
-            mag => init_comp(mag),
-            alt => init_comp(alt)
-        },
-        configure_pins(Slot),
-        NewS = verify_device(S),
-        initialize_device(NewS)
+    process_flag(trap_exit, true),
+    State = #{
+        slot => Slot,
+        acc => init_comp(acc),
+        mag => init_comp(mag),
+        alt => init_comp(alt)
+    },
+    configure_pins(Slot),
+    try
+        NewState = verify_device(State),
+        initialize_device(NewState),
+        grisp_devices:register(Slot, ?MODULE),
+        {ok, NewState}
     catch
         Class:Reason ->
             restore_pins(Slot),
             erlang:raise(Class, Reason, erlang:get_stacktrace())
-    end,
-    grisp_devices:register(Slot, ?MODULE),
-    {ok, State};
+    end;
 init(Slot) ->
     error({incompatible_slot, Slot}).
 
