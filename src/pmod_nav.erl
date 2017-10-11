@@ -126,7 +126,10 @@ verify_reg({Comp, Reg, Expected}, State) ->
     end.
 
 initialize_device(State) ->
-    {_Result, NewState} = write_config(State, acc, #{odr_xl => {hz, 10}}),
+    {_Result, NewState} = write_config(State, acc, #{
+        odr_xl => {hz, 10},
+        odr_g => {hz, 14.9}
+    }),
     NewState.
 
 write_config(State, Comp, Options) ->
