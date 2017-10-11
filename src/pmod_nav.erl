@@ -288,10 +288,10 @@ parse_bits([], <<>>, Opts) ->
 setting(Reg, Opt, {Comp, State}) ->
     {_Addr, _RW, _RegSize, Conv} = mapz:deep_get([Comp, regs, Reg], State),
     {Parsed, NewState} = case mapz:deep_find([Comp, cache, Reg], State) of
-        {ok, Cached} -> {parse_bits(Conv, Cached), State};
+        {ok, Cached} -> {[parse_bits(Conv, Cached)], State};
         error        -> read_and_convert(State, Comp, [Reg], #{})
     end,
-    {maps:get(Opt, Parsed), {Comp, NewState}}.
+    {maps:get(Opt, hd(Parsed)), {Comp, NewState}}.
 
 pin(acc) -> ss1;
 pin(mag) -> spi1_pin9;
