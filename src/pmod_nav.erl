@@ -127,7 +127,10 @@ verify_reg({Comp, Reg, Expected}, State) ->
 
 initialize_device(State) ->
     {_Result, NewState} = write_config(State, acc, #{
+        % Accelerometer
         odr_xl => {hz, 10},
+        fs_xl => {g, 2},
+        % Gyro
         odr_g => {hz, 14.9}
     }),
     NewState.
@@ -247,20 +250,27 @@ render_bits(Defs, Bin, Opts) ->
     render_bits(Defs, Bin, Opts, 0).
 
 render_bits([{Name, Size, Mapping}|Defs], Bin, Opts, Pos) ->
-    NewBin = case {maps:find(Name, Opts), Mapping} of
-        {{ok, Value}, raw} when is_integer(Value) ->
-            % TODO: Detect value overflow in regards to Size here?
-            grisp_bitmap:set_bits(Bin, Pos, <<Value:Size>>);
-        {{ok, Value}, raw} when is_bitstring(Value), bit_size(Value) == Size ->
-            grisp_bitmap:set_bits(Bin, Pos, Value);
-        {{ok, Value}, raw} ->
-            throw({invalid_option, Name, Value});
-        {{ok, Value}, Mapping} ->
-            case maps:find(Value, Mapping) of
-                {ok, Real} -> grisp_bitmap:set_bits(Bin, Pos, <<Real:Size>>);
-                error      -> throw({invalid_option, Name, Value})
-            end;
-        _ ->
+    NewBin = case maps:find(Name, Opts) of
+        {ok, Value} ->
+            Bits = case {Value, Mapping} of
+                {<<Value/bitstring>>, _} when bit_size(Value) == Size ->
+                    Value;
+                {Value, unsigned_little} when is_integer(Value) ->
+                    <<Value:Size/unsigned-little>>;
+                {Value, signed_little} when is_integer(Value) ->
+                    <<Value:Size/signed-little>>;
+                {Value, raw} when is_integer(Value) ->
+                    <<Value:Size>>;
+                {Value, Mapping} when is_map(Mapping) ->
+                    case maps:find(Value, Mapping) of
+                        {ok, Mapped} -> <<Mapped:Size>>;
+                        error        -> throw({invalid_value, Name, Value})
+                    end;
+                _ ->
+                    throw({invalid_value, Name, Value})
+            end,
+            grisp_bitmap:set_bits(Bin, Pos, Bits);
+        error ->
             Bin
     end,
     render_bits(Defs, NewBin, Opts, Pos + Size);
@@ -274,6 +284,12 @@ parse_bits(Conv, Bin) -> parse_bits(Conv, Bin, #{}).
 
 parse_bits([{Name, Size, raw}|Conv], Bin, Opts) ->
     <<Val:Size/bitstring, Rest/bitstring>> = Bin,
+    parse_bits(Conv, Rest, maps:put(Name, Val, Opts));
+parse_bits([{Name, Size, signed_little}|Conv], Bin, Opts) ->
+    <<Val:Size/signed-little, Rest/bitstring>> = Bin,
+    parse_bits(Conv, Rest, maps:put(Name, Val, Opts));
+parse_bits([{Name, Size, unsigned_little}|Conv], Bin, Opts) ->
+    <<Val:Size/unsigned-little, Rest/bitstring>> = Bin,
     parse_bits(Conv, Rest, maps:put(Name, Val, Opts));
 parse_bits([{Name, Size, Defs}|Conv], Bin, Opts) ->
     <<Val:Size, Rest/bitstring>> = Bin,
@@ -304,9 +320,9 @@ registers(acc) ->
                 gyroscope_power_down => 0,
                 gyroscope_sleep => 1
             }},
-            {act_ths, 7, raw}
+            {act_ths, 7, unsigned_little}
         ]},
-        act_dur => {16#05, read_write, 1, [{act_dur, 8, raw}]},
+        act_dur => {16#05, read_write, 1, [{act_dur, 8, unsiged_little}]},
         int_gen_cfg_xl => {16#06, read_write, 1, [
             {aoi_xl,  1, #{or_combination => 0, and_combination => 1}},
             {'6d',    1, #{disabled => 0, enabled => 1}},
@@ -317,12 +333,18 @@ registers(acc) ->
             {xhie_xl, 1, #{disabled => 0, enabled => 1}},
             {xlie_xl, 1, #{disabled => 0, enabled => 1}}
         ]},
-        int_gen_ths_x_xl => {16#07, read_write, 1, [{ths_xl_x, 8, raw}]},
-        int_gen_ths_y_xl => {16#08, read_write, 1, [{ths_xl_y, 8, raw}]},
-        int_gen_ths_z_xl => {16#09, read_write, 1, [{ths_xl_z, 8, raw}]},
+        int_gen_ths_x_xl => {16#07, read_write, 1, [
+            {ths_xl_x, 8, unsigned_little}
+        ]},
+        int_gen_ths_y_xl => {16#08, read_write, 1, [
+            {ths_xl_y, 8, unsigned_little}
+        ]},
+        int_gen_ths_z_xl => {16#09, read_write, 1, [
+            {ths_xl_z, 8, unsigned_little}
+        ]},
         int_gen_dur_xl => {16#0A, read_write, 1, [
             {wait_xl, 1, #{off => 0, on => 1}},
-            {dur_xl, 7, raw}
+            {dur_xl,  7, unsigned_little}
         ]},
         reference_g => {16#0B, read_write, 1, [{ref_g, 8, raw}]},
         int1_ctrl => {16#0C, read_write, 1, [
@@ -429,7 +451,7 @@ registers(acc) ->
             {xen_xl, 1, #{disabled => 0, enabled  => 1}},
             {0, 3}
         ]},
-        ctrl_reg6_xl => {16#20, read_write, 1, [
+        ctrl_reg6_xl => {16#20, read_write, 1, [ % FIXME: Verify default settings when booting the device!
             {odr_xl, 3, #{
                 power_down => 2#000,
                 {hz, 10}   => 2#001,
@@ -461,7 +483,7 @@ registers(acc) ->
             {0,     1},
             {hpis1, 1, #{disabled => 0, enabled => 1}}
         ]},
-        ctr_reg8 => {16#22, read_write, 1, [
+        ctrl_reg8 => {16#22, read_write, 1, [
             {boot,       1, #{normal => 0, reboot_memory => 1}},
             {bdu,        1, #{continious => 0, read => 1}},
             {h_lactive,  1, #{high => 0, low => 1}},
@@ -472,30 +494,30 @@ registers(acc) ->
             {sw_reset,   1, #{normal => 0, reset => 1}}
         ]},
         ctrl_reg9 => {16#23, read_write, 1, [
-            {0, 1},
-            {sleep_g, 1, #{disabled => 0, enabled => 1}},
-            {0, 1},
-            {fifo_temp_en, 1, #{disabled => 0, enabled => 1}},
+            {0,             1},
+            {sleep_g,       1, #{disabled => 0, enabled => 1}},
+            {0,             1},
+            {fifo_temp_en,  1, #{disabled => 0, enabled => 1}},
             {drdy_mask_bit, 1, #{disabled => 0, enabled => 1}},
-            {i2c_disable, 1, #{false => 0, true => 1}},
-            {fifo_en, 1, #{disabled => 0, enabled => 1}},
-            {stop_on_fth, 1, #{not_limited => 0, threshold => 1}}
+            {i2c_disable,   1, #{false => 0, true => 1}},
+            {fifo_en,       1, #{disabled => 0, enabled => 1}},
+            {stop_on_fth,   1, #{false => 0, true => 1}}
         ]},
         ctrl_reg10 => {16#24, read_write, 1, [
             {0,     5},
-            {st_g,  1, #{disabled => 0, enabled => 1}},
+            {st_g,  1, #{disabled => 0, enable_csd => 1}},
             {0,     1},
             {st_xl, 1, #{disabled => 0, enabled => 1}}
         ]},
         int_gen_src_xl => {16#26, read, 1, [
             {0, 1},
-            {ia_xl, 1, #{false => 1, true => 1}},
-            {zh_xl, 1, #{false => 1, true => 1}},
-            {zl_xl, 1, #{false => 1, true => 1}},
-            {yh_xl, 1, #{false => 1, true => 1}},
-            {yl_xl, 1, #{false => 1, true => 1}},
-            {xh_xl, 1, #{false => 1, true => 1}},
-            {xl_xl, 1, #{false => 1, true => 1}}
+            {ia_xl, 1, #{false => 0, true => 1}},
+            {zh_xl, 1, #{false => 0, true => 1}},
+            {zl_xl, 1, #{false => 0, true => 1}},
+            {yh_xl, 1, #{false => 0, true => 1}},
+            {yl_xl, 1, #{false => 0, true => 1}},
+            {xh_xl, 1, #{false => 0, true => 1}},
+            {xl_xl, 1, #{false => 0, true => 1}}
         ]},
         status_reg2 => {16#27, read, 1, [
             {0,           1},
@@ -515,7 +537,48 @@ registers(acc) ->
         out_y_h_xl => {16#2B, read, 1, raw},
         out_z_xl   => {16#2C, read, 2, fun convert_g/3},
         out_z_l_xl => {16#2C, read, 1, raw},
-        out_z_h_xl => {16#2D, read, 1, raw}
+        out_z_h_xl => {16#2D, read, 1, raw},
+        fifo_ctrl => {16#2E, read_write, 1, [
+            {fmode, 3, raw},
+            {fth,   5, unsigned_little}
+        ]},
+        fifo_src => {16#2F, read, 1, [
+            {fth,  1, #{false => 0, true => 1}},
+            {ovrn, 1, #{false => 0, true => 1}},
+            {fss,  6, unsigned_little}
+        ]},
+        int_gen_cfg_g => {16#30, read_write, 1, [
+            {aoi_g,  1, #{'or' => 0, 'and' => 1}},
+            {lir_g,  1, #{false => 0, true => 1}},
+            {zhie_g, 1, #{disabled => 0, enabled => 1}},
+            {zlie_g, 1, #{disabled => 0, enabled => 1}},
+            {yhie_g, 1, #{disabled => 0, enabled => 1}},
+            {ylie_g, 1, #{disabled => 0, enabled => 1}},
+            {xhie_g, 1, #{disabled => 0, enabled => 1}},
+            {xlie_g, 1, #{disabled => 0, enabled => 1}}
+        ]},
+        int_gen_ths_x_g => {16#31, read_write, 2, [
+            {dcrm_g,  1, #{reset => 0, decrement => 1}},
+            {ths_g_x, 15, signed_little}
+        ]},
+        int_gen_ths_xh_g => {16#31, read_write, 1, raw},
+        int_gen_ths_xl_g => {16#32, read_write, 1, raw},
+        int_gen_ths_y_g => {16#33, read_write, 2, [
+            {0,       1},
+            {ths_g_y, 15, signed_little}
+        ]},
+        int_gen_ths_yh_g => {16#33, read_write, 1, raw},
+        int_gen_ths_yl_g => {16#34, read_write, 1, raw},
+        int_gen_ths_z_g => {16#35, read_write, 2, [
+            {0,       1},
+            {ths_g_z, 15, signed_little}
+        ]},
+        int_gen_ths_zh_g => {16#35, read_write, 1, raw},
+        int_gen_ths_zl_g => {16#36, read_write, 1, raw},
+        int_gen_dur_g => {16#37, read_write, 1, [
+            {wait_g, 1, #{disabled => 0, enabled => 1}},
+            {dur_g,  7, unsigned_little}
+        ]}
     };
 registers(mag) ->
     #{

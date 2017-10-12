@@ -12,7 +12,7 @@ nav_test_() ->
         fun config_/0,
         fun config_unknown_/0,
         fun config_raw_/0,
-        fun config_invalid_option_/0
+        fun config_invalid_value_/0
     ]}.
 
 setup() ->
@@ -62,10 +62,10 @@ config_raw_() ->
     ?assertEqual(ok, pmod_nav:config(acc, #{act_ths => 0})),
     ?assertEqual(ok, pmod_nav:config(acc, #{act_ths => <<0:7>>})).
 
-config_invalid_option_() ->
-    ?assertError({invalid_option, fs_xl, foobar},
+config_invalid_value_() ->
+    ?assertError({invalid_value, fs_xl, foobar},
          pmod_nav:config(acc, #{fs_xl => foobar})
     ),
-    ?assertError({invalid_option, act_ths, foobar},
+    ?assertError({invalid_value, act_ths, foobar},
         pmod_nav:config(acc, #{act_ths => foobar})
     ).
