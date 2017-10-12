@@ -529,7 +529,7 @@ registers(alt) ->
 convert_g(<<Value:16/signed-little>> = Raw, Context, Opts) ->
     Scale = case maps:get(xl_unit, Opts, g) of
         g     -> 0.001;
-        mg    -> 1;
+        mg    -> 1.0;
         Other -> throw({unknown_option, #{xl_unit => Other}})
     end,
     {FS, NewContext} = setting(ctrl_reg6_xl, fs_xl, Context),
@@ -548,14 +548,14 @@ convert_temp(<<Value:16/signed-little>>, Context, _Opts) ->
 convert_dps(<<Value:16/signed-little>> = Raw, Context, Opts) ->
     Scale = case maps:get(g_unit, Opts, dps) of
         dps   -> 0.001;
-        mdps  -> 1;
+        mdps  -> 1.0;
         Other -> throw({unknown_option, #{g_unit => Other}})
     end,
     {AR, NewContext} = setting(ctrl_reg1_g, fs_g, Context),
     Result = case AR of
-        {dps, 245}  -> Value * 8.75 * Scale;
+        {dps, 245}  -> Value * 8.75  * Scale;
         {dps, 500}  -> Value * 17.50 * Scale;
-        {dps, 2000} -> Value * 70.0 * Scale;
+        {dps, 2000} -> Value * 70.0  * Scale;
         _           -> Raw
     end,
     {Result, NewContext}.
