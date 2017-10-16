@@ -270,6 +270,14 @@ void parse_args(char *args)
     }
 }
 
+/* Workarround for problem that the wait instruction in the default idle body
+ * has an influence on the cycle counter that is used for the wall clock. */
+void *_My_Idle_body(uintptr_t ignored)
+{
+  for( ; ; ) ;
+  return 0;   /* to avoid warning */
+}
+
 static void Init(rtems_task_argument arg)
 {
   rtems_status_code sc = RTEMS_SUCCESSFUL;
@@ -368,6 +376,8 @@ static void Init(rtems_task_argument arg)
       NULL,				      \
       fatal_extension			      \
    }
+
+#define CONFIGURE_IDLE_TASK_BODY _My_Idle_body
 
 /*
  * Configure LibBSD.
