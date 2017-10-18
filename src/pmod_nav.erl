@@ -112,9 +112,9 @@ restore_pins(Slot) ->
 
 verify_device(State) ->
     lists:foldl(fun verify_reg/2, State, [
-        {acc, who_am_i, <<2#01101000>>},
-        {mag, who_am_i, <<2#00111101>>},
-        {alt, who_am_i, <<2#10111101>>}
+        {acc, who_am_i,   <<2#01101000>>},
+        {mag, who_am_i_m, <<2#00111101>>},
+        {alt, who_am_i,   <<2#10111101>>}
     ]).
 
 verify_reg({Comp, Reg, Expected}, State) ->
@@ -136,7 +136,7 @@ initialize_device(State) ->
     NewState.
 
 write_config(State, Comp, Options) ->
-    % TODO: Move component upwards?
+    % TODO: Move component upwards
     Partitions = partition(Options, mapz:deep_get([Comp, rev], State)),
     NewCache = maps:map(fun(Reg, Opts) ->
         Bin = case maps:find(Reg, mapz:deep_get([Comp, cache], State)) of
@@ -161,8 +161,9 @@ partition(Options, RevOpts) ->
 reverse_opts(Registers) ->
     maps:fold(fun
         (Reg, {_Addr, read_write, _Size, Conv}, Rev) when is_list(Conv) ->
-            lists:foldl(fun(D, R) ->
-                maps:put(D, Reg, R)
+            lists:foldl(fun
+                (0, R) -> R;
+                (D, R) -> maps:put(D, Reg, R)
             end, Rev, proplists:get_keys(Conv));
         (_Reg, _Spec, Rev) ->
             Rev
@@ -231,8 +232,8 @@ write_request(mag, Reg, Val) -> <<?RW_WRITE:1, ?MS_INCR:1, Reg:6, Val/binary>>;
 write_request(alt, Reg, Val) -> <<?RW_WRITE:1, ?MS_INCR:1, Reg:6, Val/binary>>.
 
 read_request(acc, Reg) -> <<?RW_READ:1, Reg:7>>;
-read_request(mag, Reg) -> <<?RW_READ:1, ?MS_SAME:1, Reg:6>>;
-read_request(alt, Reg) -> <<?RW_READ:1, ?MS_SAME:1, Reg:6>>.
+read_request(mag, Reg) -> <<?RW_READ:1, ?MS_INCR:1, Reg:6>>;
+read_request(alt, Reg) -> <<?RW_READ:1, ?MS_INCR:1, Reg:6>>.
 
 request(Slot, Request, Pad) ->
     grisp_spi:send_recv(Slot, ?SPI_MODE, Request, byte_size(Request), Pad).
@@ -289,8 +290,8 @@ parse_bits([{Name, Size, signed_little}|Conv], Bin, Opts) ->
     <<Val:Size/signed-little, Rest/bitstring>> = Bin,
     parse_bits(Conv, Rest, maps:put(Name, Val, Opts));
 parse_bits([{Name, Size, unsigned_little}|Conv], Bin, Opts) ->
-    <<Val:Size/unsigned-little, Rest/bitstring>> = Bin,
-    parse_bits(Conv, Rest, maps:put(Name, Val, Opts));
+    <<Raw:Size/bitstring, Rest/bitstring>> = Bin,
+    parse_bits(Conv, Rest, maps:put(Name, decode(unsigned_little, Raw), Opts));
 parse_bits([{Name, Size, Defs}|Conv], Bin, Opts) ->
     <<Val:Size, Rest/bitstring>> = Bin,
     Values = mapz:inverse(Defs),
@@ -300,6 +301,31 @@ parse_bits([{0, Size}|Conv], Bin, Opts) ->
     parse_bits(Conv, Rest, Opts);
 parse_bits([], <<>>, Opts) ->
     Opts.
+
+encode(unsigned_little, Size, Value) ->
+    <<Value:Size/unsigned-little>>;
+encode(signed_little, Size, Value) ->
+    <<Value:Size/signed-little>>;
+encode(raw, Size, Value) when bit_size(Value) =< Size ->
+    <<Value:Size/bitstring>>;
+encode(raw, Size, Value) when is_integer(Value) ->
+    <<Value:Size/unsigned-integer>>.
+
+decode(raw, Raw) ->
+    Raw;
+decode(unsigned_little, Raw) ->
+    Size = bit_size(Raw),
+    <<Value:Size/unsigned-little>> = Raw,
+    Value;
+decode(signed_little, Raw) ->
+    Size = bit_size(Raw),
+    <<Value:Size/signed-little>> = Raw,
+    Value;
+decode(Mapping, Raw) when is_map(Mapping) ->
+    Size = bit_size(Raw),
+    <<Value:Size/unsigned-little>> = Raw,
+    Values = mapz:inverse(Mapping),
+    maps:get(Value, Values).
 
 setting(Reg, Opt, {Comp, State}) ->
     {_Addr, _RW, _RegSize, Conv} = mapz:deep_get([Comp, regs, Reg], State),
@@ -436,7 +462,7 @@ registers(acc) ->
             {yen_g,    1, #{disabled => 0, enabled => 1}},
             {xen_g,    1, #{disabled => 0, enabled => 1}},
             {0,        1},
-            {lir_xl1,  1, #{not_latched => 0, latched => 1}},
+            {lir_xl1,  1, #{false => 0, true => 1}},
             {'4d_xl1', 1, #{'6d' => 0, '4d' => 1}}
         ]},
         ctrl_reg5_xl => {16#1F, read_write, 1, [
@@ -582,11 +608,152 @@ registers(acc) ->
     };
 registers(mag) ->
     #{
-        who_am_i => {16#0F, read, 1, raw}
+        offset_x_reg_m =>  {16#05, read_write, 2, [
+            {ofxm, 16, signed_little}
+        ]},
+        offset_x_reg_l_m => {16#05, read_write, 1, raw},
+        offset_x_reg_h_m => {16#06, read_write, 1, raw},
+        offset_y_reg_m => {16#07, read_write, 2, [
+            {ofym, 16, signed_little}
+        ]},
+        offset_y_reg_l_m => {16#07, read_write, 1, raw},
+        offset_y_reg_h_m => {16#08, read_write, 1, raw},
+        offset_z_reg_m => {16#09, read_write, 2, [
+            {ofzm, 16, signed_little}
+        ]},
+        offset_z_reg_l_m => {16#09, read_write, 1, raw},
+        offset_z_reg_h_m => {16#0A, read_write, 1, raw},
+        who_am_i_m => {16#0F, read, 1, raw},
+        ctrl_reg1_m => {16#20, read_write, 1, [
+            {temp_comp, 1, #{disabled => 0, enabled => 1}},
+            {om,        2, #{
+                low        => 2#00,
+                medium     => 2#01,
+                high       => 2#10,
+                ultra_high => 2#11
+            }},
+            {do,        3, #{
+                {hz, 0.625} => 2#000,
+                {hz, 1.25}  => 2#001,
+                {hz, 2.5}   => 2#010,
+                {hz, 5}     => 2#011,
+                {hz, 10}    => 2#100,
+                {hz, 20}    => 2#101,
+                {hz, 40}    => 2#110,
+                {hz, 80}    => 2#111
+            }},
+            {fast_odr,  1, #{disabled => 0, enabled => 1}},
+            {st,        1, #{disabled => 0, enabled => 1}}
+        ]},
+        ctrl_reg2_m => {16#21, read_write, 1, [
+            {0,        1},
+            {fs,       2, #{
+                {gauss, 4}  => 2#00,
+                {gauss, 8}  => 2#01,
+                {gauss, 12} => 2#10,
+                {gauss, 16} => 2#11
+            }},
+            {0,        1},
+            {reboot,   1, #{normal => 0, reboot_memory => 1}},
+            {soft_rst, 1, #{default => 0, reset => 1}}
+        ]},
+        ctrl_reg3_m => {16#22, read_write, 1, [
+            {i2c_disable, 1, #{false => 0, true => 1}},
+            {0,           1},
+            {lp,          1, #{false => 0, true => 1}},
+            {0,           2},
+            {sim,         1, #{write_only => 0, read_write => 1}},
+            {md,          2, #{
+                continous_conversion => 2#00,
+                single_conversion    => 2#01,
+                power_down           => 2#11
+            }}
+        ]},
+        ctrl_reg4_m => {16#23, read_write, 1, [
+            {0,   4},
+            {omz, 2, #{
+                low        => 2#00,
+                medium     => 2#01,
+                high       => 2#10,
+                ultra_high => 2#11
+            }},
+            {ble, 1, #{lsb => 0, msb => 1}},
+            {0,   1}
+        ]},
+        ctrl_reg5_m => {16#24, read_write, 1, [
+            {fast_read, 1, #{disabled => 0, enabled => 0}},
+            {bdu,       1, #{continious => 0, read => 1}},
+            {0,         6}
+        ]},
+        status_reg_m => {16#27, read, 1, [
+            {zyxor, 1, #{false => 0, true => 1}},
+            {zor,   1, #{false => 0, true => 1}},
+            {yor,   1, #{false => 0, true => 1}},
+            {'xor', 1, #{false => 0, true => 1}},
+            {zyxda, 1, #{false => 0, true => 1}},
+            {zda,   1, #{false => 0, true => 1}},
+            {yda,   1, #{false => 0, true => 1}},
+            {xda,   1, #{false => 0, true => 1}}
+        ]},
+        out_x_m => {16#28, read, 2, fun convert_gauss/3},
+        out_x_l_m => {16#28, read, 1, raw},
+        out_x_h_m => {16#29, read, 1, raw},
+        out_y_m => {16#2A, read, 2, fun convert_gauss/3},
+        out_y_l_m => {16#2A, read, 1, raw},
+        out_y_h_m => {16#2B, read, 1, raw},
+        out_z_m => {16#2C, read, 2, fun convert_gauss/3},
+        out_z_l_m => {16#2C, read, 1, raw},
+        out_z_h_m => {16#2D, read, 1, raw},
+        int_cfg_m => {16#30, read_write, 1, [
+            {xien, 1, #{disabled => 0, enabled => 1}},
+            {yien, 1, #{disabled => 0, enabled => 1}},
+            {zien, 1, #{disabled => 0, enabled => 1}},
+            {0,    2},
+            {iea,  1, #{low => 0, high => 1}},
+            {iel,  1, #{false => 0, true => 1}},
+            {ien,  1, #{disabled => 0, enabled => 1}}
+        ]},
+        int_src_m => {16#31, read, 1, [
+            {pth_x, 1, #{false => 0, true => 1}},
+            {pth_y, 1, #{false => 0, true => 1}},
+            {pth_z, 1, #{false => 0, true => 1}},
+            {nth_x, 1, #{false => 0, true => 1}},
+            {nth_y, 1, #{false => 0, true => 1}},
+            {nth_z, 1, #{false => 0, true => 1}},
+            {mroi,  1, #{false => 0, true => 1}},
+            {int,   1, #{false => 0, true => 1}}
+        ]},
+        int_ths_m => {16#32, read_write, 2, [
+            {ths, 16, {unsigned_little, 0, 32767}}
+        ]},
+        int_ths_l_m => {16#32, read_write, 1, raw},
+        int_ths_h_m => {16#33, read_write, 1, raw}
     };
 registers(alt) ->
     #{
-        who_am_i => {16#0F, read, 1, raw}
+        ref_p_xl => {16#08, read_write, 1, raw},
+        ref_p_l => {16#09, read_write, 1, raw},
+        ref_p_h => {16#0A, read_write, 1, raw},
+        who_am_i => {16#0F, read, 1, raw},
+        res_conf => {16#10, read_write, 1, raw},
+        ctrl_reg1 => {16#20, read_write, 1, raw},
+        ctrl_reg2 => {16#21, read_write, 1, raw},
+        ctrl_reg3 => {16#22, read_write, 1, raw},
+        ctrl_reg4 => {16#23, read_write, 1, raw},
+        interrupt_cfg => {16#24, read_write, 1, raw},
+        int_source => {16#25, read, 1, raw},
+        status_reg => {16#27, read, 1, raw},
+        press_out_xl => {16#28, read, 1, raw},
+        press_out_l => {16#29, read, 1, raw},
+        press_out_h => {16#2A, read, 1, raw},
+        temp_out_l => {16#2B, read, 1, raw},
+        temp_out_h => {16#2C, read, 1, raw},
+        fifo_ctrl => {16#2E, read_write, 1, raw},
+        fifo_status => {16#2F, read, 1, raw},
+        ths_p_l => {16#30, read_write, 1, raw},
+        ths_p_h => {16#31, read_write, 1, raw},
+        rpds_l => {16#39, read_write, 1, raw},
+        rpds_h => {16#3A, read_write, 1, raw}
     }.
 
 convert_g(<<Value:16/signed-little>> = Raw, Context, Opts) ->
@@ -622,3 +789,6 @@ convert_dps(<<Value:16/signed-little>> = Raw, Context, Opts) ->
         _           -> Raw
     end,
     {Result, NewContext}.
+
+convert_gauss(Value, Context, Opts) ->
+    {foo, Context}.
