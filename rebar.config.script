@@ -2,7 +2,7 @@ try eqc:version() of
     _Version ->
         case lists:keytake(plugins, 1, CONFIG) of
             false                    -> [{plugins, [rebar3_eqc]}|CONFIG];
-            {tuple, Plugins, Config} -> [{plugins, [rebar3_eqc|Plugins]}|Config]
+            {value, Plugins, Config} -> [{plugins, [rebar3_eqc|Plugins]}|Config]
         end
 catch
     error:undef ->
