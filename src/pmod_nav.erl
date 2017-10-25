@@ -7,6 +7,8 @@
 -export([config/2]).
 -export([read/2]).
 -export([read/3]).
+-export([registers/0]).
+-export([registers/1]).
 
 % Callbacks
 -export([init/1]).
@@ -133,7 +135,13 @@ initialize_device(State) ->
         % Gyro
         odr_g => {hz, 14.9}
     }),
-    NewState.
+    {_Result, NewState2} = write_config(NewState, mag, #{
+        % Magnetometer
+        md => continuous_conversion,
+        om => ultra_high,
+        omz => ultra_high
+    }),
+    NewState2.
 
 write_config(State, Comp, Options) ->
     % TODO: Move component upwards
@@ -180,7 +188,7 @@ read_regs(State, Comp, Registers) ->
         select(Comp, fun() ->
             Value = read_bin(State, Comp, Reg),
             NewC = case mapz:deep_get([Comp, regs, Reg], State) of
-                {_Addr, _Size, Conv} when is_list(Conv) ->
+                {_Addr, read_write, _Size, Conv} when is_list(Conv) ->
                     maps:put(Reg, Value, Cache);
                 _ReadOnlyReg ->
                     Cache
@@ -197,8 +205,6 @@ convert_regs(State, Comp, Opts, Values) ->
     end, {[], State}, Values),
     {lists:reverse(Results), NewState}.
 
-convert_reg(State, _Comp, #{unit := raw}, {_Reg, Value}) ->
-    {Value, State};
 convert_reg(State, Comp, Opts, {Reg, Value}) ->
     % TODO: Move component upwards
     case mapz:deep_get([Comp, regs, Reg], State) of
@@ -209,8 +215,8 @@ convert_reg(State, Comp, Opts, {Reg, Value}) ->
             % FIXME: Put reg in cache here instead of in read_regs!!!?
             NewS = mapz:deep_put([Comp, cache, Reg], Value, State),
             {parse_bits(Conv, Value), NewS};
-        {_Addr, _RW, _Size, raw} ->
-            {Value, State}
+        {_Addr, _RW, _Size, Type} ->
+            {decode(Type, Value), State}
     end.
 
 write_bin(#{slot := Slot}, Comp, Reg, Value) ->
@@ -256,19 +262,13 @@ render_bits([{Name, Size, Mapping}|Defs], Bin, Opts, Pos) ->
             Bits = case {Value, Mapping} of
                 {<<Value/bitstring>>, _} when bit_size(Value) == Size ->
                     Value;
-                {Value, unsigned_little} when is_integer(Value) ->
-                    <<Value:Size/unsigned-little>>;
-                {Value, signed_little} when is_integer(Value) ->
-                    <<Value:Size/signed-little>>;
-                {Value, raw} when is_integer(Value) ->
-                    <<Value:Size>>;
                 {Value, Mapping} when is_map(Mapping) ->
                     case maps:find(Value, Mapping) of
                         {ok, Mapped} -> <<Mapped:Size>>;
                         error        -> throw({invalid_value, Name, Value})
                     end;
-                _ ->
-                    throw({invalid_value, Name, Value})
+                {Value, Type} ->
+                    encode(Name, Type, Size, Value)
             end,
             grisp_bitmap:set_bits(Bin, Pos, Bits);
         error ->
@@ -283,37 +283,33 @@ render_bits([], Bin, _Opts, Pos) when bit_size(Bin) == Pos ->
 
 parse_bits(Conv, Bin) -> parse_bits(Conv, Bin, #{}).
 
-parse_bits([{Name, Size, raw}|Conv], Bin, Opts) ->
-    <<Val:Size/bitstring, Rest/bitstring>> = Bin,
-    parse_bits(Conv, Rest, maps:put(Name, Val, Opts));
-parse_bits([{Name, Size, signed_little}|Conv], Bin, Opts) ->
-    <<Val:Size/signed-little, Rest/bitstring>> = Bin,
-    parse_bits(Conv, Rest, maps:put(Name, Val, Opts));
-parse_bits([{Name, Size, unsigned_little}|Conv], Bin, Opts) ->
+parse_bits([{Name, Size, Type}|Conv], Bin, Opts) ->
     <<Raw:Size/bitstring, Rest/bitstring>> = Bin,
-    parse_bits(Conv, Rest, maps:put(Name, decode(unsigned_little, Raw), Opts));
-parse_bits([{Name, Size, Defs}|Conv], Bin, Opts) ->
-    <<Val:Size, Rest/bitstring>> = Bin,
-    Values = mapz:inverse(Defs),
-    parse_bits(Conv, Rest, maps:put(Name, maps:get(Val, Values), Opts));
+    parse_bits(Conv, Rest, maps:put(Name, decode(Type, Raw), Opts));
 parse_bits([{0, Size}|Conv], Bin, Opts) ->
     <<_:Size, Rest/bitstring>> = Bin,
     parse_bits(Conv, Rest, Opts);
 parse_bits([], <<>>, Opts) ->
     Opts.
 
-encode(unsigned_little, Size, Value) ->
+encode(_Name, unsigned_little, Size, Value) when is_integer(Value) ->
     <<Value:Size/unsigned-little>>;
-encode(signed_little, Size, Value) ->
+encode(_Name, signed_little, Size, Value) when is_integer(Value) ->
     <<Value:Size/signed-little>>;
-encode(raw, Size, Value) when bit_size(Value) =< Size ->
+encode(_Name, raw, Size, Value) when bit_size(Value) =< Size ->
     <<Value:Size/bitstring>>;
-encode(raw, Size, Value) when is_integer(Value) ->
-    <<Value:Size/unsigned-integer>>.
+encode(_Name, raw, Size, Value) when is_integer(Value) ->
+    <<Value:Size/unsigned-integer>>;
+encode(Name, _Type, _Size, Value) ->
+    throw({invalid_value, Name, Value}).
 
 decode(raw, Raw) ->
     Raw;
 decode(unsigned_little, Raw) ->
+    Size = bit_size(Raw),
+    <<Value:Size/unsigned-little>> = Raw,
+    Value;
+decode({unsigned_little, _Min, _Max}, Raw) ->
     Size = bit_size(Raw),
     <<Value:Size/unsigned-little>> = Raw,
     Value;
@@ -325,7 +321,10 @@ decode(Mapping, Raw) when is_map(Mapping) ->
     Size = bit_size(Raw),
     <<Value:Size/unsigned-little>> = Raw,
     Values = mapz:inverse(Mapping),
-    maps:get(Value, Values).
+    case maps:find(Value, Values) of
+        {ok, Mapped} -> Mapped;
+        error        -> Raw
+    end.
 
 setting(Reg, Opt, {Comp, State}) ->
     {_Addr, _RW, _RegSize, Conv} = mapz:deep_get([Comp, regs, Reg], State),
@@ -339,6 +338,13 @@ pin(acc) -> ss1;
 pin(mag) -> spi1_pin9;
 pin(alt) -> spi1_pin10.
 
+registers() ->
+    #{
+        acc => registers(acc),
+        mag => registers(mag),
+        alt => registers(alt)
+    }.
+
 registers(acc) ->
     #{
         act_ths => {16#04, read_write, 1, [
@@ -348,7 +354,7 @@ registers(acc) ->
             }},
             {act_ths, 7, unsigned_little}
         ]},
-        act_dur => {16#05, read_write, 1, [{act_dur, 8, unsiged_little}]},
+        act_dur => {16#05, read_write, 1, [{act_dur, 8, unsigned_little}]},
         int_gen_cfg_xl => {16#06, read_write, 1, [
             {aoi_xl,  1, #{or_combination => 0, and_combination => 1}},
             {'6d',    1, #{disabled => 0, enabled => 1}},
@@ -511,7 +517,7 @@ registers(acc) ->
         ]},
         ctrl_reg8 => {16#22, read_write, 1, [
             {boot,       1, #{normal => 0, reboot_memory => 1}},
-            {bdu,        1, #{continious => 0, read => 1}},
+            {bdu,        1, #{continuous => 0, read => 1}},
             {h_lactive,  1, #{high => 0, low => 1}},
             {pp_od,      1, #{push_pull => 0, open_drain => 1}},
             {sim,        1, #{'4-wire' => 0, '3-wire' => 1}},
@@ -655,7 +661,8 @@ registers(mag) ->
             }},
             {0,        1},
             {reboot,   1, #{normal => 0, reboot_memory => 1}},
-            {soft_rst, 1, #{default => 0, reset => 1}}
+            {soft_rst, 1, #{default => 0, reset => 1}},
+            {0,        2}
         ]},
         ctrl_reg3_m => {16#22, read_write, 1, [
             {i2c_disable, 1, #{false => 0, true => 1}},
@@ -664,7 +671,7 @@ registers(mag) ->
             {0,           2},
             {sim,         1, #{write_only => 0, read_write => 1}},
             {md,          2, #{
-                continous_conversion => 2#00,
+                continuous_conversion => 2#00,
                 single_conversion    => 2#01,
                 power_down           => 2#11
             }}
@@ -731,32 +738,130 @@ registers(mag) ->
     };
 registers(alt) ->
     #{
+        ref_p => {16#08, read_write, 3, raw},
         ref_p_xl => {16#08, read_write, 1, raw},
         ref_p_l => {16#09, read_write, 1, raw},
         ref_p_h => {16#0A, read_write, 1, raw},
         who_am_i => {16#0F, read, 1, raw},
-        res_conf => {16#10, read_write, 1, raw},
-        ctrl_reg1 => {16#20, read_write, 1, raw},
-        ctrl_reg2 => {16#21, read_write, 1, raw},
-        ctrl_reg3 => {16#22, read_write, 1, raw},
-        ctrl_reg4 => {16#23, read_write, 1, raw},
-        interrupt_cfg => {16#24, read_write, 1, raw},
-        int_source => {16#25, read, 1, raw},
-        status_reg => {16#27, read, 1, raw},
+        res_conf => {16#10, read_write, 1, [
+            {0, 4},
+            {temperature_resolution, 2, #{
+                {int_avg, 8}  => 2#00,
+                {int_avg, 16} => 2#01,
+                {int_avg, 32} => 2#10,
+                {int_avg, 64} => 2#11 
+            }},
+            {pressure_resolution, 2, #{
+                {int_avg, 8}   => 2#00,
+                {int_avg, 32}  => 2#01,
+                {int_avg, 128} => 2#10,
+                {int_avg, 512} => 2#11 
+            }}
+        ]},
+        ctrl_reg1 => {16#20, read_write, 1, [
+            {pd,       1, #{power_down => 0, active => 1}},
+            {odr,      3, #{
+                one_shot   => 2#000,
+                {hz, 1}    => 2#001,
+                {hz, 7}    => 2#010,
+                {hz, 12.5} => 2#011,
+                {hz, 25}   => 2#100
+            }},
+            {diff_en,  1, #{disabled => 0, enabled => 1}},
+            {bdu,      1, #{continuous => 0, read => 1}},
+            {reset_az, 1, #{normal => 0, reset => 1}},
+            {sim,      1, #{'4-wire' => 0, '3-wire' => 1}}
+        ]},
+        ctrl_reg2 => {16#21, read_write, 1, [
+            {boot,          1, #{normal => 0, reboot_memory => 1}},
+            {fifo_en,       1, #{disabled => 0, enabled => 1}},
+            {stop_on_fth,   1, #{false => 0, true => 1}},
+            {fifo_mean_dec, 1, #{disabled => 0, enabled => 1}},
+            {i2c_dis,       1, #{false => 0, true => 1}},
+            {swreset,       1, #{normal => 0, reset => 1}},
+            {autozero,      1, #{disabled => 0, enabled => 1}},
+            {one_shot,      1, #{idle => 0, trigger => 1}}
+        ]},
+        ctrl_reg3 => {16#22, read_write, 1, [
+            {int_h_l,  1, #{high => 0, low => 1}},
+            {pp_od,    1, #{push_pull => 0, open_drain => 1}},
+            {0,        4},
+            {int_s,    2, #{
+                data_signal => 2#00,
+                p_high      => 2#01,
+                p_low       => 2#10,
+                p_or        => 2#11
+            }}
+        ]},
+        ctrl_reg4 => {16#23, read_write, 1, [
+            {0,       4},
+            {f_empty, 1, #{disabled => 0, enabled => 1}},
+            {f_fth,   1, #{disabled => 0, enabled => 1}},
+            {f_ovr,   1, #{disabled => 0, enabled => 1}},
+            {drdy,    1, #{disabled => 0, enabled => 1}}
+        ]},
+        interrupt_cfg => {16#24, read_write, 1, [
+            {0,    5},
+            {lir,  1, #{false => 0, true => 1}},
+            {pl_e, 1, #{disabled => 0, enabled => 1}},
+            {ph_e, 1, #{disabled => 0, enabled => 1}}
+        ]},
+        int_source => {16#25, read, 1, [
+            {0,  5},
+            {ia, 1, #{false => 0, true => 1}},
+            {pl, 1, #{false => 0, true => 1}},
+            {ph, 1, #{false => 0, true => 1}}
+        ]},
+        status_reg => {16#27, read, 1, [
+            {0,    2},
+            {p_or, 1, #{false => 0, true => 1}},
+            {t_or, 1, #{false => 0, true => 1}},
+            {0,    2},
+            {p_da, 1, #{false => 0, true => 1}},
+            {t_da, 1, #{false => 0, true => 1}}
+        ]},
+        press_out => {16#28, read, 3, fun convert_pressure/3},
         press_out_xl => {16#28, read, 1, raw},
         press_out_l => {16#29, read, 1, raw},
         press_out_h => {16#2A, read, 1, raw},
+        temp_out => {16#2B, read, 2, fun convert_temp/3},
         temp_out_l => {16#2B, read, 1, raw},
         temp_out_h => {16#2C, read, 1, raw},
-        fifo_ctrl => {16#2E, read_write, 1, raw},
-        fifo_status => {16#2F, read, 1, raw},
+        fifo_ctrl => {16#2E, read_write, 1, [
+            {f_mode, 3, #{
+                bypass           => 2#000,
+                fifo             => 2#001,
+                stream           => 2#010,
+                stream_to_fifo   => 2#011,
+                bypass_to_stream => 2#100,
+                not_available    => 2#101,
+                fifo_mean        => 2#110,
+                bypass_to_fifo   => 2#111
+            }},
+            {wtm_point, 5, #{
+                {sample, 2}  => 2#00001,
+                {sample, 4}  => 2#00011,
+                {sample, 8}  => 2#00111,
+                {sample, 16} => 2#01111,
+                {sample, 32} => 2#11111
+            }}
+        ]},
+        fifo_status => {16#2F, read, 1, [
+            {fth_fifo,   1, #{false => 0, true => 1}},
+            {ovr,        1, #{false => 0, true => 1}},
+            {empty_fifo, 1, #{false => 0, true => 1}},
+            {fss,        5, unsigned_little}
+        ]},
+        ths_p => {16#30, read_write, 1, unsigned_little},
         ths_p_l => {16#30, read_write, 1, raw},
         ths_p_h => {16#31, read_write, 1, raw},
+        rpds => {16#39, read_write, 1, signed_little},
         rpds_l => {16#39, read_write, 1, raw},
         rpds_h => {16#3A, read_write, 1, raw}
     }.
 
-convert_g(<<Value:16/signed-little>> = Raw, Context, Opts) ->
+convert_g(Raw, Context, Opts) ->
+    Value = decode(signed_little, Raw),
     Scale = case maps:get(xl_unit, Opts, g) of
         g     -> 0.001;
         mg    -> 1.0;
@@ -765,17 +870,18 @@ convert_g(<<Value:16/signed-little>> = Raw, Context, Opts) ->
     {FS, NewContext} = setting(ctrl_reg6_xl, fs_xl, Context),
     Result = case FS of
         {g, 2}  -> Value * 0.061 * Scale;
-        {g, 4}  -> Value * 0.122 * Scale;
         {g, 8}  -> Value * 0.244 * Scale;
+        {g, 4}  -> Value * 0.122 * Scale;
         {g, 16} -> Value * 0.732 * Scale;
         _       -> Raw
     end,
     {Result, NewContext}.
 
-convert_temp(<<Value:16/signed-little>>, Context, _Opts) ->
-    {Value / 16 + 25, Context}.
+convert_temp(Raw, Context, _Opts) ->
+    {decode(signed_little, Raw) / 16 + 25, Context}.
 
-convert_dps(<<Value:16/signed-little>> = Raw, Context, Opts) ->
+convert_dps(Raw, Context, Opts) ->
+    Value = decode(signed_little, Raw),
     Scale = case maps:get(g_unit, Opts, dps) of
         dps   -> 0.001;
         mdps  -> 1.0;
@@ -790,5 +896,21 @@ convert_dps(<<Value:16/signed-little>> = Raw, Context, Opts) ->
     end,
     {Result, NewContext}.
 
-convert_gauss(Value, Context, Opts) ->
-    {foo, Context}.
+convert_gauss(Raw, Context, Opts) ->
+    Value = decode(unsigned_little, Raw),
+    Scale = case maps:get(mag_unit, Opts, gauss) of
+        gauss  -> 0.001;
+        mgauss -> 1.0;
+        Other  -> throw({unknown_option, #{mag_unit => Other}})
+    end,
+    {MagSensitivity, NewContext} = setting(ctrl_reg2_m, fs, Context),
+    Result = case MagSensitivity of
+        {gauss, 4}  -> Value * 0.14 * Scale;
+        {gauss, 8}  -> Value * 0.29 * Scale;
+        {gauss, 12} -> Value * 0.43 * Scale;
+        {gauss, 16} -> Value * 0.58 * Scale
+    end,
+    {Result, NewContext}.
+
+convert_pressure(Raw, Context, _Opts) ->
+    {decode(signed_little, Raw) / 4096, Context}.

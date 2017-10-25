@@ -6,6 +6,7 @@
 
 nav_test_() ->
     {setup, fun setup/0, fun teardown/1, [
+        fun read_all_/0,
         fun read_out_/0,
         fun read_ctrl_/0,
         fun read_unknown_/0,
@@ -33,6 +34,13 @@ teardown(Apps) ->
     error_logger:tty(true).
 
 %--- Tests ---------------------------------------------------------------------
+
+read_all_() ->
+    [
+        pmod_nav:read(Comp, [Reg])
+        ||
+        {Comp, {Reg, {_Addr, _Type, _Size, _Conv}}} <- all_regs()
+    ].
 
 read_out_() ->
     ?assert(lists:all(fun is_float/1,
@@ -69,3 +77,13 @@ config_invalid_value_() ->
     ?assertError({invalid_value, act_ths, foobar},
         pmod_nav:config(acc, #{act_ths => foobar})
     ).
+
+%--- Internal ------------------------------------------------------------------
+
+all_regs() ->
+    [
+        {Comp, Reg}
+        ||
+        {Comp, Regs} <- maps:to_list(pmod_nav:registers()),
+        Reg          <- maps:to_list(Regs)
+    ].
