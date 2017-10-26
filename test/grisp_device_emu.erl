@@ -31,7 +31,7 @@ init(undefined) ->
     Devices = application:get_env(grisp, devices, []),
     {ok, [{Slot, init_emulator(Driver)} || {Slot, Driver} <- Devices]}.
 
-handle_call({message, Slot, Message}, _From, State) ->
+handle_call({message, Slot, Message}, _From, State) when is_atom(Slot) ->
     {Emu, EmuState} = proplists:get_value(Slot, State),
     {Data, NewEmuState} = Emu:message(EmuState, Message),
     {reply, Data, lists:keyreplace(Slot, 1, State, {Slot, {Emu, NewEmuState}})};

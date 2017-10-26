@@ -15,17 +15,17 @@ init() -> default().
 
 message(State, {spi, ?SPI_MODE, <<?RW_READ:1, ?MS_INCR:1, Reg:6, RespBytes/binary>>}) ->
     NewState = rotate(State),
-    Result = get_bytes(NewState, Reg, byte_size(RespBytes)),
+    Result = grisp_bitmap:get_bytes(NewState, Reg, byte_size(RespBytes)),
     {<<0, Result/binary>>, NewState};
 message(State, {spi, ?SPI_MODE, <<?RW_READ:1, ?MS_SAME:1, Reg:6, RespBytes/binary>>}) ->
     {Result, NewState} = lists:foldl(fun(_, {R, S}) ->
         NewS = rotate(S),
-        IR = get_bytes(NewS, Reg, 1),
+        IR = grisp_bitmap:get_bytes(NewS, Reg, 1),
         {<<R/binary, IR/binary>>, NewS}
     end, {<<>>, State}, lists:seq(1, byte_size(RespBytes))),
     {<<0, Result/binary>>, NewState};
 message(State, {spi, ?SPI_MODE, <<?RW_WRITE:1, ?MS_INCR:1, Reg:6, Value/binary>>}) ->
-    NewState = set_bytes(State, Reg, Value),
+    NewState = grisp_bitmap:set_bytes(State, Reg, Value),
     {<<0, 0:(bit_size(Value))>>, NewState}.
 
 broadcast(State, _Message) ->
@@ -34,10 +34,10 @@ broadcast(State, _Message) ->
 %--- Internal ------------------------------------------------------------------
 
 rotate(State) ->
-    case get_bytes(State, ?CTRL_REG1, 1) of
+    case grisp_bitmap:get_bytes(State, ?CTRL_REG1, 1) of
         <<_:4, ?PD_NORMAL:1, _:3>> ->
             lists:foldl(fun({Reg, Len}, S) ->
-                set_bytes(S, Reg, crypto:strong_rand_bytes(Len))
+                grisp_bitmap:set_bytes(S, Reg, crypto:strong_rand_bytes(Len))
             end, State, [
                 {?OUT_TEMP, 1},
                 {?OUT_X_L, 6}
@@ -45,15 +45,6 @@ rotate(State) ->
         _ ->
             State
     end.
-
-set_bytes(Bin, Start, Value) when byte_size(Bin) >= Start + byte_size(Value) ->
-    Len = byte_size(Value),
-    <<Prefix:Start/binary, _:Len/binary, Postfix/binary>> = Bin,
-    <<Prefix/binary, Value/binary, Postfix/binary>>.
-
-get_bytes(Bin, Start, Len) ->
-    <<_:Start/binary, Bytes:Len/binary, _/binary>> = Bin,
-    Bytes.
 
 default() ->
     <<  % Default     Addr  Name            Type
