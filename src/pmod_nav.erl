@@ -824,7 +824,7 @@ registers(alt) ->
         press_out_xl => {16#28, read, 1, raw},
         press_out_l => {16#29, read, 1, raw},
         press_out_h => {16#2A, read, 1, raw},
-        temp_out => {16#2B, read, 2, fun convert_temp/3},
+        temp_out => {16#2B, read, 2, fun convert_alt_temp/3},
         temp_out_l => {16#2B, read, 1, raw},
         temp_out_h => {16#2C, read, 1, raw},
         fifo_ctrl => {16#2E, read_write, 1, [
@@ -914,3 +914,6 @@ convert_gauss(Raw, Context, Opts) ->
 
 convert_pressure(Raw, Context, _Opts) ->
     {decode(signed_little, Raw) / 4096, Context}.
+
+convert_alt_temp(Raw, Context, _Opts) ->
+    {42.5 + decode(signed_little, Raw) / 480, Context}.
