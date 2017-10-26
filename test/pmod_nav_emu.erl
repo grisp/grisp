@@ -97,7 +97,11 @@ call(alt, Bin, <<?RW_READ:1, ?MS_INCR:1, Reg:6, Val/binary>>) ->
     read(Bin, Reg, byte_size(Val));
 call(alt, Bin, <<?RW_READ:1, ?MS_SAME:1, Reg:6, Val/binary>>) ->
     Result = grisp_bitmap:get_bytes(Bin, Reg, 1),
-    {<<0, (binary:copy(Result, byte_size(Val)))/binary>>, Bin}.
+    {<<0, (binary:copy(Result, byte_size(Val)))/binary>>, Bin};
+call(alt, Bin, <<?RW_WRITE:1, ?MS_INCR:1, Reg:6, Val/binary>>) ->
+    write(Bin, Reg, Val);
+call(alt, Bin, <<?RW_WRITE:1, ?MS_SAME:1, Reg:6, Val/binary>>) ->
+    write(Bin, Reg, binary:last(Val)).
 
 read(Bin, Reg, Length) ->
     Result = grisp_bitmap:get_bytes(Bin, Reg, Length),
