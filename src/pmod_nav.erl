@@ -745,13 +745,13 @@ registers(alt) ->
         who_am_i => {16#0F, read, 1, raw},
         res_conf => {16#10, read_write, 1, [
             {0, 4},
-            {temperature_resolution, 2, #{
+            {avgt, 2, #{
                 {int_avg, 8}  => 2#00,
                 {int_avg, 16} => 2#01,
                 {int_avg, 32} => 2#10,
                 {int_avg, 64} => 2#11 
             }},
-            {pressure_resolution, 2, #{
+            {avgp, 2, #{
                 {int_avg, 8}   => 2#00,
                 {int_avg, 32}  => 2#01,
                 {int_avg, 128} => 2#10,
