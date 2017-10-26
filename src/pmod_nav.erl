@@ -294,6 +294,9 @@ parse_bits([], <<>>, Opts) ->
 
 encode(_Name, unsigned_little, Size, Value) when is_integer(Value) ->
     <<Value:Size/unsigned-little>>;
+encode(_Name, {unsigned_little, Min, Max}, Size, Value)
+  when is_integer(Value) andalso Value >= Min andalso Value =< Max ->
+    <<Value:Size/unsigned-little>>;
 encode(_Name, signed_little, Size, Value) when is_integer(Value) ->
     <<Value:Size/signed-little>>;
 encode(_Name, raw, Size, Value) when bit_size(Value) =< Size ->
