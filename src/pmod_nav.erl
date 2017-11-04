@@ -463,8 +463,8 @@ registers(acc) ->
             {xlda,        1, #{false => 0, true => 1}}
         ]},
         out_x_g => {16#18, read, 2, fun convert_dps/3},
-        out_y_g => {16#18, read, 2, fun convert_dps/3},
-        out_z_g => {16#18, read, 2, fun convert_dps/3},
+        out_y_g => {16#1A, read, 2, fun convert_dps/3},
+        out_z_g => {16#1C, read, 2, fun convert_dps/3},
         ctrl_reg4 => {16#1E, read_write, 1, [
             {0,        2},
             {zen_g,    1, #{disabled => 0, enabled => 1}},
