@@ -129,20 +129,23 @@ verify_reg({Comp, Reg, Expected}, State) ->
     end.
 
 initialize_device(State) ->
-    {_Result, NewState} = write_config(State, acc, #{
-        % Accelerometer
-        odr_xl => {hz, 10},
-        fs_xl => {g, 2},
-        % Gyro
-        odr_g => {hz, 14.9}
-    }),
-    {_Result, NewState2} = write_config(NewState, mag, #{
-        % Magnetometer
-        md => continuous_conversion,
-        om => ultra_high,
-        omz => ultra_high
-    }),
-    NewState2.
+    lists:foldl(fun({Comp, Opts}, S) ->
+        {_R, NewS} = write_config(S, Comp, Opts),
+        NewS
+    end, State, [
+        {acc, #{
+            odr_xl => {hz, 10},
+            fs_xl  => {g, 2},
+            odr_g  => {hz, 14.9}
+        }},
+        {mag, #{
+            md  => continuous_conversion,
+            om  => ultra_high,
+            omz => ultra_high
+        }},
+        {alt, #{pd => active}},
+        {alt, #{odr => {hz, 25}}}
+    ]).
 
 write_config(State, Comp, Options) ->
     % TODO: Move component upwards
