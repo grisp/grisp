@@ -6,7 +6,7 @@
 -include("pmod_acl2.hrl").
 
 % API
--export([start_link/1]).
+-export([start_link/2]).
 -export([raw/0]).
 -export([g/0]).
 
@@ -30,7 +30,7 @@
 %--- API -----------------------------------------------------------------------
 
 % @private
-start_link(Slot) -> gen_server:start_link(?MODULE, Slot, []).
+start_link(Slot, _Opts) -> gen_server:start_link(?MODULE, Slot, []).
 
 raw() ->
     {_Mode, Result} = call(raw),

@@ -5,6 +5,7 @@
 
 % API
 -export([add_device/2]).
+-export([add_device/3]).
 -export([remove_device/1]).
 -export([devices/0]).
 -export([device/1]).
@@ -26,6 +27,12 @@
 
 %--- API -----------------------------------------------------------------------
 
+% @doc See {@link add_device/3}.
+%
+% @equiv add_device(Slot, Driver, #{})
+-spec add_device(slot(), module()) -> device().
+add_device(Slot, Driver) -> add_device(Slot, Driver, #{}).
+
 % @doc Add and start the device instance for a connected device.
 %
 % This starts a device driver instance of the specified module and connected to
@@ -34,9 +41,11 @@
 % check for specific device IDs and other similar characteristics which will
 % fail if no device or the wrong device is connected.
 %
+% The set of options is passed to the driver and is specific to each driver.
+%
 % Returns the created device instance.
--spec add_device(slot(), module()) -> device().
-add_device(Slot, Driver) -> grisp_devices:add_device(Slot, Driver).
+-spec add_device(slot(), module(), map()) -> device().
+add_device(Slot, Driver, Opts) -> grisp_devices:add_device(Slot, Driver, Opts).
 
 % @doc Remove and stop the device instance for a device.
 %

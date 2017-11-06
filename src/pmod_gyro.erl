@@ -5,7 +5,7 @@
 -include("pmod_gyro.hrl").
 
 % API
--export([start_link/1]).
+-export([start_link/2]).
 
 % Callbacks
 -export([init/1]).
@@ -20,7 +20,7 @@
 %--- API -----------------------------------------------------------------------
 
 % @private
-start_link(Slot) ->
+start_link(Slot, _Opts) ->
     gen_server:start_link(?MODULE, Slot, []).
 
 %--- Callbacks -----------------------------------------------------------------

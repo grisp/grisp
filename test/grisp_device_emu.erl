@@ -29,7 +29,7 @@ broadcast(Message) ->
 
 init(undefined) ->
     Devices = application:get_env(grisp, devices, []),
-    {ok, [{Slot, init_emulator(Driver)} || {Slot, Driver} <- Devices]}.
+    {ok, [init_emulator(Device) || Device <- Devices]}.
 
 handle_call({message, Slot, Message}, _From, State) when is_atom(Slot) ->
     {Emu, EmuState} = proplists:get_value(Slot, State),
@@ -52,6 +52,8 @@ terminate(_Reason, _State) -> ok.
 
 %--- Internal ------------------------------------------------------------------
 
-init_emulator(Driver) ->
+init_emulator({Slot, Driver}) ->
+    init_emulator({Slot, Driver, #{}});
+init_emulator({Slot, Driver, _Opts}) ->
     Emu = list_to_atom(atom_to_list(Driver) ++ "_emu"),
-    {Emu, Emu:init()}.
+    {Slot, {Emu, Emu:init()}}.

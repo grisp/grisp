@@ -3,7 +3,7 @@
 -behavior(gen_server).
 
 % API
--export([start_link/1]).
+-export([start_link/2]).
 -export([config/2]).
 -export([read/2]).
 -export([read/3]).
@@ -26,7 +26,7 @@
 %--- API -----------------------------------------------------------------------
 
 % @private
-start_link(Slot) -> gen_server:start_link(?MODULE, Slot, []).
+start_link(Slot, Opts) -> gen_server:start_link(?MODULE, [Slot, Opts], []).
 
 config(Comp, Options) when is_map(Options) -> call({config, Comp, Options}).
 
@@ -38,13 +38,14 @@ read(Comp, Registers, Opts) when is_list(Registers) ->
 %--- Callbacks -----------------------------------------------------------------
 
 % @private
-init(Slot = spi1) ->
+init([Slot = spi1, Opts]) ->
     process_flag(trap_exit, true),
     State = #{
         slot => Slot,
         acc => init_comp(acc),
         mag => init_comp(mag),
-        alt => init_comp(alt)
+        alt => init_comp(alt),
+        debug => maps:get(debug, Opts, false)
     },
     configure_pins(Slot),
     try
@@ -219,16 +220,19 @@ convert_reg(State, Comp, Opts, {Reg, Value}) ->
             {decode(Type, Value), State}
     end.
 
-write_bin(#{slot := Slot}, Comp, Reg, Value) ->
+write_bin(#{slot := Slot, debug := Debug}, Comp, Reg, Value) ->
     select(Comp, fun() ->
+        [debug_write(Comp, Reg, Value) || Debug],
         <<>> = request(Slot, write_request(Comp, Reg, Value), 0)
     end),
     Value.
 
-read_bin(#{slot := Slot} = State, Comp, Reg) ->
+read_bin(#{slot := Slot, debug := Debug} = State, Comp, Reg) ->
     case mapz:deep_find([Comp, regs, Reg], State) of
         {ok, {Addr, _RW, Size, _Conv}} ->
-            request(Slot, read_request(Comp, Addr), Size);
+            Result = request(Slot, read_request(Comp, Addr), Size),
+            [debug_read(Comp, Addr, Result) || Debug],
+            Result;
         error ->
             throw({unknown_register, Comp, Reg})
     end.
@@ -920,3 +924,16 @@ convert_pressure(Raw, Context, _Opts) ->
 
 convert_alt_temp(Raw, Context, _Opts) ->
     {42.5 + decode(signed_little, Raw) / 480, Context}.
+
+debug_read(Comp, Reg, Value) ->
+    io:format("[PmodNAV][~p] read  16#~2.16.0B --> ~s~n",
+        [Comp, Reg, debug_bitstring(Value)]
+    ).
+
+debug_write(Comp, Reg, Value) ->
+    io:format("[PmodNAV][~p] write 16#~2.16.0B <-- ~s~n",
+        [Comp, Reg, debug_bitstring(Value)]
+    ).
+
+debug_bitstring(Bitstring) ->
+    lists:flatten([io_lib:format("2#~8.2.0B ", [X]) || <<X>> <= Bitstring]).

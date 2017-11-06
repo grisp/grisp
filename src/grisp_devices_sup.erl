@@ -7,7 +7,7 @@
 
 % API
 -export([start_link/1]).
--export([start_child/2]).
+-export([start_child/3]).
 -export([terminate_child/1]).
 
 % Callbacks
@@ -18,8 +18,8 @@
 start_link(Name) ->
     supervisor:start_link({local, Name}, ?MODULE, []).
 
-start_child(Slot, Driver) ->
-    Child = #{id => Slot, start => {Driver, start_link, [Slot]}},
+start_child(Slot, Driver, Opts) ->
+    Child = #{id => Slot, start => {Driver, start_link, [Slot, Opts]}},
     {ok, Pid} = supervisor:start_child(?MODULE, Child),
     Pid.
 

@@ -6,7 +6,7 @@
 % API
 -export([start_link/0]).
 -export([setup/0]).
--export([add_device/2]).
+-export([add_device/3]).
 -export([remove_device/1]).
 -export([list/0]).
 -export([slot/1]).
@@ -30,11 +30,11 @@ start_link() -> gen_server:start_link({local, ?MODULE}, ?MODULE, undefined, []).
 setup() ->
     Devices = application:get_env(grisp, devices, []),
     % TODO: Validate ports
-    [add_device(Slot, Driver) || {Slot, Driver} <- Devices],
+    [apply(grisp, add_device, tuple_to_list(Dev)) || Dev <- Devices],
     ok.
 
-add_device(Slot, Driver) ->
-    grisp_devices_sup:start_child(Slot, Driver),
+add_device(Slot, Driver, Opts) ->
+    grisp_devices_sup:start_child(Slot, Driver, Opts),
     slot(Slot).
 
 remove_device(Device) ->
