@@ -40,7 +40,7 @@ prop_with_crashes(N, Period) ->
       application:stop(grisp),
       timer:sleep(10),
       Processes = erlang:processes(),
-      ok = application:start(grisp),
+      {ok, _} = application:ensure_all_started(grisp),
       timer:sleep(10),  
       
       {H, S, Res} = run_commands(Cmds, [{base_processes, Processes}]),

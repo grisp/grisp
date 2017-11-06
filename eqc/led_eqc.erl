@@ -55,9 +55,9 @@ led_color(Nr, {_Name, RGB}, by_value) ->
 
 led_color_callouts(_S, [Nr, {_, {R, G, B}}, _]) ->
   ?PAR([
-        ?CALLOUT(grisp_gpio_drv_emu, led, [Nr, red,   onoff(R)], ok),
-        ?CALLOUT(grisp_gpio_drv_emu, led, [Nr, green, onoff(G)], ok),
-        ?CALLOUT(grisp_gpio_drv_emu, led, [Nr, blue,  onoff(B)], ok)]),
+        ?CALLOUT(grisp_gpio_drv_emu, led, [pin(Nr, red),   onoff(R)], ok),
+        ?CALLOUT(grisp_gpio_drv_emu, led, [pin(Nr, green), onoff(G)], ok),
+        ?CALLOUT(grisp_gpio_drv_emu, led, [pin(Nr, blue),  onoff(B)], ok)]),
   ?RET(ok).
 
 %% --- Operation: off ---
@@ -70,14 +70,20 @@ led_off(Nr) ->
 
 led_off_callouts(_S, [Nr]) ->
   ?PAR([
-        ?CALLOUT(grisp_gpio_drv_emu, led, [Nr, red,   off], ok),
-        ?CALLOUT(grisp_gpio_drv_emu, led, [Nr, green, off], ok),
-        ?CALLOUT(grisp_gpio_drv_emu, led, [Nr, blue,  off], ok)]),
+        ?CALLOUT(grisp_gpio_drv_emu, led, [pin(Nr, red),   clear], ok),
+        ?CALLOUT(grisp_gpio_drv_emu, led, [pin(Nr, green), clear], ok),
+        ?CALLOUT(grisp_gpio_drv_emu, led, [pin(Nr, blue),  clear], ok)]),
   ?RET(ok).
 
-onoff(1) -> on;
-onoff(0) -> off.
+pin(1, red)   -> led1_r;
+pin(1, green) -> led1_g;
+pin(1, blue)  -> led1_b;
+pin(2, red)   -> led2_r;
+pin(2, green) -> led2_g;
+pin(2, blue)  -> led2_b.
 
+onoff(1) -> set;
+onoff(0) -> clear.
 
 %% -- Property ---------------------------------------------------------------
 
@@ -102,7 +108,7 @@ prop_led() ->
   begin
     application:stop(grisp),
     timer:sleep(5),
-    ok = application:start(grisp),
+    {ok, _} = application:ensure_all_started(grisp),
     timer:sleep(10),
     {H, S, Res} = run_commands(Cmds),
     check_command_names(Cmds,
@@ -119,5 +125,5 @@ api_spec() ->
                [ #api_module{
                     name = grisp_gpio_drv_emu,
                     fallback = grisp_gpio_drv_emu,
-                    functions =  [ #api_fun{ name = led, arity = 3} ]}
+                    functions =  [ #api_fun{ name = led, arity = 2} ]}
                ]}.
