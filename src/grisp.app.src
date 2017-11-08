@@ -22,5 +22,14 @@
     {links, [
         {"Homepage", "https://www.grisp.org"},
         {"GitHub", "https://github.com/grisp/grisp"}
+    ]},
+    {files, [
+        "LICENSE",
+        "README.md",
+        "rebar.*",
+        "rebar.config.script",
+        "rebar.lock",
+        "src",
+        "grisp"
     ]}
 ]}.
