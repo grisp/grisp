@@ -1,6 +1,6 @@
 {application, grisp, [
     {description, "GRiSP Erlang Runtime Library"},
-    {vsn, "0.1.0"},
+    {vsn, "0.1.1"},
     {registered, []},
     {mod, {grisp_app, []}},
     {applications, [
