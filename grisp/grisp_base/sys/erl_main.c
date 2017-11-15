@@ -116,6 +116,7 @@ static int ini_file_handler(void *arg, const char *section, const char *name,
   if (strcmp(section, "network") == 0) {
       if (strcmp(name, "hostname") == 0) {
 	  hostname = strdup(value);
+	  ok = 1;
       }
       else if (strcmp(name, "ip_self") == 0) {
 	  if (strcmp(value, "dhcp") == 0) {
