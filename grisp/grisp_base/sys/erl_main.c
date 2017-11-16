@@ -46,6 +46,8 @@
 #define MNT "/media/mmcsd-0-0/"
 #define INI_FILE (MNT "grisp.ini")
 
+#define PRIO_DHCP		(RTEMS_MAXIMUM_PRIORITY - 1)
+#define PRIO_WPA		(RTEMS_MAXIMUM_PRIORITY - 1)
 
 void parse_args(char *args);
 
@@ -58,6 +60,8 @@ static int wlan_enable = 0;
 
 static char *hostname = "defaulthostname";
 
+static char *wpa_supplicant_conf = NULL;
+
 static char *erl_args = "erl.rtems -- -root otp"
     " -home home -boot start_sasl -pa .";
 
@@ -66,6 +70,17 @@ static char *erl_args = "erl.rtems -- -root otp"
 static char *argv[MAX_ARGC];
 static int argc;
 
+
+static char *strdupcat (char *s1, char *s2)
+{
+  char *res;
+  
+  res = malloc(strlen(s1) + strlen(s2) + 1);
+  strcpy(res, s1);
+  strcat(res, s2);
+
+  return res;
+}
 
 void *
 mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset)
@@ -134,6 +149,10 @@ static int ini_file_handler(void *arg, const char *section, const char *name,
 	      ok = 1;
 	  }
       }
+      else if (strcmp(name, "wpa") == 0) {
+	wpa_supplicant_conf = strdupcat(MNT, value);
+	ok = 1;
+      }
   }
   else if (strcmp(section, "erlang") == 0) {
       if (strcmp(name, "args") == 0) {
@@ -196,41 +215,6 @@ default_network_ifconfig_lo0(void)
 
    exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(lo0_inet6), lo0_inet6);
    assert(exit_code == EX_OK);
-}
-
-static void
-network_dhcpcd_task(rtems_task_argument arg)
-{
-	int exit_code;
-	char *dhcpcd[] = {
-		"dhcpcd",
-		NULL
-	};
-
-	(void)arg;
-
-	exit_code = rtems_bsd_command_dhcpcd(RTEMS_BSD_ARGC(dhcpcd), dhcpcd);
-	assert(exit_code == EXIT_SUCCESS);
-}
-
-static void
-start_network_dhcpcd(void)
-{
-	rtems_status_code sc;
-	rtems_id id;
-
-	sc = rtems_task_create(
-		rtems_build_name('D', 'H', 'C', 'P'),
-		RTEMS_MAXIMUM_PRIORITY - 1,
-		2 * RTEMS_MINIMUM_STACK_SIZE,
-		RTEMS_DEFAULT_MODES,
-		RTEMS_FLOATING_POINT,
-		&id
-	);
-	assert(sc == RTEMS_SUCCESSFUL);
-
-	sc = rtems_task_start(id, network_dhcpcd_task, 0);
-	assert(sc == RTEMS_SUCCESSFUL);
 }
 
 static void
@@ -305,12 +289,16 @@ static void Init(rtems_task_argument arg)
 
   if(start_dhcp) {
       grisp_led_set2(false, true, true);
-      start_network_dhcpcd();
+      grisp_init_dhcpcd(PRIO_DHCP);
   }
   if (wlan_enable) {
       grisp_led_set2(false, false, true);
       rtems_task_wake_after(RTEMS_MILLISECONDS_TO_TICKS(4000));
       create_wlandev();
+  }
+  if (wpa_supplicant_conf != NULL) {
+    grisp_led_set2(true, false, true);
+    grisp_init_wpa_supplicant(wpa_supplicant_conf, PRIO_WPA);
   }
   grisp_led_set2(false, true, false);
 
