@@ -70,8 +70,9 @@ problem.
 
 Suggesting enhancements doesn't have to be as structured as a bug report, but
 should still contain the motivation for the enhancement, an example use case
-and some reasoning why this enhancement should go into the project (a reasons it
-should not can for example be that it can be implemented as an external library).
+and some reasoning why this enhancement should go into the project (a reason
+for not including it can for example be that it can be implemented as an
+external library).
 
 ### Pull Requests
 
