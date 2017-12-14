@@ -390,6 +390,8 @@ static void Init(rtems_task_argument arg)
 #define CONFIGURE_INIT_TASK_STACK_SIZE (512 * 1024)
 #define CONFIGURE_INIT_TASK_PRIORITY 10
 
+#define CONFIGURE_MINIMUM_TASK_STACK_SIZE (512 * 1024)
+
 #define CONFIGURE_INIT
 
 #include <rtems/confdefs.h>
