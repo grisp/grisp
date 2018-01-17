@@ -30,6 +30,7 @@
 #include <rtems/shell.h>
 #include <rtems/console.h>
 #include <rtems/malloc.h>
+#include <rtems/irq-extension.h>
 #include <machine/rtems-bsd-commands.h>
 #include <bsp.h>
 #include <assert.h>
@@ -255,6 +256,19 @@ void parse_args(char *args)
     }
 }
 
+static void dummy_isr(void *arg){
+  return;
+}
+
+static void interrupt_workaround(void){
+  rtems_status_code sc;
+  sc = rtems_interrupt_handler_install(PIOC_IRQn, "PIO_C", RTEMS_INTERRUPT_UNIQUE | RTEMS_INTERRUPT_REPLACE,
+				       dummy_isr, PIOC);
+  assert(sc == RTEMS_SUCCESSFUL);
+  sc = rtems_interrupt_handler_remove(PIOC_IRQn, dummy_isr, PIOC);
+  assert(sc == RTEMS_SUCCESSFUL);
+}
+
 static void Init(rtems_task_argument arg)
 {
   rtems_status_code sc = RTEMS_SUCCESSFUL;
@@ -269,6 +283,10 @@ static void Init(rtems_task_argument arg)
   printf("mounting sd card\n");
   grisp_init_sd_card();
   grisp_init_lower_self_prio();
+
+  // Clear all interrupts on PIO_C in order to have working USB and therefore WiFi
+  interrupt_workaround();
+
   grisp_init_libbsd();
   printf("ifconfig lo0\n");
   default_network_ifconfig_lo0();
