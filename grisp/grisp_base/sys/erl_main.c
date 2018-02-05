@@ -256,13 +256,19 @@ void parse_args(char *args)
     }
 }
 
+// When registering interrupts with libbsp it automaticly tries to register them on all PIO modules.
+// PIO_C is used for USB and therefore for WiFi. It would take away the interrupts from the USB driver.
+// As a workaround we remove all interrupts on PIO_C after initialisation of libbsp and before startup
+// of the WiFi driver.
+// See: https://github.com/grisp/grisp-software/issues/35
 static void dummy_isr(void *arg){
   return;
 }
 
 static void interrupt_workaround(void){
   rtems_status_code sc;
-  sc = rtems_interrupt_handler_install(PIOC_IRQn, "PIO_C", RTEMS_INTERRUPT_UNIQUE | RTEMS_INTERRUPT_REPLACE,
+  sc = rtems_interrupt_handler_install(PIOC_IRQn, "PIO_C",
+				       RTEMS_INTERRUPT_UNIQUE | RTEMS_INTERRUPT_REPLACE,
 				       dummy_isr, PIOC);
   assert(sc == RTEMS_SUCCESSFUL);
   sc = rtems_interrupt_handler_remove(PIOC_IRQn, dummy_isr, PIOC);
