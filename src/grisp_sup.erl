@@ -24,7 +24,8 @@ start_link() ->
             worker(grisp_gpio_events, gen_event, [{local, grisp_gpio_events}]),
             worker(grisp_gpio_poller, []),
             worker(grisp_led, []),
-            worker(grisp_devices, [])
+            worker(grisp_devices, []),
+            worker(grisp_onewire, [])
         ])
     ],
     start_link(?MODULE, Children).
