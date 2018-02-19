@@ -106,7 +106,8 @@ read_byte() ->
 
 write_triplet(Dir) ->
     assert_transaction(),
-    grisp_i2c:msgs([?DS2482_I2C_ADR, {write, <<?CMD_1WT, Dir>>}]),
+    Db = case Dir of 1 -> 16#ff; 0 -> 0 end,
+    grisp_i2c:msgs([?DS2482_I2C_ADR, {write, <<?CMD_1WT, Db>>}]),
     timer:sleep(1),
     <<D:1, T:1, S:1, _:5>> = grisp_i2c:msgs([?DS2482_I2C_ADR,
                                              {read, 1, ?I2C_M_NO_RD_ACK}]),
@@ -114,10 +115,8 @@ write_triplet(Dir) ->
 
 search() ->
     assert_transaction(),
-    bus_reset(),
-    write_byte(16#f0),
-    L = lists:reverse([ element(1, write_triplet(0)) || _ <- lists:seq(1,64) ]),
-    lists:reverse([ Y || <<Y:8>> <= << <<X:1>> || X <- L >> ]).
+    search(0, []).
+
 
 %--- Callbacks -----------------------------------------------------------------
 
@@ -162,3 +161,41 @@ check_status(<<_:5, Sd:1, Ppd:1, 0:1>>) ->
     end;
 check_status(<<_:7, 1:1>>) ->
     error(bus_reset_busy).
+
+search(Last_discrepancy, All) ->
+    case bus_reset() of
+        presence_detected ->
+            write_byte(16#f0),
+            Last_id = case All of
+                          [H|_] -> H;
+                          []    -> undefined
+                      end,
+            case search(Last_discrepancy, 1, 0, Last_id, []) of
+                {last_device, Id} -> [convert_id(Bits)  || Bits <- [Id | All]];
+                {Discrepancy, Id}     -> search(Discrepancy, [Id|All]);
+                fail              -> fail
+            end;
+        Any -> Any
+    end.
+
+convert_id(Bits) ->
+    Bin = << <<X:1>> || X <- lists:reverse(Bits) >>,
+    lists:reverse([Y || <<Y:8/big>> <= Bin]).
+
+search(_, 65, 0, _, Bits) ->
+    {last_device, lists:reverse(Bits)};
+search(_, 65, Last_zero, _, Bits) ->
+    {Last_zero, lists:reverse(Bits)};
+search(Last_discrepancy, I, Last_zero, Last_id, Bits) ->
+    case search_step(Last_discrepancy, I, Last_id) of
+        {_, 1, 1} -> fail;
+        {0, 0, 0} -> search(Last_discrepancy, I+1, I, Last_id, [0 | Bits]);
+        {D, _, _} -> search(Last_discrepancy, I+1, Last_zero, Last_id, [D | Bits])
+    end.
+
+search_step(Last_discrepancy, I, Last_id) when I < Last_discrepancy ->
+    write_triplet(lists:nth(I, Last_id));
+search_step(Last_discrepancy, I, _) when I =:= Last_discrepancy ->
+    write_triplet(1);
+search_step(Last_discrepancy, I, _) when I > Last_discrepancy ->
+    write_triplet(0).
