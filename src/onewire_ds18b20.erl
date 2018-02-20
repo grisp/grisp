@@ -5,7 +5,7 @@
 % API
 -export([temp/1]).
 -export([read_scratchpad/1]).
--export([convert/1]).
+-export([convert/2]).
 
 -define(READ_SCRATCHPAD, 16#BE).
 -define(CONVERT_T,       16#44).
@@ -27,20 +27,23 @@ read_scratchpad(ID) ->
         read_scratchpad()
     end).
 
-convert(ID) ->
+convert(ID, Timeout) ->
     grisp_onewire:transaction(fun() ->
         select_device(ID),
         grisp_onewire:write_byte(?CONVERT_T),
-        confirm(grisp_onewire:read_byte())
+        confirm(Timeout)
     end).
 
 %--- Internal ------------------------------------------------------------------
 
 select_device(ID) ->
-    presence_detected = grisp_onewire:bus_reset(),
-    grisp_onewire:write_byte(16#55),
-    [grisp_onewire:write_byte(B) || B <- ID],
-    ok.
+    case grisp_onewire:bus_reset() of
+        presence_detected ->
+            grisp_onewire:write_byte(16#55),
+            [grisp_onewire:write_byte(B) || B <- ID];
+        Other ->
+            error({onewire, Other})
+    end.
 
 read_scratchpad() ->
     grisp_onewire:write_byte(?READ_SCRATCHPAD),
@@ -53,8 +56,18 @@ bits(<<_:1, 0:1, 1:1, _:5>>) -> 10;
 bits(<<_:1, 1:1, 0:1, _:5>>) -> 11;
 bits(<<_:1, 1:1, 1:1, _:5>>) -> 12.
 
-confirm(<<16#00>>) ->
-    timer:sleep(10),
-    confirm(grisp_onewire:read_byte());
-confirm(<<16#FF>>) ->
+confirm(Timeout) ->
+    confirm(grisp_onewire:read_byte(), ms(), Timeout).
+
+confirm(<<16#00>>, Start, Timeout) ->
+    case ms() - Start > Timeout of
+        false ->
+            timer:sleep(10),
+            confirm(grisp_onewire:read_byte());
+        true ->
+            error({onewire_ds18b20, confirmation_timeout})
+    end;
+confirm(<<16#FF>>, _Start, _Timeout) ->
     ok.
+
+ms() -> erlang:monotonic_time(millisecond).
