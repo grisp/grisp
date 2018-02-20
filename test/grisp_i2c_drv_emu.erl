@@ -10,4 +10,5 @@ open() -> undefined.
 
 % FIXME: Placeholder API
 command(undefined, Things) ->
-    grisp_device_emu:broadcast({i2c, Things}).
+    grisp_device_emu:broadcast({i2c, Things}),
+    <<0>>.
