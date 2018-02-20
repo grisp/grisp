@@ -128,7 +128,7 @@ init([]) ->
 % @private
 handle_call({transaction, Fun}, _From, State) ->
     Reply = try
-        {result, Fun()}
+        {result, Fun()} % TODO: Implement timeout for transactions
     catch
         Class:Reason ->
             {exception, Class, Reason, erlang:get_stacktrace()}
