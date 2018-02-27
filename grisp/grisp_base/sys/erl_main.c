@@ -45,6 +45,7 @@
 
 #define MNT "/media/mmcsd-0-0/"
 #define INI_FILE (MNT "grisp.ini")
+#define DHCP_CONF_FILE (MNT "dhcpcd.conf")
 
 #define PRIO_DHCP		(RTEMS_MAXIMUM_PRIORITY - 1)
 #define PRIO_WPA		(RTEMS_MAXIMUM_PRIORITY - 1)
@@ -289,7 +290,7 @@ static void Init(rtems_task_argument arg)
 
   if(start_dhcp) {
       grisp_led_set2(false, true, true);
-      grisp_init_dhcpcd(PRIO_DHCP);
+      grisp_init_dhcpcd_with_config(PRIO_DHCP, DHCP_CONF_FILE);
   }
   if (wlan_enable) {
       grisp_led_set2(false, false, true);
