@@ -37,6 +37,7 @@
 -define(CMD_1WT,  16#78).
 -define(CMD_SRP,  16#e1).
 
+-define(TRANSACTION_TIMEOUT, 12000).
 -define(TRANSACTION_KEY, '$onewire_transaction_token').
 -define(TRANSACTION_TOKEN, 4435846174457203). % Random token
 
@@ -46,7 +47,7 @@
 start_link() -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 transaction(Fun) when is_function(Fun) ->
-    case gen_server:call(?MODULE, {transaction, Fun}) of
+    case gen_server:call(?MODULE, {transaction, Fun}, ?TRANSACTION_TIMEOUT) of
         {result, Result} ->
             Result;
         {exception, Class, Reason, Stacktrace} ->
