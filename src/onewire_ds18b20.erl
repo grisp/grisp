@@ -67,7 +67,7 @@ confirm(<<16#00>>, Start, Timeout) ->
         true ->
             error({onewire_ds18b20, confirmation_timeout})
     end;
-confirm(<<16#FF>>, _Start, _Timeout) ->
+confirm(<<1:1, _:7>>, _Start, _Timeout) ->
     ok.
 
 ms() -> erlang:monotonic_time(millisecond).
