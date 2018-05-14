@@ -21,7 +21,7 @@ For the GRiSP project we have several repositories covering different aspects of
 
 * [`grisp`](https://github.com/grisp/grisp)
 
-  This is the repository for the GRiSP runtime that runs in the Erlang VM on the device itself. Issues that are related to runtime Erlang code running on the device should be reported to this repository. Also issues related to the Erlang VM itself should be reported here, since the main part of customizations for Erlang and drivers used are in this repository.
+  This is the repository for the GRiSP runtime that runs in the Erlang VM on the device itself. Issues that are related to runtime Erlang code running on the device should be reported to this repository. This includes issues with starting and running a release that the Rebar 3 plug-in built. Also issues related to the Erlang VM itself should be reported here, since the main part of customizations for Erlang and drivers used are in this repository.
 
 * [`rebar3_grisp`](https://github.com/grisp/rebar3_grisp)
 
