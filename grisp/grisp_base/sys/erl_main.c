@@ -350,7 +350,8 @@ static void Init(rtems_task_argument arg)
 /*
  * Configure LibBSD.
  */
-#define RTEMS_BSD_CONFIG_BSP_CONFIG
+#include <grisp/libbsd-nexus-config.h>
+
 #define RTEMS_BSD_CONFIG_INIT
 #define RTEMS_BSD_CONFIG_TERMIOS_KQUEUE_AND_POLL
 
