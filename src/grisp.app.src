@@ -22,6 +22,7 @@
     ]},
     {links, [
         {"Homepage", "https://www.grisp.org"},
+        {"Changelog", "https://github.com/grisp/grisp/blob/master/CHANGELOG.md"},
         {"GitHub", "https://github.com/grisp/grisp"}
     ]},
     {files, [
