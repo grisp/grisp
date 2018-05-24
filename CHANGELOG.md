@@ -1,5 +1,15 @@
 # Change Log
 
+## [1.1.0](https://github.com/grisp/grisp/tree/1.1.0) (2018-05-24)
+[Full Changelog](https://github.com/grisp/grisp/compare/1.0.1...1.1.0)
+
+**Merged pull requests:**
+
+- Add support for DHCP configuration file [\#23](https://github.com/grisp/grisp/pull/23) ([sylane](https://github.com/sylane))
+- Make onewire driver concurrency safe [\#21](https://github.com/grisp/grisp/pull/21) ([eproxus](https://github.com/eproxus))
+- Add version to OTP xcomp file [\#20](https://github.com/grisp/grisp/pull/20) ([sylane](https://github.com/sylane))
+- Add board config and OTP cross-compilation config [\#18](https://github.com/grisp/grisp/pull/18) ([sylane](https://github.com/sylane))
+
 ## [1.0.1](https://github.com/grisp/grisp/tree/1.0.1) (2017-12-19)
 [Full Changelog](https://github.com/grisp/grisp/compare/1.0.0...1.0.1)
 
