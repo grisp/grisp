@@ -1,0 +1,4 @@
+user=grisp
+project=grisp
+unreleased=false
+exclude-labels=duplicate,invalid,wontfix,question,help wanted
