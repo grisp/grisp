@@ -65,12 +65,17 @@ static struct grisp_spi_data grisp_spi_data = { NULL, 0, -1 };
 /* Make sure to keep this at sync with the -define(res_max_size.. in spi.erl */
 #define RES_MAX_SIZE 256
 
+static const atsam_spi_config spi_config = {
+  .spi_peripheral_id = ID_SPI0,
+  .spi_regs = SPI0
+};
+
 int grisp_spi_init (void)
 {
     int rv;
 
     /* bus registration */
-    rv = spi_bus_register_atsam(ATSAM_SPI_0_BUS_PATH, ID_SPI0, SPI0, NULL, 0);
+    rv = spi_bus_register_atsam(ATSAM_SPI_0_BUS_PATH, &spi_config);
     assert(rv == 0);
     return 0;
 }
