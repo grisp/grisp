@@ -1,5 +1,18 @@
 # Change Log
 
+## [1.1.1](https://github.com/grisp/grisp/tree/1.1.1) (2018-06-06)
+[Full Changelog](https://github.com/grisp/grisp/compare/1.1.0...1.1.1)
+
+**Closed issues:**
+
+- Start Erlang runtime when source dependencies are included [\#25](https://github.com/grisp/grisp/issues/25)
+- Writing to a file hangs the system after listing files [\#24](https://github.com/grisp/grisp/issues/24)
+
+**Merged pull requests:**
+
+- Add support for OTP 21.0-rc1 [\#27](https://github.com/grisp/grisp/pull/27) ([sylane](https://github.com/sylane))
+- \[WIP\] Update to support RTEMS 5.0 [\#26](https://github.com/grisp/grisp/pull/26) ([eproxus](https://github.com/eproxus))
+
 ## [1.1.0](https://github.com/grisp/grisp/tree/1.1.0) (2018-05-24)
 [Full Changelog](https://github.com/grisp/grisp/compare/1.0.1...1.1.0)
 

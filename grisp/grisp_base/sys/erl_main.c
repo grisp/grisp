@@ -25,6 +25,8 @@
 #include "erl_vm.h"
 #include "global.h"
 
+#define ERLANG_THREAD_POLICY SCHED_RR
+
 #ifdef __rtems__
 #include <rtems.h>
 #include <rtems/shell.h>
@@ -36,6 +38,7 @@
 #include <rtems/libio.h>
 #include <sysexits.h>
 #include <sys/mman.h>
+#include <pthread.h>
 
 #include <inih/ini.h>
 
@@ -50,7 +53,14 @@
 #define PRIO_DHCP		(RTEMS_MAXIMUM_PRIORITY - 1)
 #define PRIO_WPA		(RTEMS_MAXIMUM_PRIORITY - 1)
 
+typedef struct {
+  int argc;
+  char **argv;
+} erlang_params;
+
 void parse_args(char *args);
+static int start_threaded_erlang(const erlang_params * const params);
+static int start_erlang(const erlang_params * const params);
 
 const Pin atsam_pin_config[] = {GRISP_PIN_CONFIG};
 const size_t atsam_pin_config_count = PIO_LISTSIZE(atsam_pin_config);
@@ -262,6 +272,7 @@ static void Init(rtems_task_argument arg)
   int rv = 0;
   static char pwd[1024];
   char *p;
+  erlang_params params;
 
   atexit(fatal_atexit);
 
@@ -340,17 +351,69 @@ static void Init(rtems_task_argument arg)
   sethostname(hostname, strlen(hostname));
   printf("hostname: %s\n", hostname);
 
-  printf("starting erlang runtime\n");
-  erl_start(argc, argv);
-  printf("erlang runtime exited\n");
+  params.argc = argc;
+  params.argv = argv;
+  exit(start_threaded_erlang(&params));
+}
+
+static int start_threaded_erlang(const erlang_params * const params)
+{
+  pthread_attr_t thread_attr;
+  pthread_t erlang_thread;
+  int status;
+  void *exit_code;
+
+  printf("erl_main: starting thread for Erlang runtime...\n");
+
+  status = pthread_attr_init(&thread_attr);
+  if (status != 0) goto error;
+  status = pthread_attr_setscope(&thread_attr, PTHREAD_SCOPE_SYSTEM);
+  if (status != 0 && status != ENOTSUP) goto error_with_attr;
+  status = pthread_attr_setinheritsched(&thread_attr, PTHREAD_EXPLICIT_SCHED);
+  if (status != 0) goto error_with_attr;
+  status = pthread_attr_setschedpolicy(&thread_attr, ERLANG_THREAD_POLICY);
+  if (status != 0) goto error_with_attr;
+
+  status = pthread_create(&erlang_thread, &thread_attr,
+                          (void*(*)(void *))start_erlang,
+                          (void*)params);
+  if (status != 0) goto error_with_attr;
+
+  status = pthread_attr_destroy(&thread_attr);
+  if (status != 0) goto error;
+
+  status = pthread_join(erlang_thread, &exit_code);
+  if (status != 0) {
+    printf("erl_main: FAILED to join Erlang runtime thread (%d)\n", status);
+    return status;
+  }
+
+  return (int)exit_code;
+
+  error_with_attr:
+
+  pthread_attr_destroy(&thread_attr);
+
+  error:
+
+  printf("erl_main: FAILED to start Erlang runtime thread (%d)\n", status);
+  return status;
+}
+
+static int start_erlang(const erlang_params * const params)
+{
+  printf("erl_main: starting Erlang runtime...\n");
+  erl_start(params->argc, params->argv);
+  printf("erl_main: erlang runtime exited\n");
   sleep(2);
-  exit(0);
+  return 0;
 }
 
 /*
  * Configure LibBSD.
  */
-#define RTEMS_BSD_CONFIG_BSP_CONFIG
+#include <grisp/libbsd-nexus-config.h>
+
 #define RTEMS_BSD_CONFIG_INIT
 #define RTEMS_BSD_CONFIG_TERMIOS_KQUEUE_AND_POLL
 
