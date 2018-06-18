@@ -26,9 +26,8 @@
 start_link(DriverMod) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, DriverMod, []).
 
-msgs(Msgs) ->
-    Enc_msgs = encode_msgs(Msgs),
-    gen_server:call(?MODULE, {msgs, Enc_msgs}).
+msgs([Adr | Msgs]) ->
+    do_msgs(Adr, Msgs).
 
 %--- Callbacks -----------------------------------------------------------------
 
@@ -56,6 +55,23 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 terminate(_Reason, _State) -> ok.
 
 %--- Internal ------------------------------------------------------------------
+
+do_msgs(Adr, Msgs) ->
+    do_msgs(Adr, Msgs, []).
+
+do_msgs(Adr, [], ReversedToSend) ->
+    ToSend = lists:reverse(ReversedToSend),
+    Enc_msgs = encode_msgs([Adr | ToSend]),
+    gen_server:call(?MODULE, {msgs, Enc_msgs});
+do_msgs(Adr, [{sleep, Time} | Rest], ReversedToSend) ->
+    ToSend = lists:reverse(ReversedToSend),
+    Enc_msgs = encode_msgs([Adr | ToSend]),
+    gen_server:call(?MODULE, {msgs, Enc_msgs}),
+    ok = timer:sleep(Time),
+    do_msgs(Adr, Rest, []);
+do_msgs(Adr, [Msg | Rest], ReversedToSend) ->
+    NewReversedToSend = [Msg | ReversedToSend],
+    do_msgs(Adr, Rest, NewReversedToSend).
 
 encode_msgs(Msgs) ->
     encode_msgs(Msgs, undefined, <<>>, <<>>).
