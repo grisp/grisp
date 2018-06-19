@@ -27,6 +27,7 @@
 
 #define ERLANG_THREAD_POLICY SCHED_RR
 
+#ifdef __rtems__
 #include <rtems.h>
 #include <rtems/shell.h>
 #include <rtems/console.h>
@@ -458,3 +459,12 @@ static int start_erlang(const erlang_params * const params)
 #define CONFIGURE_INIT
 
 #include <rtems/confdefs.h>
+
+#else
+  int
+    main(int argc, char **argv)
+  {
+    erl_start(argc, argv);
+    return 0;
+  }
+#endif
