@@ -367,6 +367,9 @@ static void Init(rtems_task_argument arg)
 
 #define CONFIGURE_FILESYSTEM_DOSFS
 
+/* filesystem read ahead task should have higher prio than erlang */
+#define CONFIGURE_BDBUF_READ_AHEAD_TASK_PRIORITY 15
+
 /* increase max file size in IMFS to 64MB */
 #define CONFIGURE_IMFS_MEMFILE_BYTES_PER_BLOCK 256
 
