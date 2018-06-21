@@ -1,5 +1,8 @@
 # Change Log
 
+## [1.1.2](https://github.com/grisp/grisp/tree/1.1.2) (2018-06-21)
+[Full Changelog](https://github.com/grisp/grisp/compare/1.1.1...1.1.2)
+
 ## [1.1.1](https://github.com/grisp/grisp/tree/1.1.1) (2018-06-06)
 [Full Changelog](https://github.com/grisp/grisp/compare/1.1.0...1.1.1)
 
