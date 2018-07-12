@@ -27,6 +27,7 @@
 ]).
 
 -include("grisp_i2c.hrl").
+-include("grisp.hrl").
 
 -define(DS2482_I2C_ADR, 16#18).
 -define(CMD_DRST, 16#f0).
@@ -131,8 +132,8 @@ handle_call({transaction, Fun}, _From, State) ->
     Reply = try
         {result, Fun()} % TODO: Implement timeout for transactions
     catch
-        Class:Reason ->
-            {exception, Class, Reason, erlang:get_stacktrace()}
+	?EXCEPTION(Class, Reason, Stacktrace) ->
+            {exception, Class, Reason, ?GET_STACK(Stacktrace)}
     end,
     {reply, Reply, State}.
 
