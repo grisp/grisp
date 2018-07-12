@@ -54,9 +54,9 @@ init([Slot = spi1, Opts]) ->
         grisp_devices:register(Slot, ?MODULE),
         {ok, NewState}
     catch
-        Class:Reason ->
+        ?EXCEPTION(Class, Reason, Stacktrace) ->
             restore_pins(Slot),
-            erlang:raise(Class, Reason, erlang:get_stacktrace())
+            erlang:raise(Class, Reason, ?GET_STACK(Stacktrace))
     end;
 init(Slot) ->
     error({incompatible_slot, Slot}).
