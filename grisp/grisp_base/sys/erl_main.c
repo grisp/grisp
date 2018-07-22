@@ -59,8 +59,6 @@ const uint32_t atsam_matrix_ccfg_sysio = GRISP_MATRIX_CCFG_SYSIO;
 static int start_dhcp = 0;
 static int wlan_enable = 0;
 
-static char *ip_self = "";
-
 static char *hostname = "defaulthostname";
 
 static char *wpa_supplicant_conf = NULL;
@@ -77,7 +75,7 @@ static int argc;
 static char *strdupcat (char *s1, char *s2)
 {
   char *res;
-
+  
   res = malloc(strlen(s1) + strlen(s2) + 1);
   strcpy(res, s1);
   strcat(res, s2);
@@ -137,15 +135,10 @@ static int ini_file_handler(void *arg, const char *section, const char *name,
 	  ok = 1;
       }
       else if (strcmp(name, "ip_self") == 0) {
-    	  if (strcmp(value, "dhcp") == 0) {
-    	      start_dhcp = 1;
-    	      ok = 1;
-    	  } else {
-          // TODO : check IP address format
-          ip_self = strdup(value); // Set ip from ini file
-          printf("=== Ip is %s ===\n", ip_self);
-          ok = 1;
-        }
+	  if (strcmp(value, "dhcp") == 0) {
+	      start_dhcp = 1;
+	      ok = 1;
+	  }
       }
       else if (strcmp(name, "wlan") == 0) {
 	  if (strcmp(value, "enable") == 0) {
@@ -230,40 +223,18 @@ create_wlandev(void)
 {
 	int exit_code;
 	char *ifcfg[] = {
-    "ifconfig",
-    "wlan0",
-    "create",
-    "wlandev",
-    "rtwn0",
-    "wlanmode",
-    "adhoc",
-    "channel",
-    // "6:ht/40",
-    "6",
-    "up",
-    NULL
+		"ifconfig",
+		"wlan0",
+		"create",
+		"wlandev",
+		"rtwn0",
+		"up",
+		NULL
 	};
-
-  char *ifcfg_adhoc_params[] = {
-    "ifconfig",
-    "wlan0",
-    "inet",
-    ip_self,
-    "netmask",
-    "255.255.0.0",
-    "ssid",
-    "edge",
-    NULL
-  };
 
 	exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(ifcfg), ifcfg);
 	if(exit_code != EXIT_SUCCESS) {
 		printf("ERROR while creating wlan0.");
-	}
-
-	exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(ifcfg_adhoc_params), ifcfg_adhoc_params);
-	if(exit_code != EXIT_SUCCESS) {
-		printf("ERROR while setting up edge wlan0.");
 	}
 }
 
