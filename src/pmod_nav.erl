@@ -49,10 +49,10 @@ init([Slot = spi1, Opts]) ->
     },
     configure_pins(Slot),
     try
-        NewState = verify_device(State),
-        initialize_device(NewState),
+        %NewState = verify_device(State),
+        initialize_device(State),
         grisp_devices:register(Slot, ?MODULE),
-        {ok, NewState}
+        {ok, State}
     catch
         Class:Reason ->
             restore_pins(Slot),
