@@ -1,3 +1,8 @@
+% LSM9DS1 3-axis accelerometer, 3-axis gyroscope, 3-axis magnetometer:
+% http://www.st.com/web/en/resource/technical/document/datasheet/DM00103319.pdf
+%
+% LPS25HB digital barometer
+% http://www.st.com/web/en/resource/technical/document/datasheet/DM00141379.pdf
 -module(pmod_nav).
 
 -behavior(gen_server).
