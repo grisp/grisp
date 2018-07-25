@@ -17,9 +17,11 @@ VSN="$1"
 
 # Update version
 sed -i "" -e "s/{vsn, .*}/{vsn, \"$VSN\"}/g" src/*.app.src
-sed -i "" -e "s/@version .*/@version $VSN/g" doc/overview.edoc
 git add src/*.app.src
-git add doc/overview.edoc
+if [ -f doc/overview.edoc ]; then
+    sed -i "" -e "s/@version .*/@version $VSN/g" doc/overview.edoc
+    git add doc/overview.edoc
+fi
 
 # Commit, tag and push
 git commit -m "Version $VSN"
