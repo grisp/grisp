@@ -25,8 +25,6 @@
 #include "erl_vm.h"
 #include "global.h"
 
-#define ERLANG_THREAD_POLICY SCHED_RR
-
 #ifdef __rtems__
 #include <rtems.h>
 #include <rtems/shell.h>
@@ -39,6 +37,8 @@
 #include <sysexits.h>
 #include <sys/mman.h>
 #include <pthread.h>
+#include <rtems/rtems/tasksimpl.h>
+#include <rtems/posix/priorityimpl.h>
 
 #include <inih/ini.h>
 
@@ -50,8 +50,11 @@
 #define INI_FILE (MNT "grisp.ini")
 #define DHCP_CONF_FILE (MNT "dhcpcd.conf")
 
-#define PRIO_DHCP		(RTEMS_MAXIMUM_PRIORITY - 1)
-#define PRIO_WPA		(RTEMS_MAXIMUM_PRIORITY - 1)
+#define PRIO_DHCP   (RTEMS_MAXIMUM_PRIORITY - 1)
+#define PRIO_WPA    (RTEMS_MAXIMUM_PRIORITY - 1)
+#define PRIO_ERLANG (RTEMS_MAXIMUM_PRIORITY - 2)
+
+#define ERLANG_PTHREAD_POLICY SCHED_RR
 
 typedef struct {
   int argc;
@@ -59,6 +62,7 @@ typedef struct {
 } erlang_params;
 
 void parse_args(char *args);
+static int prio_task_to_pthread(const rtems_task_priority, int, int*);
 static int start_threaded_erlang(const erlang_params * const params);
 static int start_erlang(const erlang_params * const params);
 
@@ -356,9 +360,38 @@ static void Init(rtems_task_argument arg)
   exit(start_threaded_erlang(&params));
 }
 
+static int
+prio_task_to_pthread(
+  const rtems_task_priority task_prio,
+  int pthread_policy,
+  int *pthread_prio)
+{
+  bool valid;
+  Thread_Control *executing;
+  const Scheduler_Control *scheduler;
+  Priority_Control core_prio;
+  int pthread_prio_min;
+  int pthread_prio_max;
+  int temp_pthread_prio;
+
+  executing = _Thread_Get_executing();
+  scheduler = _Thread_Scheduler_get_home(executing);
+  pthread_prio_min = sched_get_priority_min(pthread_policy);
+  pthread_prio_max = sched_get_priority_max(pthread_policy);
+  core_prio = _RTEMS_Priority_To_core(scheduler, task_prio, &valid);
+  if (! valid) return 1;
+  temp_pthread_prio = _POSIX_Priority_From_core(scheduler, core_prio);
+  if ((temp_pthread_prio < pthread_prio_min)
+      || (temp_pthread_prio > pthread_prio_max))
+    return 2;
+  *pthread_prio = temp_pthread_prio;
+  return 0;
+}
+
 static int start_threaded_erlang(const erlang_params * const params)
 {
   pthread_attr_t thread_attr;
+  struct sched_param thread_sched_param;
   pthread_t erlang_thread;
   int status;
   void *exit_code;
@@ -371,7 +404,12 @@ static int start_threaded_erlang(const erlang_params * const params)
   if (status != 0 && status != ENOTSUP) goto error_with_attr;
   status = pthread_attr_setinheritsched(&thread_attr, PTHREAD_EXPLICIT_SCHED);
   if (status != 0) goto error_with_attr;
-  status = pthread_attr_setschedpolicy(&thread_attr, ERLANG_THREAD_POLICY);
+  status = pthread_attr_setschedpolicy(&thread_attr, ERLANG_PTHREAD_POLICY);
+  if (status != 0) goto error_with_attr;
+  status = prio_task_to_pthread(PRIO_ERLANG, ERLANG_PTHREAD_POLICY,
+                                &thread_sched_param.sched_priority);
+  if (status != 0) goto error_with_attr;
+  status = pthread_attr_setschedparam(&thread_attr, &thread_sched_param);
   if (status != 0) goto error_with_attr;
 
   status = pthread_create(&erlang_thread, &thread_attr,
