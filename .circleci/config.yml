@@ -4,7 +4,10 @@ shared:
   build: &build
     steps:
       - checkout
-      - run: echo "Test"
+      - run: curl -fSL -o rebar3 "https://s3.amazonaws.com/rebar3/rebar3"
+      - run: chmod +x ./rebar3
+      - run: ./rebar3 local install
+      - run: rm ./rebar3
 
 jobs:
   erlang-21:
