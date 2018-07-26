@@ -21,7 +21,7 @@ jobs:
   erlang-21:
     <<: *build
     docker:
-      - image: erlang:21
+      - image: erlang:{{ .Environment.ERLANG_VERSION }}
   erlang-20:
     <<: *build
     docker:
@@ -31,5 +31,6 @@ workflows:
   version: 2
   build_and_test:
     jobs:
-      - erlang-21
+      - erlang-21:
+          context: erlang21
       - erlang-20
