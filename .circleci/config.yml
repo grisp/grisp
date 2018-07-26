@@ -4,10 +4,18 @@ shared:
   build: &build
     steps:
       - checkout
-      - run: curl -fSL -o rebar3 "https://s3.amazonaws.com/rebar3/rebar3"
-      - run: chmod +x ./rebar3
-      - run: ./rebar3 local install
-      - run: rm ./rebar3
+      - run:
+          name: Download Rebar 3
+          command: curl -fSL -o rebar3 "https://s3.amazonaws.com/rebar3/rebar3"
+      - run:
+          name: Install Rebar 3 locally
+          command: chmod +x ./rebar3 && ./rebar3 local install && rm ./rebar3
+      - run:
+          name: Update PATH and Define Environment Variable at Runtime
+          command: |
+            echo 'export PATH=$HOME/.cache/rebar3/bin:$PATH' >> $BASH_ENV
+            source $BASH_ENV
+      - run: rebar3 version
 
 jobs:
   erlang-21:
