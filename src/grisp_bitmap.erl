@@ -15,14 +15,14 @@ set_bits(Bin, Start, Value) when bit_size(Bin) >= Start + bit_size(Value) ->
     <<Prefix:Start/bitstring, _:Len/bitstring, Postfix/bitstring>> = Bin,
     <<Prefix/bitstring, Value/bitstring, Postfix/bitstring>>.
 
-get_bits(Bin, Start, Len) ->
+get_bits(Bin, Start, Len) when bit_size(Bin) >= Start + Len ->
     <<_:Start/bitstring, Bytes:Len/bitstring, _/bitstring>> = Bin,
     Bytes.
 
-set_bytes(Bin, Start, Value) when is_binary(Value) ->
+set_bytes(Bin, Start, Value) when byte_size(Bin) >= Start + byte_size(Value) ->
     set_bits(Bin, Start * 8, Value).
 
-get_bytes(Bin, Start, Len) ->
+get_bytes(Bin, Start, Len) when byte_size(Bin) >= Start + Len ->
     get_bits(Bin, Start * 8, Len * 8).
 
 pp(Bin) -> pp(Bin, #{display => hex}).
