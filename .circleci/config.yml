@@ -15,14 +15,16 @@ shared:
           command: |
             echo 'export PATH=$HOME/.cache/rebar3/bin:$PATH' >> $BASH_ENV
             source $BASH_ENV
-      - run: rebar3 version
+      - run: rebar3 eunit
+      - store_test_results:
+          path: _build/test
 
 jobs:
-  erlang-21:
+  build-erlang-21:
     <<: *build
     docker:
-      - image: erlang:{{ .Environment.ERLANG_VERSION }}
-  erlang-20:
+      - image: erlang:21
+  build-erlang-20:
     <<: *build
     docker:
       - image: erlang:20
@@ -31,6 +33,5 @@ workflows:
   version: 2
   build_and_test:
     jobs:
-      - erlang-21:
-          context: erlang21
-      - erlang-20
+      - build-erlang-21
+      - build-erlang-20
