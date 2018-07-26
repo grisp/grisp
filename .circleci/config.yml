@@ -1,20 +1,22 @@
 version: 2
+
 jobs:
-  build:
-    docker:
-      - image: erlang:21
-    steps:
-      - checkout
-      - run: echo "Build"
-  test:
+  erlang-21:
     docker:
       - image: erlang:21
     steps:
       - checkout
       - run: echo "Test"
+  erlang-20:
+    docker:
+      - image: erlang:20
+    steps:
+      - checkout
+      - run: echo "Test"
+
 workflows:
   version: 2
   build_and_test:
     jobs:
-      - build
-      - test
+      - erlang-21
+      - erlang-20
