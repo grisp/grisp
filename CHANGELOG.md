@@ -12,7 +12,6 @@
 
 **Closed issues:**
 
-- OTP21: unable to use wifi: register/listen error: econnrefused [\#35](https://github.com/grisp/grisp/issues/35)
 - erlang:get\_stacktrace/0 is deprecated in OTP 21 [\#33](https://github.com/grisp/grisp/issues/33)
 
 **Merged pull requests:**
