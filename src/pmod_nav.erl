@@ -1,3 +1,8 @@
+% LSM9DS1 3-axis accelerometer, 3-axis gyroscope, 3-axis magnetometer:
+% http://www.st.com/web/en/resource/technical/document/datasheet/DM00103319.pdf
+%
+% LPS25HB digital barometer
+% http://www.st.com/web/en/resource/technical/document/datasheet/DM00141379.pdf
 -module(pmod_nav).
 
 -behavior(gen_server).
@@ -49,14 +54,14 @@ init([Slot = spi1, Opts]) ->
     },
     configure_pins(Slot),
     try
-        %NewState = verify_device(State),
-        initialize_device(State),
+        State1 = verify_device(State),
+        State2 = initialize_device(State1),
         grisp_devices:register(Slot, ?MODULE),
-        {ok, State}
+        {ok, State2}
     catch
-        Class:Reason ->
-            restore_pins(Slot),
-            erlang:raise(Class, Reason, erlang:get_stacktrace())
+        ?EXCEPTION(Class, Reason, Stacktrace) ->
+            restore_pins(),
+            erlang:raise(Class, Reason, ?GET_STACK(Stacktrace))
     end;
 init(Slot) ->
     error({incompatible_slot, Slot}).
@@ -77,7 +82,9 @@ handle_info(Info, _State) -> error({unknown_info, Info}).
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 % @private
-terminate(_Reason, #{slot := Slot}) -> restore_pins(Slot).
+terminate(_Reason, State) ->
+    deinitialize_device(State),
+    restore_pins().
 
 %--- Internal ------------------------------------------------------------------
 
@@ -102,16 +109,81 @@ execute_call(Request, _State) ->
     error({unknown_call, Request}).
 
 configure_pins(Slot) ->
-    % Disable chip select for SPI1
-    grisp_gpio:configure_slot(Slot, disable_cs),
     % Configure pin 9 and 10 for output pulled high
     grisp_gpio:configure(spi1_pin9, output_1),
-    grisp_gpio:configure(spi1_pin10, output_1).
+    grisp_gpio:configure(spi1_pin10, output_1),
+    % Do an empty transfer without chip select to make sure clock is high
+    grisp_spi:send_recv(Slot, ?SPI_MODE, <<16#FF>>).
 
-restore_pins(Slot) ->
-    grisp_gpio:configure_slot(Slot, enable_cs),
+restore_pins() ->
     grisp_gpio:configure(spi1_pin9, input),
     grisp_gpio:configure(spi1_pin10, input).
+
+initialize_device(State) ->
+    configure_components(State, [
+        {acc, #{ % Accelerometer
+            zen_xl        => enabled,               % Z axis
+            yen_xl        => enabled,               % y axis
+            xen_xl        => enabled,               % X axis
+            odr_xl        => {hz, 10},              % Output data rate
+            fs_xl         => {g, 2},                % Full-scale
+            i2c_disable   => true                   % I2C disabled
+        }},
+        {acc, #{ % Gyro
+            zen_g         => enabled,               % Z axis
+            yen_g         => enabled,               % Y axis
+            xen_g         => enabled,               % X axis
+            odr_g         => {hz, 14.9}             % Output data rate
+        }},
+        {mag, #{
+            om            => ultra_high,            % X and Y axis performance
+            do            => {hz, 10},              % Output data rate
+            fs            => {gauss, 4},            % Full-scale
+            i2c_disable   => true,                  % I2C disabled
+            md            => continuous_conversion, % Operating mode
+            omz           => ultra_high,            % Z axis performance
+            bdu           => continuous             % Output regs update mode
+        }},
+        {alt, #{
+            pd            => active                 % Power up instrument
+        }},
+        {alt, #{
+            odr           => {hz, 7},               % Output data rate
+            i2c_dis       => true                   % I2C disabled
+        }}
+    ]).
+
+deinitialize_device(State) ->
+    configure_components(State, [
+        {acc, #{ % Accelerometer
+            zen_xl        => disabled,              % Z axis
+            yen_xl        => disabled,              % y axis
+            xen_xl        => disabled,              % X axis
+            odr_xl        => power_down             % Output data rate
+        }},
+        {acc, #{
+            i2c_disable   => false                  % I2C disabled
+        }},
+        {acc, #{ % Gyro
+            zen_g         => disabled,              % Z axis
+            yen_g         => disabled,              % Y axis
+            xen_g         => disabled,              % X axis
+            odr_g         => power_down             % Output data rate
+        }},
+        {mag, #{
+            md            => power_down             % Power down instrument
+        }},
+        {alt, #{
+            i2c_dis       => false,                 % I2C disabled
+            pd            => power_down             % Power down instrument
+        }}
+    ]).
+
+configure_components(State, Config) ->
+    lists:foldl(fun({Comp, Opts}, S) ->
+        {_R, NewS} = write_config(S, Comp, Opts),
+        NewS
+    end, State, Config).
 
 verify_device(State) ->
     lists:foldl(fun verify_reg/2, State, [
@@ -122,33 +194,11 @@ verify_device(State) ->
 
 verify_reg({Comp, Reg, Expected}, State) ->
     case read_and_convert(State, Comp, [Reg], #{}) of
-        {[Expected], NewState} ->
-            NewState;
-        {[Other], _NewState} ->
-            error({register_mismatch, Comp, Reg, Other})
+        {[Expected], NewState} -> NewState;
+        {[Other], _NewState}   -> error({register_mismatch, Comp, Reg, Other})
     end.
 
-initialize_device(State) ->
-    lists:foldl(fun({Comp, Opts}, S) ->
-        {_R, NewS} = write_config(S, Comp, Opts),
-        NewS
-    end, State, [
-        {acc, #{
-            odr_xl => {hz, 10},
-            fs_xl  => {g, 2},
-            odr_g  => {hz, 14.9}
-        }},
-        {mag, #{
-            md  => continuous_conversion,
-            om  => ultra_high,
-            omz => ultra_high
-        }},
-        {alt, #{pd => active}},
-        {alt, #{odr => {hz, 25}}}
-    ]).
-
 write_config(State, Comp, Options) ->
-    % TODO: Move component upwards
     Partitions = partition(Options, mapz:deep_get([Comp, rev], State)),
     NewCache = maps:map(fun(Reg, Opts) ->
         Bin = case maps:find(Reg, mapz:deep_get([Comp, cache], State)) of
@@ -186,19 +236,15 @@ read_and_convert(State, Comp, Registers, Opts) ->
     convert_regs(NewState, Comp, Opts, Values).
 
 read_regs(State, Comp, Registers) ->
-    % TODO: Move comp higher?
-    % FIXME: Not pulling pins between requests creates garbage data?
     {Values, NewCache} = lists:foldl(fun(Reg, {Acc, Cache}) ->
-        select(Comp, fun() ->
-            Value = read_bin(State, Comp, Reg),
-            NewC = case mapz:deep_get([Comp, regs, Reg], State) of
-                {_Addr, read_write, _Size, Conv} when is_list(Conv) ->
-                    maps:put(Reg, Value, Cache);
-                _ReadOnlyReg ->
-                    Cache
-            end,
-            {[{Reg, Value}|Acc], NewC}
-        end)
+        Value = read_bin(State, Comp, Reg),
+        NewC = case mapz:deep_get([Comp, regs, Reg], State) of
+            {_Addr, read_write, _Size, Conv} when is_list(Conv) ->
+                maps:put(Reg, Value, Cache);
+            _ReadOnlyReg ->
+                Cache
+        end,
+        {[{Reg, Value}|Acc], NewC}
     end, {[], mapz:deep_get([Comp, cache], State)}, Registers),
     {lists:reverse(Values), mapz:deep_put([Comp, cache], NewCache, State)}.
 
@@ -224,7 +270,7 @@ convert_reg(State, Comp, Opts, {Reg, Value}) ->
     end.
 
 write_bin(#{slot := Slot, debug := Debug}, Comp, Reg, Value) ->
-    select(Comp, fun() ->
+    select(Slot, Comp, fun() ->
         [debug_write(Comp, Reg, Value) || Debug],
         <<>> = request(Slot, write_request(Comp, Reg, Value), 0)
     end),
@@ -233,7 +279,9 @@ write_bin(#{slot := Slot, debug := Debug}, Comp, Reg, Value) ->
 read_bin(#{slot := Slot, debug := Debug} = State, Comp, Reg) ->
     case mapz:deep_find([Comp, regs, Reg], State) of
         {ok, {Addr, _RW, Size, _Conv}} ->
-            Result = request(Slot, read_request(Comp, Addr), Size),
+            Result = select(Slot, Comp, fun() ->
+                request(Slot, read_request(Comp, Addr), Size)
+            end),
             [debug_read(Comp, Addr, Result) || Debug],
             Result;
         error ->
@@ -251,13 +299,19 @@ read_request(alt, Reg) -> <<?RW_READ:1, ?MS_INCR:1, Reg:6>>.
 request(Slot, Request, Pad) ->
     grisp_spi:send_recv(Slot, ?SPI_MODE, Request, byte_size(Request), Pad).
 
-select(Component, Fun) ->
+select(_Slot, acc, Fun) ->
+    Fun();
+select(Slot, Component, Fun) ->
     Pin = pin(Component),
     try
+        % Disable chip select for SPI1
+        grisp_gpio:configure_slot(Slot, disable_cs),
+
         grisp_gpio:clear(Pin),
         Fun()
     after
-        grisp_gpio:set(Pin)
+        grisp_gpio:set(Pin),
+        grisp_gpio:configure_slot(Slot, enable_cs)
     end.
 
 render_bits(Defs, Bin, Opts) ->
@@ -699,7 +753,7 @@ registers(mag) ->
         ]},
         ctrl_reg5_m => {16#24, read_write, 1, [
             {fast_read, 1, #{disabled => 0, enabled => 0}},
-            {bdu,       1, #{continious => 0, read => 1}},
+            {bdu,       1, #{continuous => 0, read => 1}},
             {0,         6}
         ]},
         status_reg_m => {16#27, read, 1, [

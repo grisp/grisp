@@ -10,7 +10,7 @@
 -define(SPI_MODE, #{cpol := high, cpha := trailing}).
 
 -define(ACC(State), State#state.pins =:= #{
-    ss1        => {output_1, 0},
+    ss1        => {periph_c, 2},
     spi1_pin9  => {output_1, 1},
     spi1_pin10 => {output_1, 1}
 }).
@@ -29,8 +29,8 @@
 %--- Records -------------------------------------------------------------------
 
 -record(state, {
-    pins    = #{
-        ss1        => {periph_c, 1},
+    pins = #{
+        ss1        => {periph_c, 2},
         spi1_pin9  => {input_1, 1},
         spi1_pin10 => {input_1, 1}
     },
@@ -45,14 +45,16 @@
 
 init() -> #state{}.
 
+message(State, {spi, ?SPI_MODE, <<16#FF>>}) when ?ACC(State) ->
+    {<<16#FF>>, State}; % Initial bogus SPI read to set clock line high
 message(State, {spi, ?SPI_MODE, Req}) when ?ACC(State) ->
     component(State, acc_gyro, Req);
 message(State, {spi, ?SPI_MODE, Req}) when ?MAG(State) ->
     component(State, mag, Req);
 message(State, {spi, ?SPI_MODE, Req}) when ?ALT(State) ->
     component(State, alt, Req);
-message(State, {spi, ?SPI_MODE, <<_Req, Value/binary>>}) ->
-    {<<0, (binary:copy(<<0>>, byte_size(Value)))/binary>>, State}.
+message(State, {spi, ?SPI_MODE, <<Req, Value/binary>>}) ->
+    error({unknown_spi_request, State, Req, Value}).
 
 broadcast(#state{pins = Pins} = State, {gpio, Pin, {configure, Mode, _}}) when ?PIN(Pin) ->
     State#state{pins = maps:update(Pin, {Mode, value(Mode)}, Pins)};
@@ -112,6 +114,7 @@ write(Bin, Reg, Value) ->
     {<<0, (binary:copy(<<0>>, byte_size(Value)))/binary>>, NewBin}.
 
 value(output_1) -> 1;
+value(periph_c) -> 2;
 value(_)        -> undefined.
 
 shake(acc_gyro, Bin) ->
