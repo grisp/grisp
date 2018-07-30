@@ -38,5 +38,5 @@ rebar3 hex docs
 # Generate and push changelog
 github_changelog_generator
 git add CHANGELOG.md
-git commit -m "Update Changelog for version $VSN"
+git commit -m "Update changelog for version $VSN"
 git push
