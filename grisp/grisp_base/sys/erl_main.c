@@ -57,8 +57,8 @@
 #define ERLANG_PTHREAD_POLICY SCHED_RR
 
 typedef struct {
-  int argc;
-  char **argv;
+    int argc;
+    char **argv;
 } erlang_params;
 
 void parse_args(char *args);
@@ -86,10 +86,11 @@ static char *argv[MAX_ARGC];
 static int argc;
 
 
-static char *strdupcat (char *s1, char *s2)
+static char *
+strdupcat (char *s1, char *s2)
 {
   char *res;
-  
+
   res = malloc(strlen(s1) + strlen(s2) + 1);
   strcpy(res, s1);
   strcat(res, s2);
@@ -100,27 +101,27 @@ static char *strdupcat (char *s1, char *s2)
 void *
 mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset)
 {
-  errno = ENODEV;
-  return MAP_FAILED;
+    errno = ENODEV;
+    return MAP_FAILED;
 }
 
 int
 munmap(void *addr, size_t len)
 {
-  errno = EINVAL;
-  return -1;
+    errno = EINVAL;
+    return -1;
 }
 
 void
 fatal_extension(uint32_t source, uint32_t is_internal, uint32_t error)
 {
-  printk ("fatal extension: source=%ld, is_internal=%ld, error=%ld\n",
-	  source, is_internal, error);
-  if (source == RTEMS_FATAL_SOURCE_EXCEPTION)
-    rtems_exception_frame_print((const rtems_exception_frame *)error);
+    printk ("fatal extension: source=%ld, is_internal=%ld, error=%ld\n",
+            source, is_internal, error);
+    if (source == RTEMS_FATAL_SOURCE_EXCEPTION)
+        rtems_exception_frame_print((const rtems_exception_frame *)error);
 
-  /* rtems_stack_checker_report_usage(); */
-  while(1)
+    /* rtems_stack_checker_report_usage(); */
+    while(1)
     {
     }
 }
@@ -128,102 +129,105 @@ fatal_extension(uint32_t source, uint32_t is_internal, uint32_t error)
 void
 fatal_atexit(void)
 {
-  printk ("Erlang VM exited\n");
-  /* rtems_stack_checker_report_usage(); */
-  while(1)
+    printk ("Erlang VM exited\n");
+    /* rtems_stack_checker_report_usage(); */
+    while(1)
     {
     }
 }
 
-static int ini_file_handler(void *arg, const char *section, const char *name,
-			    const char *value)
+static int
+ini_file_handler(
+    void *arg,
+    const char *section,
+    const char *name,
+    const char *value)
 {
-  int ok = 0;
+    int ok = 0;
 
-  printf ("grisp.ini: "
-	  "section \"%s\", name \"%s\", value \"%s\"\n",
-	  section, name, value);
-  if (strcmp(section, "network") == 0) {
-      if (strcmp(name, "hostname") == 0) {
-	  hostname = strdup(value);
-	  ok = 1;
-      }
-      else if (strcmp(name, "ip_self") == 0) {
-	  if (strcmp(value, "dhcp") == 0) {
-	      start_dhcp = 1;
-	      ok = 1;
-	  }
-      }
-      else if (strcmp(name, "wlan") == 0) {
-	  if (strcmp(value, "enable") == 0) {
-	      wlan_enable = 1;
-	      ok = 1;
-	  }
-	  else if (strcmp(value, "disable") == 0) {
-	      wlan_enable = 0;
-	      ok = 1;
-	  }
-      }
-      else if (strcmp(name, "wpa") == 0) {
-	wpa_supplicant_conf = strdupcat(MNT, value);
-	ok = 1;
-      }
-  }
-  else if (strcmp(section, "erlang") == 0) {
-      if (strcmp(name, "args") == 0) {
-	  printf ("erl args: "
-		  "section \"%s\", name \"%s\", value \"%s\"\n",
-		  section, name, value);
-	  erl_args = strdup(value);
-	  ok = 1;
-      }
-  }
-  else
-    ok = 1;
+    printf ("grisp.ini: section \"%s\", name \"%s\", value \"%s\"\n",
+            section, name, value);
+    if (strcmp(section, "network") == 0) {
+        if (strcmp(name, "hostname") == 0) {
+           hostname = strdup(value);
+           ok = 1;
+        }
+        else if (strcmp(name, "ip_self") == 0) {
+            if (strcmp(value, "dhcp") == 0) {
+               start_dhcp = 1;
+               ok = 1;
+            }
+        }
+        else if (strcmp(name, "wlan") == 0) {
+            if (strcmp(value, "enable") == 0) {
+                wlan_enable = 1;
+                ok = 1;
+            }
+            else if (strcmp(value, "disable") == 0) {
+                wlan_enable = 0;
+                ok = 1;
+            }
+        }
+        else if (strcmp(name, "wpa") == 0) {
+            wpa_supplicant_conf = strdupcat(MNT, value);
+            ok = 1;
+        }
+    }
+    else if (strcmp(section, "erlang") == 0) {
+        if (strcmp(name, "args") == 0) {
+            printf ("erl args: section \"%s\", name \"%s\", value \"%s\"\n",
+                    section, name, value);
+            erl_args = strdup(value);
+            ok = 1;
+        }
+    }
+    else
+        ok = 1;
 
-  if (!ok) {
-      printf ("erl_main: error in configuration file: "
-	      "section \"%s\", name \"%s\", value \"%s\"\n",
-	      section, name, value);
-      ok = 1;
+    if (!ok) {
+        printf ("erl_main: error in configuration file: "
+                "section \"%s\", name \"%s\", value \"%s\"\n",
+                section, name, value);
+        ok = 1;
     }
 
-  return ok;
+    return ok;
 }
 
-static void evaluate_ini_file(const char *ini_file)
+static void
+evaluate_ini_file(const char *ini_file)
 {
     int rv;
 
     rv = ini_parse(ini_file, ini_file_handler, NULL);
     if (rv == -1) {
-	printf("WARNING: Can't find ini file %s -> using defaults\n", ini_file);
+        printf("WARNING: Can't find ini file %s -> using defaults\n", ini_file);
     }
 }
 
 static void
 default_network_ifconfig_lo0(void)
 {
-   int exit_code;
-   char *lo0[] = {
-       "ifconfig",
-       "lo0",
-       "inet",
-       "127.0.0.1",
-       "netmask",
-       "255.255.255.0",
-       NULL
-   };
-   char *lo0_inet6[] = {
-       "ifconfig",
-       "lo0",
-       "inet6",
-       "::1",
-       "prefixlen",
-       "128",
-       "alias",
-       NULL
-   };
+    int exit_code;
+    char *lo0[] = {
+        "ifconfig",
+        "lo0",
+        "inet",
+        "127.0.0.1",
+        "netmask",
+        "255.255.255.0",
+        NULL
+    };
+    char *lo0_inet6[] = {
+        "ifconfig",
+        "lo0",
+        "inet6",
+        "::1",
+        "prefixlen",
+        "128",
+        "alias",
+        NULL
+    };
 
    exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(lo0), lo0);
    assert(exit_code == EX_OK);
@@ -235,216 +239,219 @@ default_network_ifconfig_lo0(void)
 static void
 create_wlandev(void)
 {
-	int exit_code;
-	char *ifcfg[] = {
-		"ifconfig",
-		"wlan0",
-		"create",
-		"wlandev",
-		"rtwn0",
-		"up",
-		NULL
-	};
+    int exit_code;
+    char *ifcfg[] = {
+        "ifconfig",
+        "wlan0",
+        "create",
+        "wlandev",
+        "rtwn0",
+        "up",
+        NULL
+    };
 
-	exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(ifcfg), ifcfg);
-	if(exit_code != EXIT_SUCCESS) {
-		printf("ERROR while creating wlan0.");
-	}
+    exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(ifcfg), ifcfg);
+    if(exit_code != EXIT_SUCCESS) {
+        printf("ERROR while creating wlan0.");
+    }
 }
 
-void parse_args(char *args)
+void
+parse_args(char *args)
 {
     char *p;
     char *last;
 
     for (p = strtok_r(args, " \t", &last);
-	 p;
-	 p = strtok_r(NULL, " \t", &last))
-    {
-	if (argc >= MAX_ARGC) {
-	        printf("ERROR: too many erl arguments\n");
-		exit(-1);
-	}
+         p;
+         p = strtok_r(NULL, " \t", &last)) {
+        if (argc >= MAX_ARGC) {
+            printf("ERROR: too many erl arguments\n");
+            exit(-1);
+        }
 
-	argv[argc++] = p;
+        argv[argc++] = p;
     }
 }
 
-static void Init(rtems_task_argument arg)
+static void
+Init(rtems_task_argument arg)
 {
-  rtems_status_code sc = RTEMS_SUCCESSFUL;
-  int rv = 0;
-  static char pwd[1024];
-  char *p;
-  erlang_params params;
+    rtems_status_code sc = RTEMS_SUCCESSFUL;
+    int rv = 0;
+    static char pwd[1024];
+    char *p;
+    erlang_params params;
 
-  atexit(fatal_atexit);
+    atexit(fatal_atexit);
 
-  grisp_led_set1(false, false, false);
-  grisp_led_set2(true, true, true);
-  printf("mounting sd card\n");
-  grisp_init_sd_card();
-  grisp_init_lower_self_prio();
-  grisp_init_libbsd();
-  printf("ifconfig lo0\n");
-  default_network_ifconfig_lo0();
+    grisp_led_set1(false, false, false);
+    grisp_led_set2(true, true, true);
+    printf("mounting sd card\n");
+    grisp_init_sd_card();
+    grisp_init_lower_self_prio();
+    grisp_init_libbsd();
+    printf("ifconfig lo0\n");
+    default_network_ifconfig_lo0();
 
-  /* Wait for the SD card */
-  grisp_led_set2(true, false, true);
-  sc = grisp_init_wait_for_sd();
-  if(sc == RTEMS_SUCCESSFUL) {
-    printf("sd card mounted\n");
-  } else {
-    printf("ERROR: SD could not be mounted after timeout\n");
-    grisp_led_set2(true, false, false);
-  }
-
-  evaluate_ini_file(INI_FILE);
-  printf("%s\n", erl_args);
-  parse_args(erl_args);
-
-  if(start_dhcp) {
-      grisp_led_set2(false, true, true);
-      grisp_init_dhcpcd_with_config(PRIO_DHCP, DHCP_CONF_FILE);
-  }
-  if (wlan_enable) {
-      grisp_led_set2(false, false, true);
-      rtems_task_wake_after(RTEMS_MILLISECONDS_TO_TICKS(4000));
-      create_wlandev();
-  }
-  if (wpa_supplicant_conf != NULL) {
+    /* Wait for the SD card */
     grisp_led_set2(true, false, true);
-    grisp_init_wpa_supplicant(wpa_supplicant_conf, PRIO_WPA);
-  }
-  grisp_led_set2(false, true, false);
+    sc = grisp_init_wait_for_sd();
+    if(sc == RTEMS_SUCCESSFUL) {
+        printf("sd card mounted\n");
+    } else {
+        printf("ERROR: SD could not be mounted after timeout\n");
+        grisp_led_set2(true, false, false);
+    }
 
-  printf("mkdir /tmp\n");
-  rv = mkdir("/tmp", 0755);
-  assert(rv == 0);
+    evaluate_ini_file(INI_FILE);
+    printf("%s\n", erl_args);
+    parse_args(erl_args);
 
-  printf("mkdir /tmp/log\n");
-  rv = mkdir("/tmp/log", 0755);
-  assert(rv == 0);
+    if(start_dhcp) {
+        grisp_led_set2(false, true, true);
+        grisp_init_dhcpcd_with_config(PRIO_DHCP, DHCP_CONF_FILE);
+    }
+    if (wlan_enable) {
+        grisp_led_set2(false, false, true);
+        rtems_task_wake_after(RTEMS_MILLISECONDS_TO_TICKS(4000));
+        create_wlandev();
+    }
+    if (wpa_supplicant_conf != NULL) {
+        grisp_led_set2(true, false, true);
+        grisp_init_wpa_supplicant(wpa_supplicant_conf, PRIO_WPA);
+    }
+    grisp_led_set2(false, true, false);
 
-  printf("mkdir /home\n");
-  rv = mkdir("/home", 0755);
-  assert(rv == 0);
+    printf("mkdir /tmp\n");
+    rv = mkdir("/tmp", 0755);
+    assert(rv == 0);
 
-  printf("Setting environment\n");
-  setenv("BINDIR", "otp/lib/erlang/bin", 1);
-  setenv("ROOTDIR", "otp", 1);
-  setenv("PROGNAME", "erl.rtems", 1);
-  setenv("HOME", "/home", 1);
+    printf("mkdir /tmp/log\n");
+    rv = mkdir("/tmp/log", 0755);
+    assert(rv == 0);
 
-  /* Need to change the directory here because some dunderheaded
-     library changes it back to root otherwise */
+    printf("mkdir /home\n");
+    rv = mkdir("/home", 0755);
+    assert(rv == 0);
 
-  printf("chdir(%s)\n", MNT);
-  rv = chdir(MNT);
-  if (rv < 0)
-    perror("can't chdir");
+    printf("Setting environment\n");
+    setenv("BINDIR", "otp/lib/erlang/bin", 1);
+    setenv("ROOTDIR", "otp", 1);
+    setenv("PROGNAME", "erl.rtems", 1);
+    setenv("HOME", "/home", 1);
 
-  printf("\nerl_main: starting ...\n");
+    /* Need to change the directory here because some dunderheaded
+       library changes it back to root otherwise */
 
-  p = getcwd(pwd, 1024);
-  if (p == NULL)
-    printf("getcwd error\n");
-  else
-    printf("getcwd: %s\n", p);
+    printf("chdir(%s)\n", MNT);
+    rv = chdir(MNT);
+    if (rv < 0)
+        perror("can't chdir");
 
-  sethostname(hostname, strlen(hostname));
-  printf("hostname: %s\n", hostname);
+    printf("\nerl_main: starting ...\n");
 
-  params.argc = argc;
-  params.argv = argv;
-  exit(start_threaded_erlang(&params));
+    p = getcwd(pwd, 1024);
+    if (p == NULL)
+        printf("getcwd error\n");
+    else
+        printf("getcwd: %s\n", p);
+
+    sethostname(hostname, strlen(hostname));
+    printf("hostname: %s\n", hostname);
+
+    params.argc = argc;
+    params.argv = argv;
+    exit(start_threaded_erlang(&params));
 }
 
 static int
 prio_task_to_pthread(
-  const rtems_task_priority task_prio,
-  int pthread_policy,
-  int *pthread_prio)
+    const rtems_task_priority task_prio,
+    int pthread_policy,
+    int *pthread_prio)
 {
-  bool valid;
-  Thread_Control *executing;
-  const Scheduler_Control *scheduler;
-  Priority_Control core_prio;
-  int pthread_prio_min;
-  int pthread_prio_max;
-  int temp_pthread_prio;
+    bool valid;
+    Thread_Control *executing;
+    const Scheduler_Control *scheduler;
+    Priority_Control core_prio;
+    int pthread_prio_min;
+    int pthread_prio_max;
+    int temp_pthread_prio;
 
-  executing = _Thread_Get_executing();
-  scheduler = _Thread_Scheduler_get_home(executing);
-  pthread_prio_min = sched_get_priority_min(pthread_policy);
-  pthread_prio_max = sched_get_priority_max(pthread_policy);
-  core_prio = _RTEMS_Priority_To_core(scheduler, task_prio, &valid);
-  if (! valid) return 1;
-  temp_pthread_prio = _POSIX_Priority_From_core(scheduler, core_prio);
-  if ((temp_pthread_prio < pthread_prio_min)
-      || (temp_pthread_prio > pthread_prio_max))
-    return 2;
-  *pthread_prio = temp_pthread_prio;
-  return 0;
+    executing = _Thread_Get_executing();
+    scheduler = _Thread_Scheduler_get_home(executing);
+    pthread_prio_min = sched_get_priority_min(pthread_policy);
+    pthread_prio_max = sched_get_priority_max(pthread_policy);
+    core_prio = _RTEMS_Priority_To_core(scheduler, task_prio, &valid);
+    if (! valid) return 1;
+    temp_pthread_prio = _POSIX_Priority_From_core(scheduler, core_prio);
+    if ((temp_pthread_prio < pthread_prio_min)
+        || (temp_pthread_prio > pthread_prio_max))
+        return 2;
+    *pthread_prio = temp_pthread_prio;
+    return 0;
 }
 
-static int start_threaded_erlang(const erlang_params * const params)
+static int
+start_threaded_erlang(const erlang_params * const params)
 {
-  pthread_attr_t thread_attr;
-  struct sched_param thread_sched_param;
-  pthread_t erlang_thread;
-  int status;
-  void *exit_code;
+    pthread_attr_t thread_attr;
+    struct sched_param thread_sched_param;
+    pthread_t erlang_thread;
+    int status;
+    void *exit_code;
 
-  printf("erl_main: starting thread for Erlang runtime...\n");
+    printf("erl_main: starting thread for Erlang runtime...\n");
 
-  status = pthread_attr_init(&thread_attr);
-  if (status != 0) goto error;
-  status = pthread_attr_setscope(&thread_attr, PTHREAD_SCOPE_SYSTEM);
-  if (status != 0 && status != ENOTSUP) goto error_with_attr;
-  status = pthread_attr_setinheritsched(&thread_attr, PTHREAD_EXPLICIT_SCHED);
-  if (status != 0) goto error_with_attr;
-  status = pthread_attr_setschedpolicy(&thread_attr, ERLANG_PTHREAD_POLICY);
-  if (status != 0) goto error_with_attr;
-  status = prio_task_to_pthread(PRIO_ERLANG, ERLANG_PTHREAD_POLICY,
-                                &thread_sched_param.sched_priority);
-  if (status != 0) goto error_with_attr;
-  status = pthread_attr_setschedparam(&thread_attr, &thread_sched_param);
-  if (status != 0) goto error_with_attr;
+    status = pthread_attr_init(&thread_attr);
+    if (status != 0) goto error;
+    status = pthread_attr_setscope(&thread_attr, PTHREAD_SCOPE_SYSTEM);
+    if (status != 0 && status != ENOTSUP) goto error_with_attr;
+    status = pthread_attr_setinheritsched(&thread_attr, PTHREAD_EXPLICIT_SCHED);
+    if (status != 0) goto error_with_attr;
+    status = pthread_attr_setschedpolicy(&thread_attr, ERLANG_PTHREAD_POLICY);
+    if (status != 0) goto error_with_attr;
+    status = prio_task_to_pthread(PRIO_ERLANG, ERLANG_PTHREAD_POLICY,
+                                  &thread_sched_param.sched_priority);
+    if (status != 0) goto error_with_attr;
+    status = pthread_attr_setschedparam(&thread_attr, &thread_sched_param);
+    if (status != 0) goto error_with_attr;
 
-  status = pthread_create(&erlang_thread, &thread_attr,
-                          (void*(*)(void *))start_erlang,
-                          (void*)params);
-  if (status != 0) goto error_with_attr;
+    status = pthread_create(&erlang_thread, &thread_attr,
+                            (void*(*)(void *))start_erlang,
+                            (void*)params);
+    if (status != 0) goto error_with_attr;
 
-  status = pthread_attr_destroy(&thread_attr);
-  if (status != 0) goto error;
+    status = pthread_attr_destroy(&thread_attr);
+    if (status != 0) goto error;
 
-  status = pthread_join(erlang_thread, &exit_code);
-  if (status != 0) {
-    printf("erl_main: FAILED to join Erlang runtime thread (%d)\n", status);
+    status = pthread_join(erlang_thread, &exit_code);
+    if (status != 0) {
+        printf("erl_main: FAILED to join Erlang runtime thread (%d)\n", status);
+        return status;
+    }
+
+    return (int)exit_code;
+
+    error_with_attr:
+
+    pthread_attr_destroy(&thread_attr);
+
+    error:
+
+    printf("erl_main: FAILED to start Erlang runtime thread (%d)\n", status);
     return status;
-  }
-
-  return (int)exit_code;
-
-  error_with_attr:
-
-  pthread_attr_destroy(&thread_attr);
-
-  error:
-
-  printf("erl_main: FAILED to start Erlang runtime thread (%d)\n", status);
-  return status;
 }
 
-static int start_erlang(const erlang_params * const params)
+static int
+start_erlang(const erlang_params * const params)
 {
-  printf("erl_main: starting Erlang runtime...\n");
-  erl_start(params->argc, params->argv);
-  printf("erl_main: erlang runtime exited\n");
-  sleep(2);
-  return 0;
+    printf("erl_main: starting Erlang runtime...\n");
+    erl_start(params->argc, params->argv);
+    printf("erl_main: erlang runtime exited\n");
+    sleep(2);
+    return 0;
 }
 
 /*
@@ -499,10 +506,10 @@ static int start_erlang(const erlang_params * const params)
 #include <rtems/confdefs.h>
 
 #else
-  int
+    int
     main(int argc, char **argv)
-  {
-    erl_start(argc, argv);
-    return 0;
-  }
+    {
+        erl_start(argc, argv);
+        return 0;
+    }
 #endif
