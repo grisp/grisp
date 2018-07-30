@@ -1,5 +1,12 @@
 # Change Log
 
+## [1.1.4](https://github.com/grisp/grisp/tree/1.1.4) (2018-07-30)
+[Full Changelog](https://github.com/grisp/grisp/compare/1.1.3...1.1.4)
+
+**Fixed bugs:**
+
+- PmodNAV magnetometer fails initialization "sometimes" [\#11](https://github.com/grisp/grisp/issues/11)
+
 ## [1.1.3](https://github.com/grisp/grisp/tree/1.1.3) (2018-07-30)
 [Full Changelog](https://github.com/grisp/grisp/compare/1.1.2...1.1.3)
 
