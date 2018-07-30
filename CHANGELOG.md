@@ -1,7 +1,23 @@
 # Change Log
 
+## [1.1.3](https://github.com/grisp/grisp/tree/1.1.3) (2018-07-30)
+[Full Changelog](https://github.com/grisp/grisp/compare/1.1.2...1.1.3)
+
+**Closed issues:**
+
+- OTP21: unable to use wifi: register/listen error: econnrefused [\#35](https://github.com/grisp/grisp/issues/35)
+- erlang:get\_stacktrace/0 is deprecated in OTP 21 [\#33](https://github.com/grisp/grisp/issues/33)
+
+**Merged pull requests:**
+
+- deprecated erlang:get\_stacktrace/0 function [\#36](https://github.com/grisp/grisp/pull/36) ([getong](https://github.com/getong))
+
 ## [1.1.2](https://github.com/grisp/grisp/tree/1.1.2) (2018-06-21)
 [Full Changelog](https://github.com/grisp/grisp/compare/1.1.1...1.1.2)
+
+**Merged pull requests:**
+
+- Make embedded mode the default [\#34](https://github.com/grisp/grisp/pull/34) ([nextl00p](https://github.com/nextl00p))
 
 ## [1.1.1](https://github.com/grisp/grisp/tree/1.1.1) (2018-06-06)
 [Full Changelog](https://github.com/grisp/grisp/compare/1.1.0...1.1.1)
