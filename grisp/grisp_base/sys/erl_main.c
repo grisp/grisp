@@ -230,6 +230,26 @@ create_wlandev(void)
 {
 	int exit_code;
 	char *ifcfg[] = {
+		"ifconfig",
+		"wlan0",
+		"create",
+		"wlandev",
+		"rtwn0",
+		"up",
+		NULL
+	};
+
+	exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(ifcfg), ifcfg);
+	if(exit_code != EXIT_SUCCESS) {
+		printf("ERROR while creating wlan0 in infrastructure mode.");
+	}
+}
+
+static void
+create_wlandev_adhoc(void)
+{
+	int exit_code;
+	char *ifcfg[] = {
     "ifconfig",
     "wlan0",
     "create",
@@ -258,12 +278,12 @@ create_wlandev(void)
 
 	exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(ifcfg), ifcfg);
 	if(exit_code != EXIT_SUCCESS) {
-		printf("ERROR while creating wlan0.");
+		printf("ERROR while creating wlan0 in adhoc mode.");
 	}
 
 	exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(ifcfg_adhoc_params), ifcfg_adhoc_params);
 	if(exit_code != EXIT_SUCCESS) {
-		printf("ERROR while setting up edge wlan0.");
+		printf("ERROR while setting up edge wlan0 in adhoc mode.");
 	}
 }
 
@@ -324,7 +344,11 @@ static void Init(rtems_task_argument arg)
   if (wlan_enable) {
       grisp_led_set2(false, false, true);
       rtems_task_wake_after(RTEMS_MILLISECONDS_TO_TICKS(4000));
-      create_wlandev();
+      if(start_dhcp){
+        create_wlandev();
+      } else {
+        create_wlandev_adhoc();
+      }
   }
   if (wpa_supplicant_conf != NULL) {
     grisp_led_set2(true, false, true);
