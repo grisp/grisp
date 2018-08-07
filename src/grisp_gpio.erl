@@ -109,6 +109,10 @@ index(spi1_pin9)  -> 19;
 index(spi1_pin10) -> 20;
 index(ss1)        -> 21;
 index(ss2)        -> 22;
+index(uart_1_cts) -> 23;
+index(uart_2_txd) -> 24;
+index(uart_3_rxd) -> 25;
+index(uart_4_rts) -> 26;
 index(Any) when is_integer(Any) ->
     Any.
 
