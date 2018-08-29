@@ -15,21 +15,25 @@
 -export([code_change/3]).
 -export([terminate/2]).
 
+%--- Macros --------------------------------------------------------------------
+
+-define(JUMPER_OPTS, #{
+    type => input, attr => [default],
+    poll_high => true, poll_low => true,
+    interval => 10, debounce => 10
+},
+
 %--- API Functions -------------------------------------------------------------
 
 start() -> grisp_gpio:add_handler(?MODULE, []).
 
-stop() -> grisp_gpio:delete_handler(?MODULE).
+stop() -> grisp_gpio:delete_handler(?MODUL, []).
 
 %--- Callbacks -----------------------------------------------------------------
 
 init(_Args) ->
     grisp_gpio:configure_slot(jumper, {
-        {input, true, true, 10, 10, [default]},
-        {input, true, true, 10, 10, [default]},
-        {input, true, true, 10, 10, [default]},
-        {input, true, true, 10, 10, [default]},
-        {input, true, true, 10, 10, [default]}
+        ?JUMPER_OPTS, ?JUMPER_OPTS, ?JUMPER_OPTS, ?JUMPER_OPTS, ?JUMPER_OPTS
     }),
     {ok, undefined}.
 
@@ -45,4 +49,4 @@ handle_info(_Info, State) -> {ok, State}.
 
 code_change(_OldVsn, State, _Extra) -> State.
 
-terminate(_Arg, _State) -> undefined.
+terminate(_Args, _State) -> undefined.
