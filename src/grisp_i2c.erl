@@ -27,7 +27,9 @@ start_link(DriverMod) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, DriverMod, []).
 
 msgs([Adr | Msgs]) ->
-    do_msgs(Adr, Msgs).
+    EncodedMsgs = do_msgs(Adr, Msgs),
+    gen_server:call(?MODULE, {msgs, EncodedMsgs}).
+
 
 %--- Callbacks -----------------------------------------------------------------
 
@@ -37,10 +39,11 @@ init(DriverMod) ->
     {ok, #state{driver = {DriverMod, Ref}}}.
 
 % @private
-handle_call({msgs, Enc_msgs}, _From, State) ->
+handle_call({msgs, EncodedMsgs}, _From, State) ->
     {DriverMod, Ref} = State#state.driver,
-    Resp = DriverMod:command(Ref, Enc_msgs),
-    {reply, Resp, State}.
+    RespList = [maybe_send_msgs(Msg, DriverMod, Ref) || Msg <- EncodedMsgs],
+    LastResp = lists:last(RespList),
+    {reply, LastResp, State}.
 
 % @private
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
@@ -57,21 +60,24 @@ terminate(_Reason, _State) -> ok.
 %--- Internal ------------------------------------------------------------------
 
 do_msgs(Adr, Msgs) ->
-    do_msgs(Adr, Msgs, []).
+    do_msgs(Adr, Msgs, [], []).
 
-do_msgs(Adr, [], ReversedToSend) ->
-    ToSend = lists:reverse(ReversedToSend),
-    Enc_msgs = encode_msgs([Adr | ToSend]),
-    gen_server:call(?MODULE, {msgs, Enc_msgs});
-do_msgs(Adr, [{sleep, Time} | Rest], ReversedToSend) ->
-    ToSend = lists:reverse(ReversedToSend),
-    Enc_msgs = encode_msgs([Adr | ToSend]),
-    gen_server:call(?MODULE, {msgs, Enc_msgs}),
-    ok = timer:sleep(Time),
-    do_msgs(Adr, Rest, []);
-do_msgs(Adr, [Msg | Rest], ReversedToSend) ->
-    NewReversedToSend = [Msg | ReversedToSend],
-    do_msgs(Adr, Rest, NewReversedToSend).
+do_msgs(_Adr, [], [], ReversedEncodedMsgs) ->
+    lists:reverse(ReversedEncodedMsgs);
+do_msgs(Adr, [], ReversedToEncode, ReversedEncodedMsgs) ->
+    ToEncode = lists:reverse(ReversedToEncode),
+    EncodedMsgs = encode_msgs([Adr | ToEncode]),
+    NewReversedEncodedMsgs = [EncodedMsgs | ReversedEncodedMsgs],
+    do_msgs(Adr, [], [], NewReversedEncodedMsgs);
+do_msgs(Adr, [{sleep, Time} | Rest], ReversedToEncode, ReversedEncodedMsgs) ->
+    ToEncode = lists:reverse(ReversedToEncode),
+    EncodedMsgs = encode_msgs([Adr | ToEncode]),
+    NewReversedEncodedMsgs = [EncodedMsgs | ReversedEncodedMsgs],
+    NewReversedEncodedMsgsWithSleep = [{sleep, Time} | NewReversedEncodedMsgs],
+    do_msgs(Adr, Rest, [], NewReversedEncodedMsgsWithSleep);
+do_msgs(Adr, [Msg | Rest], ReversedToEncode, ReversedEncodedMsgs) ->
+    NewReversedToEncode = [Msg | ReversedToEncode],
+    do_msgs(Adr, Rest, NewReversedToEncode, ReversedEncodedMsgs).
 
 encode_msgs(Msgs) ->
     encode_msgs(Msgs, undefined, <<>>, <<>>).
@@ -92,3 +98,8 @@ encode_msgs([], _Adr, W, M) when byte_size(M) rem 8 =:= 0 ->
     Data_len = byte_size(W),
     Msg_count = byte_size(M) div 8,
     <<Data_len:16, W/binary, Msg_count:16, M/binary>>.
+
+maybe_send_msgs({sleep, Time}, _DriverMod, _Ref) ->
+    timer:sleep(Time);
+maybe_send_msgs(Msg, DriverMod, Ref) ->
+    DriverMod:command(Ref, Msg).
