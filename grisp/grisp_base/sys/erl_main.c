@@ -329,6 +329,47 @@ create_wlandev(void)
 {
 	int exit_code;
 	char *ifcfg[] = {
+		"ifconfig",
+		"wlan0",
+		"create",
+		"wlandev",
+		"rtwn0",
+		"up",
+		NULL
+	};
+
+	exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(ifcfg), ifcfg);
+	if(exit_code != EXIT_SUCCESS) {
+		printf("ERROR while creating wlan0 in infrastructure mode.");
+	}
+}
+
+
+/*
+* NOTE : 
+* If 802.11 a/n 5GHz Wireless communication hardware is available,
+* The channel setting can be given additional arguments as in the following :
+*
+*   "36:ht/40",
+*
+* The general format becomes :
+*
+*   <channel-number>:ht/<channel-width>
+*
+* The IEEE standards specify the following standards :
+*   - the channels must be in the [36-165] range
+*   - the ":ht" suffix stands for "High Throughput"
+*   - the channel width for 802.11a/n enabled devices can be 20MHz or 40MHz
+*
+* A valid argument is therefore :
+*
+*   [36-165]:ht/[20|40]
+*/
+static void
+create_wlandev_adhoc(void)
+{
+	int exit_code;
+	char *ifcfg[] = {
     "ifconfig",
     "wlan0",
     "create",
@@ -337,11 +378,10 @@ create_wlandev(void)
     "wlanmode",
     "adhoc",
     "channel",
-    // "6:ht/40",
     channel,
     "up",
     NULL
-	};
+};
 
   char *ifcfg_adhoc_params[] = {
     "ifconfig",
@@ -357,12 +397,12 @@ create_wlandev(void)
 
 	exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(ifcfg), ifcfg);
 	if(exit_code != EXIT_SUCCESS) {
-		printf("ERROR while creating wlan0.");
+		printf("ERROR while creating wlan0 in adhoc mode.");
 	}
 
 	exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(ifcfg_adhoc_params), ifcfg_adhoc_params);
 	if(exit_code != EXIT_SUCCESS) {
-		printf("ERROR while setting up edge wlan0.");
+		printf("ERROR while setting up edge wlan0 in adhoc mode.");
 	}
 }
 
