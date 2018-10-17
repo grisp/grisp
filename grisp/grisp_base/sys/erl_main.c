@@ -75,7 +75,7 @@ static int argc;
 static char *strdupcat (char *s1, char *s2)
 {
   char *res;
-  
+
   res = malloc(strlen(s1) + strlen(s2) + 1);
   strcpy(res, s1);
   strcat(res, s2);
