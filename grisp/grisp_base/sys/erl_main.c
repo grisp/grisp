@@ -57,9 +57,89 @@ const size_t atsam_pin_config_count = PIO_LISTSIZE(atsam_pin_config);
 const uint32_t atsam_matrix_ccfg_sysio = GRISP_MATRIX_CCFG_SYSIO;
 
 static int start_dhcp = 0;
+static int adhocmode = 0;
 static int wlan_enable = 0;
 
 static char *ip_self = "";
+static char *ip_netmask = "";
+
+/*
+* Infrastructure mode by default.
+* Can be set to "adhoc" to allow ad hoc networking
+* (WANET) between nodes without the need for
+* Access Point connections.
+*
+* Example of grisp.ini parameters to setup an ad hoc
+* network :
+*
+*    [network]
+*    wlan=enable
+*    ip_self=169.254.16.1
+*    ip_netmask=255.255.0.0
+*    wlanmode=adhoc
+*    adhocname=edge
+*    channel=6
+*    hostname=my_grisp_board_1
+*
+* This will create a network named "edge"
+* in channel 6 and the host "my_grisp_board_1"
+* will be using address "169.254.16.1/16"
+*/
+static char *wlanmode = "infrastructure";
+
+/*
+* During experiments in adhoc mode, it has been
+* observed that nodes tend to be more vulnerable
+* to wireless interferences. This impact can be
+* minimized with manual wireless channel selection.
+* In Europe, the available channels in the 2.4GHz band
+* range from 1 to 13.
+* 802.11g WLAN standards state that each channel has a
+* bandwidth of 20 MHz, separated from others
+* by 5 MHz intervals. It also recommends a gap 25 MHz between
+* the center of channel spectrums to avoid signal degradation.
+*
+* Thus the non-overlapping channels are 1,6 and 11 :
+*
+*    	   Frequency (MHz)
+* Ch #  Low     Mid     Up
+
+---------------------------------
+* 1 	2401 	2412 	2423
+---------------------------------
+* 2 	2406 	2417 	2428
+* 3 	2411 	2422 	2433
+* 4 	2416 	2427 	2438
+* 5 	2421 	2432 	2443
+---------------------------------
+* 6 	2426 	2437 	2448
+---------------------------------
+* 7 	2431 	2442 	2453
+* 8 	2436 	2447 	2458
+* 9 	2441 	2452 	2463
+* 10 	2446 	2457 	2468
+---------------------------------
+* 11 	2451 	2462 	2473
+---------------------------------
+* 12 	2456 	2467 	2478
+* 13 	2461 	2472 	2483
+*
+* In further experiments, a noticeable
+* improvement in maximum range has been
+* observed when nodes communicate through channel 6.
+* This is due to the fact that interferences were
+* mostly found in channels 1 and 11. Hence a possible
+* way to improve adhoc network quality is to scan
+* the environment for interferences before selecting
+* the channel that is as far as possible from interfering
+* devices in the 2.4GHz band.
+*/
+static char *channel = "6";
+
+/*
+* Ad hoc network SSID
+*/
+static char *adhocname = "adhocnetwork";
 
 static char *hostname = "defaulthostname";
 
@@ -141,21 +221,40 @@ static int ini_file_handler(void *arg, const char *section, const char *name,
     	      start_dhcp = 1;
     	      ok = 1;
     	  } else {
-          // TODO : check IP address format
           ip_self = strdup(value); // Set ip from ini file
           printf("=== Ip is %s ===\n", ip_self);
           ok = 1;
         }
       }
+      else if (strcmp(name, "ip_netmask") == 0) {
+          ip_netmask = strdup(value); // Set netmask from ini file
+          ok = 1;
+      }
+      else if (strcmp(name, "channel") == 0) {
+          channel = strdup(value); // Set channel from ini file
+          ok = 1;
+      }
+      else if (strcmp(name, "wlanmode") == 0) {
+          if (strcmp(value, "adhoc") == 0) {
+    	      adhocmode = 1;
+    	      ok = 1;
+    	  }
+          wlanmode = strdup(value); // Set wlanmode from ini file
+          ok = 1;
+      }
+      else if (strcmp(name, "adhocname") == 0) {
+          adhocname = strdup(value); // Set SSID from ini file
+          ok = 1;
+      }
       else if (strcmp(name, "wlan") == 0) {
-	  if (strcmp(value, "enable") == 0) {
-	      wlan_enable = 1;
-	      ok = 1;
-	  }
-	  else if (strcmp(value, "disable") == 0) {
-	      wlan_enable = 0;
-	      ok = 1;
-	  }
+    	  if (strcmp(value, "enable") == 0) {
+    	      wlan_enable = 1;
+    	      ok = 1;
+    	  }
+    	  else if (strcmp(value, "disable") == 0) {
+    	      wlan_enable = 0;
+    	      ok = 1;
+    	  }
       }
       else if (strcmp(name, "wpa") == 0) {
 	wpa_supplicant_conf = strdupcat(MNT, value);
@@ -239,7 +338,7 @@ create_wlandev(void)
     "adhoc",
     "channel",
     // "6:ht/40",
-    "6",
+    channel,
     "up",
     NULL
 	};
@@ -250,9 +349,9 @@ create_wlandev(void)
     "inet",
     ip_self,
     "netmask",
-    "255.255.0.0",
+    ip_netmask,
     "ssid",
-    "edge",
+    adhocname,
     NULL
   };
 
@@ -322,9 +421,14 @@ static void Init(rtems_task_argument arg)
       grisp_init_dhcpcd_with_config(PRIO_DHCP, DHCP_CONF_FILE);
   }
   if (wlan_enable) {
-      grisp_led_set2(false, false, true);
-      rtems_task_wake_after(RTEMS_MILLISECONDS_TO_TICKS(4000));
-      create_wlandev();
+    grisp_led_set2(false, false, true);
+    rtems_task_wake_after(RTEMS_MILLISECONDS_TO_TICKS(4000));
+    if(start_dhcp){
+        create_wlandev();
+    }
+    else if (adhocmode) {
+        create_wlandev_adhoc();
+    }
   }
   if (wpa_supplicant_conf != NULL) {
     grisp_led_set2(true, false, true);
