@@ -1,5 +1,7 @@
 -module(pmod_als).
 
+-author("Alexandre Carlier").
+
 -behavior(gen_server).
 
 -include("grisp.hrl").
@@ -63,12 +65,14 @@ handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
 handle_info(precise, State) ->
   Raw = get_value(State#state.slot),
-  Precise = (Raw/255) * 100,
-    {noreply, State,1000};
+  Precise = round((Raw/255) * 100),
+  %% NOTE : "Precise" value refers to the percentage of
+  %% ambient light, 0% being considered as absence of luminosity.
+    {noreply, Precise,State,1000};
 
 handle_info(timeout, State) ->
   Raw = get_value(State#state.slot),
-  Precise = (Raw/255) * 100,
+  Precise = round((Raw/255) * 100),
   if
    Precise < 34 -> grisp_led:color(1,blue);
    Precise < 67 -> grisp_led:color(1,green);
@@ -88,5 +92,5 @@ call(Call) ->
     gen_server:call(Dev#device.pid, Call).
 
 get_value(Slot) ->
-    <<_:3,Resp:8,Pad:5>> = grisp_spi:send_recv(Slot, ?SPI_MODE, <<0:8>>, 0, 1),
+    <<_:3,Resp:8,_Pad:5>> = grisp_spi:send_recv(Slot, ?SPI_MODE, <<0:8>>, 0, 1),
     Resp.
