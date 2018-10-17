@@ -346,7 +346,7 @@ create_wlandev(void)
 
 
 /*
-* NOTE : 
+* NOTE :
 * If 802.11 a/n 5GHz Wireless communication hardware is available,
 * The channel setting can be given additional arguments as in the following :
 *
@@ -402,7 +402,7 @@ create_wlandev_adhoc(void)
 
 	exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(ifcfg_adhoc_params), ifcfg_adhoc_params);
 	if(exit_code != EXIT_SUCCESS) {
-		printf("ERROR while setting up edge wlan0 in adhoc mode.");
+		printf("ERROR while setting up wlan0 in adhoc mode.");
 	}
 }
 
