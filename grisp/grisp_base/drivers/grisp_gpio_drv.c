@@ -43,14 +43,16 @@ static Pin pins[] =
     {PIO_PC17,             PIOC, ID_PIOC, PIO_INPUT,    PIO_PULLUP},  /* 16: jumper 3 */
     {PIO_PD11,             PIOD, ID_PIOD, PIO_INPUT,    PIO_PULLUP},  /* 17: jumper 4 */
     {PIO_PC10,             PIOC, ID_PIOC, PIO_INPUT,    PIO_PULLUP},  /* 18: jumper 5 */
-    {PIO_PA9,              PIOA, ID_PIOA, PIO_INPUT,    PIO_DEFAULT}, /* 19: spi1 pin 9 */
-    {PIO_PA10,             PIOA, ID_PIOA, PIO_INPUT,    PIO_DEFAULT}, /* 20: spi1 pin10 */
-    {PIO_PD12C_SPI0_NPCS2, PIOD, ID_PIOD, PIO_PERIPH_C, PIO_DEFAULT}, /* 21: SS1 */
-    {PIO_PD27B_SPI0_NPCS3, PIOD, ID_PIOD, PIO_PERIPH_B, PIO_DEFAULT}, /* 22: SS2 */
-    {PIO_PB2C_CTS0,        PIOB, ID_PIOB, PIO_PERIPH_C, PIO_DEFAULT}, /* 23: uart_1_cts */
-    {PIO_PB1C_TXD0,        PIOB, ID_PIOB, PIO_PERIPH_C, PIO_DEFAULT}, /* 24: uart_2_txd */
-    {PIO_PB0C_RXD0,        PIOB, ID_PIOB, PIO_PERIPH_C, PIO_DEFAULT}, /* 25: uart_3_rxd */
-    {PIO_PB3C_RTS0,        PIOB, ID_PIOB, PIO_PERIPH_C, PIO_DEFAULT}  /* 26: uart_4_rts */
+    {PIO_PA02,             PIOA, ID_PIOA, PIO_INPUT,    PIO_DEFAULT}, /* 19: spi1 pin 7 (interrupt) */
+    {PIO_PB12,             PIOA, ID_PIOA, PIO_INPUT,    PIO_DEFAULT}, /* 20: spi1 pin 8 (reset) */
+    {PIO_PA9,              PIOA, ID_PIOA, PIO_INPUT,    PIO_DEFAULT}, /* 21: spi1 pin 9 */
+    {PIO_PA10,             PIOA, ID_PIOA, PIO_INPUT,    PIO_DEFAULT}, /* 22: spi1 pin 10 */
+    {PIO_PD12C_SPI0_NPCS2, PIOD, ID_PIOD, PIO_PERIPH_C, PIO_DEFAULT}, /* 23: SS1 */
+    {PIO_PD27B_SPI0_NPCS3, PIOD, ID_PIOD, PIO_PERIPH_B, PIO_DEFAULT}, /* 24: SS2 */
+    {PIO_PB2C_CTS0,        PIOB, ID_PIOB, PIO_PERIPH_C, PIO_DEFAULT}, /* 25: uart_1_cts */
+    {PIO_PB1C_TXD0,        PIOB, ID_PIOB, PIO_PERIPH_C, PIO_DEFAULT}, /* 26: uart_2_txd */
+    {PIO_PB0C_RXD0,        PIOB, ID_PIOB, PIO_PERIPH_C, PIO_DEFAULT}, /* 27: uart_3_rxd */
+    {PIO_PB3C_RTS0,        PIOB, ID_PIOB, PIO_PERIPH_C, PIO_DEFAULT}  /* 28: uart_4_rts */
   };
 
 int grisp_gpio_init (void);
