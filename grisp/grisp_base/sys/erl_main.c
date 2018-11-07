@@ -218,13 +218,23 @@ static int ini_file_handler(void *arg, const char *section, const char *name,
             hostname = strdup(value);
             ok = 1;
         }
+        else if (strcmp(name, "ip_self") == 0) {
+            if (strcmp(value, "dhcp") == 0) {
+                start_dhcp = 1;
+                ok = 1;
+            } else {
+                ip_self = strdup(value); // Set ip from ini file
+                printf("=== Ip is %s ===\n", ip_self);
+                ok = 1;
+            }
+        }
         else if (strcmp(name, "wlan_ip_self") == 0) {
             if (strcmp(value, "dhcp") == 0) {
                 start_dhcp = 1;
                 ok = 1;
             } else {
                 wlan_ip_self = strdup(value); // Set ip from ini file
-                printf("=== Ip is %s ===\n", wlan_ip_self);
+                printf("=== WLAN Ip is %s ===\n", wlan_ip_self);
                 ok = 1;
             }
         }
@@ -350,27 +360,6 @@ create_wlandev(void)
     }
 }
 
-
-/*
-* NOTE :
-* If 802.11 a/n 5GHz Wireless communication hardware is available,
-* The channel setting can be given additional arguments as in the following :
-*
-*   "36:ht/40",
-*
-* The general format becomes :
-*
-*   <channel-number>:ht/<channel-width>
-*
-* The IEEE standards specify the following standards :
-*   - the channels must be in the [36-165] range
-*   - the ":ht" suffix stands for "High Throughput"
-*   - the channel width for 802.11a/n enabled devices can be 20MHz or 40MHz
-*
-* A valid argument is therefore :
-*
-*   [36-165]:ht/[20|40]
-*/
 static void
 create_wlandev_adhoc(void)
 {
@@ -385,7 +374,7 @@ create_wlandev_adhoc(void)
         "adhoc",
         "channel",
         // "6:ht/40",
-        channel,
+        wlan_channel,
         "up",
         NULL
     };
@@ -473,7 +462,7 @@ static void Init(rtems_task_argument arg)
         if(start_dhcp){
             create_wlandev();
         }
-        else if (adhocmode) {
+        else if (wlan_adhocmode) {
             create_wlandev_adhoc();
         }
     }
