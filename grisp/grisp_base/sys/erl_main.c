@@ -1,23 +1,23 @@
 // #define UID_ERL_LOAD_NFS
 
 /*
- * %CopyrightBegin%
- *
- * Copyright Ericsson AB 2000-2009. All Rights Reserved.
- *
- * The contents of this file are subject to the Erlang Public License,
- * Version 1.1, (the "License"); you may not use this file except in
- * compliance with the License. You should have received a copy of the
- * Erlang Public License along with this software. If not, it can be
- * retrieved online at http://www.erlang.org/.
- *
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
- * the License for the specific language governing rights and limitations
- * under the License.
- *
- * %CopyrightEnd%
- */
+* %CopyrightBegin%
+*
+* Copyright Ericsson AB 2000-2009. All Rights Reserved.
+*
+* The contents of this file are subject to the Erlang Public License,
+* Version 1.1, (the "License"); you may not use this file except in
+* compliance with the License. You should have received a copy of the
+* Erlang Public License along with this software. If not, it can be
+* retrieved online at http://www.erlang.org/.
+*
+* Software distributed under the License is distributed on an "AS IS"
+* basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
+* the License for the specific language governing rights and limitations
+* under the License.
+*
+* %CopyrightEnd%
+*/
 #ifdef HAVE_CONFIG_H
 #  include "config.h"
 #endif
@@ -47,8 +47,8 @@
 #define INI_FILE (MNT "grisp.ini")
 #define DHCP_CONF_FILE (MNT "dhcpcd.conf")
 
-#define PRIO_DHCP		(RTEMS_MAXIMUM_PRIORITY - 1)
-#define PRIO_WPA		(RTEMS_MAXIMUM_PRIORITY - 1)
+#define PRIO_DHCP       (RTEMS_MAXIMUM_PRIORITY - 1)
+#define PRIO_WPA        (RTEMS_MAXIMUM_PRIORITY - 1)
 
 void parse_args(char *args);
 
@@ -57,11 +57,11 @@ const size_t atsam_pin_config_count = PIO_LISTSIZE(atsam_pin_config);
 const uint32_t atsam_matrix_ccfg_sysio = GRISP_MATRIX_CCFG_SYSIO;
 
 static int start_dhcp = 0;
-static int adhocmode = 0;
+static int wlan_adhocmode = 0;
 static int wlan_enable = 0;
 
-static char *ip_self = "";
-static char *ip_netmask = "";
+static char *wlan_ip_self = "";
+static char *wlan_ip_netmask = "";
 
 /*
 * Infrastructure mode by default.
@@ -72,20 +72,20 @@ static char *ip_netmask = "";
 * Example of grisp.ini parameters to setup an ad hoc
 * network :
 *
-*    [network]
-*    wlan=enable
-*    ip_self=169.254.16.1
-*    ip_netmask=255.255.0.0
-*    wlanmode=adhoc
-*    adhocname=edge
-*    channel=6
-*    hostname=my_grisp_board_1
+*     [network]
+*     wlan=enable
+*     wlan_ip_self=169.254.16.1
+*     wlan_ip_netmask=255.255.0.0
+*     wlan_mode=adhoc
+*     wlan_adhocname=edge
+*     wlan_channel=6
+*     wlan_hostname=my_grisp_board_1
 *
 * This will create a network named "edge"
 * in channel 6 and the host "my_grisp_board_1"
 * will be using address "169.254.16.1/16"
 */
-static char *wlanmode = "infrastructure";
+static char *wlan_mode = "infrastructure";
 
 /*
 * During experiments in adhoc mode, it has been
@@ -101,29 +101,29 @@ static char *wlanmode = "infrastructure";
 *
 * Thus the non-overlapping channels are 1,6 and 11 :
 *
-*    	   Frequency (MHz)
+*        Frequency (MHz)
 * Ch #  Low     Mid     Up
 
 ---------------------------------
-* 1 	2401 	2412 	2423
+*  1    2401    2412    2423
 ---------------------------------
-* 2 	2406 	2417 	2428
-* 3 	2411 	2422 	2433
-* 4 	2416 	2427 	2438
-* 5 	2421 	2432 	2443
+*  2    2406    2417    2428
+*  3    2411    2422    2433
+*  4    2416    2427    2438
+*  5    2421    2432    2443
 ---------------------------------
-* 6 	2426 	2437 	2448
+*  6    2426    2437    2448
 ---------------------------------
-* 7 	2431 	2442 	2453
-* 8 	2436 	2447 	2458
-* 9 	2441 	2452 	2463
-* 10 	2446 	2457 	2468
+*  7    2431    2442    2453
+*  8    2436    2447    2458
+*  9    2441    2452    2463
+* 10    2446    2457    2468
 ---------------------------------
-* 11 	2451 	2462 	2473
+* 11    2451    2462    2473
 ---------------------------------
-* 12 	2456 	2467 	2478
-* 13 	2461 	2472 	2483
-*
+* 12    2456    2467    2478
+* 13    2461    2472    2483
+
 * In further experiments, a noticeable
 * improvement in maximum range has been
 * observed when nodes communicate through channel 6.
@@ -134,19 +134,21 @@ static char *wlanmode = "infrastructure";
 * the channel that is as far as possible from interfering
 * devices in the 2.4GHz band.
 */
-static char *channel = "6";
+static char *wlan_channel = "6";
 
 /*
-* Ad hoc network SSID
+* WLAN specific default hostname
+* and Ad hoc network SSID
 */
-static char *adhocname = "adhocnetwork";
+static char *wlan_hostname = "defaulthostname";
+static char *wlan_adhocname = "adhocnetwork";
 
 static char *hostname = "defaulthostname";
 
 static char *wpa_supplicant_conf = NULL;
 
 static char *erl_args = "erl.rtems -- -root otp"
-    " -home home -boot start_sasl -pa .";
+" -home home -boot start_sasl -pa .";
 
 #define MAX_ARGC 256
 
@@ -156,39 +158,39 @@ static int argc;
 
 static char *strdupcat (char *s1, char *s2)
 {
-  char *res;
-  
-  res = malloc(strlen(s1) + strlen(s2) + 1);
-  strcpy(res, s1);
-  strcat(res, s2);
+    char *res;
 
-  return res;
+    res = malloc(strlen(s1) + strlen(s2) + 1);
+    strcpy(res, s1);
+    strcat(res, s2);
+
+    return res;
 }
 
 void *
 mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset)
 {
-  errno = ENODEV;
-  return MAP_FAILED;
+    errno = ENODEV;
+    return MAP_FAILED;
 }
 
 int
 munmap(void *addr, size_t len)
 {
-  errno = EINVAL;
-  return -1;
+    errno = EINVAL;
+    return -1;
 }
 
 void
 fatal_extension(uint32_t source, uint32_t is_internal, uint32_t error)
 {
-  printk ("fatal extension: source=%ld, is_internal=%ld, error=%ld\n",
-	  source, is_internal, error);
-  if (source == RTEMS_FATAL_SOURCE_EXCEPTION)
+    printk ("fatal extension: source=%ld, is_internal=%ld, error=%ld\n",
+    source, is_internal, error);
+    if (source == RTEMS_FATAL_SOURCE_EXCEPTION)
     rtems_exception_frame_print((const rtems_exception_frame *)error);
 
-  /* rtems_stack_checker_report_usage(); */
-  while(1)
+    /* rtems_stack_checker_report_usage(); */
+    while(1)
     {
     }
 }
@@ -196,91 +198,95 @@ fatal_extension(uint32_t source, uint32_t is_internal, uint32_t error)
 void
 fatal_atexit(void)
 {
-  printk ("Erlang VM exited\n");
-  /* rtems_stack_checker_report_usage(); */
-  while(1)
+    printk ("Erlang VM exited\n");
+    /* rtems_stack_checker_report_usage(); */
+    while(1)
     {
     }
 }
 
 static int ini_file_handler(void *arg, const char *section, const char *name,
-			    const char *value)
+    const char *value)
 {
-  int ok = 0;
+    int ok = 0;
 
-  printf ("grisp.ini: "
-	  "section \"%s\", name \"%s\", value \"%s\"\n",
-	  section, name, value);
-  if (strcmp(section, "network") == 0) {
-      if (strcmp(name, "hostname") == 0) {
-	  hostname = strdup(value);
-	  ok = 1;
-      }
-      else if (strcmp(name, "ip_self") == 0) {
-    	  if (strcmp(value, "dhcp") == 0) {
-    	      start_dhcp = 1;
-    	      ok = 1;
-    	  } else {
-          ip_self = strdup(value); // Set ip from ini file
-          printf("=== Ip is %s ===\n", ip_self);
-          ok = 1;
+    printf ("grisp.ini: "
+    "section \"%s\", name \"%s\", value \"%s\"\n",
+    section, name, value);
+    if (strcmp(section, "network") == 0) {
+        if (strcmp(name, "hostname") == 0) {
+            hostname = strdup(value);
+            ok = 1;
         }
-      }
-      else if (strcmp(name, "ip_netmask") == 0) {
-          ip_netmask = strdup(value); // Set netmask from ini file
-          ok = 1;
-      }
-      else if (strcmp(name, "channel") == 0) {
-          channel = strdup(value); // Set channel from ini file
-          ok = 1;
-      }
-      else if (strcmp(name, "wlanmode") == 0) {
-          if (strcmp(value, "adhoc") == 0) {
-    	      adhocmode = 1;
-    	      ok = 1;
-    	  }
-          wlanmode = strdup(value); // Set wlanmode from ini file
-          ok = 1;
-      }
-      else if (strcmp(name, "adhocname") == 0) {
-          adhocname = strdup(value); // Set SSID from ini file
-          ok = 1;
-      }
-      else if (strcmp(name, "wlan") == 0) {
-    	  if (strcmp(value, "enable") == 0) {
-    	      wlan_enable = 1;
-    	      ok = 1;
-    	  }
-    	  else if (strcmp(value, "disable") == 0) {
-    	      wlan_enable = 0;
-    	      ok = 1;
-    	  }
-      }
-      else if (strcmp(name, "wpa") == 0) {
-	wpa_supplicant_conf = strdupcat(MNT, value);
-	ok = 1;
-      }
-  }
-  else if (strcmp(section, "erlang") == 0) {
-      if (strcmp(name, "args") == 0) {
-	  printf ("erl args: "
-		  "section \"%s\", name \"%s\", value \"%s\"\n",
-		  section, name, value);
-	  erl_args = strdup(value);
-	  ok = 1;
-      }
-  }
-  else
+        else if (strcmp(name, "wlan_ip_self") == 0) {
+            if (strcmp(value, "dhcp") == 0) {
+                start_dhcp = 1;
+                ok = 1;
+            } else {
+                wlan_ip_self = strdup(value); // Set ip from ini file
+                printf("=== Ip is %s ===\n", wlan_ip_self);
+                ok = 1;
+            }
+        }
+        else if (strcmp(name, "wlan_ip_netmask") == 0) {
+            wlan_ip_netmask = strdup(value); // Set netmask from ini file
+            ok = 1;
+        }
+        else if (strcmp(name, "wlan_hostname") == 0) {
+            wlan_hostname = strdup(value); // Set hostname applied only for WLAN interfaces
+            ok = 1;
+        }
+        else if (strcmp(name, "wlan_channel") == 0) {
+            wlan_channel = strdup(value); // Set channel from ini file
+            ok = 1;
+        }
+        else if (strcmp(name, "wlan_mode") == 0) {
+            if (strcmp(value, "adhoc") == 0) {
+                wlan_adhocmode = 1;
+                ok = 1;
+            }
+            wlan_mode = strdup(value); // Set wlanmode from ini file
+            ok = 1;
+        }
+        else if (strcmp(name, "wlan_adhocname") == 0) {
+            wlan_adhocname = strdup(value); // Set SSID from ini file
+            ok = 1;
+        }
+        else if (strcmp(name, "wlan") == 0) {
+            if (strcmp(value, "enable") == 0) {
+                wlan_enable = 1;
+                ok = 1;
+            }
+            else if (strcmp(value, "disable") == 0) {
+                wlan_enable = 0;
+                ok = 1;
+            }
+        }
+        else if (strcmp(name, "wpa") == 0) {
+            wpa_supplicant_conf = strdupcat(MNT, value);
+            ok = 1;
+        }
+    }
+    else if (strcmp(section, "erlang") == 0) {
+        if (strcmp(name, "args") == 0) {
+            printf ("erl args: "
+            "section \"%s\", name \"%s\", value \"%s\"\n",
+            section, name, value);
+            erl_args = strdup(value);
+            ok = 1;
+        }
+    }
+    else
     ok = 1;
 
-  if (!ok) {
-      printf ("erl_main: error in configuration file: "
-	      "section \"%s\", name \"%s\", value \"%s\"\n",
-	      section, name, value);
-      ok = 1;
+    if (!ok) {
+        printf ("erl_main: error in configuration file: "
+        "section \"%s\", name \"%s\", value \"%s\"\n",
+        section, name, value);
+        ok = 1;
     }
 
-  return ok;
+    return ok;
 }
 
 static void evaluate_ini_file(const char *ini_file)
@@ -289,59 +295,59 @@ static void evaluate_ini_file(const char *ini_file)
 
     rv = ini_parse(ini_file, ini_file_handler, NULL);
     if (rv == -1) {
-	printf("WARNING: Can't find ini file %s -> using defaults\n", ini_file);
+        printf("WARNING: Can't find ini file %s -> using defaults\n", ini_file);
     }
 }
 
 static void
 default_network_ifconfig_lo0(void)
 {
-   int exit_code;
-   char *lo0[] = {
-       "ifconfig",
-       "lo0",
-       "inet",
-       "127.0.0.1",
-       "netmask",
-       "255.255.255.0",
-       NULL
-   };
-   char *lo0_inet6[] = {
-       "ifconfig",
-       "lo0",
-       "inet6",
-       "::1",
-       "prefixlen",
-       "128",
-       "alias",
-       NULL
-   };
+    int exit_code;
+    char *lo0[] = {
+        "ifconfig",
+        "lo0",
+        "inet",
+        "127.0.0.1",
+        "netmask",
+        "255.255.255.0",
+        NULL
+    };
+    char *lo0_inet6[] = {
+        "ifconfig",
+        "lo0",
+        "inet6",
+        "::1",
+        "prefixlen",
+        "128",
+        "alias",
+        NULL
+    };
 
-   exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(lo0), lo0);
-   assert(exit_code == EX_OK);
+    exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(lo0), lo0);
+    assert(exit_code == EX_OK);
 
-   exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(lo0_inet6), lo0_inet6);
-   assert(exit_code == EX_OK);
+    exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(lo0_inet6), lo0_inet6);
+    assert(exit_code == EX_OK);
 }
 
 static void
 create_wlandev(void)
 {
-	int exit_code;
-	char *ifcfg[] = {
-		"ifconfig",
-		"wlan0",
-		"create",
-		"wlandev",
-		"rtwn0",
-		"up",
-		NULL
-	};
+    int exit_code;
+    char *ifcfg[] = {
+        "ifconfig",
+        "wlan0",
+        "create",
+        "wlandev",
+        "rtwn0",
+        "up",
+        NULL
+    };
 
-	exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(ifcfg), ifcfg);
-	if(exit_code != EXIT_SUCCESS) {
-		printf("ERROR while creating wlan0 in infrastructure mode.");
-	}
+    exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(ifcfg), ifcfg);
+    if(exit_code != EXIT_SUCCESS) {
+        printf("ERROR while creating wlan0 in infrastructure mode.");
+    }
 }
 
 
@@ -368,42 +374,43 @@ create_wlandev(void)
 static void
 create_wlandev_adhoc(void)
 {
-	int exit_code;
-	char *ifcfg[] = {
-    "ifconfig",
-    "wlan0",
-    "create",
-    "wlandev",
-    "rtwn0",
-    "wlanmode",
-    "adhoc",
-    "channel",
-    channel,
-    "up",
-    NULL
-};
+    int exit_code;
+    char *ifcfg[] = {
+        "ifconfig",
+        "wlan0",
+        "create",
+        "wlandev",
+        "rtwn0",
+        "wlanmode",
+        "adhoc",
+        "channel",
+        // "6:ht/40",
+        channel,
+        "up",
+        NULL
+    };
 
-  char *ifcfg_adhoc_params[] = {
-    "ifconfig",
-    "wlan0",
-    "inet",
-    ip_self,
-    "netmask",
-    ip_netmask,
-    "ssid",
-    adhocname,
-    NULL
-  };
+    char *ifcfg_adhoc_params[] = {
+        "ifconfig",
+        "wlan0",
+        "inet",
+        wlan_ip_self,
+        "netmask",
+        wlan_ip_netmask,
+        "ssid",
+        wlan_adhocname,
+        NULL
+    };
 
-	exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(ifcfg), ifcfg);
-	if(exit_code != EXIT_SUCCESS) {
-		printf("ERROR while creating wlan0 in adhoc mode.");
-	}
+    exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(ifcfg), ifcfg);
+    if(exit_code != EXIT_SUCCESS) {
+        printf("ERROR while creating wlan0 in adhoc mode.");
+    }
 
-	exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(ifcfg_adhoc_params), ifcfg_adhoc_params);
-	if(exit_code != EXIT_SUCCESS) {
-		printf("ERROR while setting up wlan0 in adhoc mode.");
-	}
+    exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(ifcfg_adhoc_params), ifcfg_adhoc_params);
+    if(exit_code != EXIT_SUCCESS) {
+        printf("ERROR while setting up edge wlan0 in adhoc mode.");
+    }
 }
 
 void parse_args(char *args)
@@ -412,117 +419,123 @@ void parse_args(char *args)
     char *last;
 
     for (p = strtok_r(args, " \t", &last);
-	 p;
-	 p = strtok_r(NULL, " \t", &last))
+    p;
+    p = strtok_r(NULL, " \t", &last))
     {
-	if (argc >= MAX_ARGC) {
-	        printf("ERROR: too many erl arguments\n");
-		exit(-1);
-	}
+        if (argc >= MAX_ARGC) {
+            printf("ERROR: too many erl arguments\n");
+            exit(-1);
+        }
 
-	argv[argc++] = p;
+        argv[argc++] = p;
     }
 }
 
 static void Init(rtems_task_argument arg)
 {
-  rtems_status_code sc = RTEMS_SUCCESSFUL;
-  int rv = 0;
-  static char pwd[1024];
-  char *p;
+    rtems_status_code sc = RTEMS_SUCCESSFUL;
+    int rv = 0;
+    static char pwd[1024];
+    char *p;
 
-  atexit(fatal_atexit);
+    atexit(fatal_atexit);
 
-  grisp_led_set1(false, false, false);
-  grisp_led_set2(true, true, true);
-  printf("mounting sd card\n");
-  grisp_init_sd_card();
-  grisp_init_lower_self_prio();
-  grisp_init_libbsd();
-  printf("ifconfig lo0\n");
-  default_network_ifconfig_lo0();
+    grisp_led_set1(false, false, false);
+    grisp_led_set2(true, true, true);
+    printf("mounting sd card\n");
+    grisp_init_sd_card();
+    grisp_init_lower_self_prio();
+    grisp_init_libbsd();
+    printf("ifconfig lo0\n");
+    default_network_ifconfig_lo0();
 
-  /* Wait for the SD card */
-  grisp_led_set2(true, false, true);
-  sc = grisp_init_wait_for_sd();
-  if(sc == RTEMS_SUCCESSFUL) {
-    printf("sd card mounted\n");
-  } else {
-    printf("ERROR: SD could not be mounted after timeout\n");
-    grisp_led_set2(true, false, false);
-  }
-
-  evaluate_ini_file(INI_FILE);
-  printf("%s\n", erl_args);
-  parse_args(erl_args);
-
-  if(start_dhcp) {
-      grisp_led_set2(false, true, true);
-      grisp_init_dhcpcd_with_config(PRIO_DHCP, DHCP_CONF_FILE);
-  }
-  if (wlan_enable) {
-    grisp_led_set2(false, false, true);
-    rtems_task_wake_after(RTEMS_MILLISECONDS_TO_TICKS(4000));
-    if(start_dhcp){
-        create_wlandev();
-    }
-    else if (adhocmode) {
-        create_wlandev_adhoc();
-    }
-  }
-  if (wpa_supplicant_conf != NULL) {
+    /* Wait for the SD card */
     grisp_led_set2(true, false, true);
-    grisp_init_wpa_supplicant(wpa_supplicant_conf, PRIO_WPA);
-  }
-  grisp_led_set2(false, true, false);
+    sc = grisp_init_wait_for_sd();
+    if(sc == RTEMS_SUCCESSFUL) {
+        printf("sd card mounted\n");
+    } else {
+        printf("ERROR: SD could not be mounted after timeout\n");
+        grisp_led_set2(true, false, false);
+    }
 
-  printf("mkdir /tmp\n");
-  rv = mkdir("/tmp", 0755);
-  assert(rv == 0);
+    evaluate_ini_file(INI_FILE);
+    printf("%s\n", erl_args);
+    parse_args(erl_args);
 
-  printf("mkdir /tmp/log\n");
-  rv = mkdir("/tmp/log", 0755);
-  assert(rv == 0);
+    if(start_dhcp) {
+        grisp_led_set2(false, true, true);
+        grisp_init_dhcpcd_with_config(PRIO_DHCP, DHCP_CONF_FILE);
+    }
+    if (wlan_enable) {
+        grisp_led_set2(false, false, true);
+        rtems_task_wake_after(RTEMS_MILLISECONDS_TO_TICKS(4000));
+        if(start_dhcp){
+            create_wlandev();
+        }
+        else if (adhocmode) {
+            create_wlandev_adhoc();
+        }
+    }
+    if (wpa_supplicant_conf != NULL) {
+        grisp_led_set2(true, false, true);
+        grisp_init_wpa_supplicant(wpa_supplicant_conf, PRIO_WPA);
+    }
+    grisp_led_set2(false, true, false);
 
-  printf("mkdir /home\n");
-  rv = mkdir("/home", 0755);
-  assert(rv == 0);
+    printf("mkdir /tmp\n");
+    rv = mkdir("/tmp", 0755);
+    assert(rv == 0);
 
-  printf("Setting environment\n");
-  setenv("BINDIR", "otp/lib/erlang/bin", 1);
-  setenv("ROOTDIR", "otp", 1);
-  setenv("PROGNAME", "erl.rtems", 1);
-  setenv("HOME", "/home", 1);
+    printf("mkdir /tmp/log\n");
+    rv = mkdir("/tmp/log", 0755);
+    assert(rv == 0);
 
-  /* Need to change the directory here because some dunderheaded
-     library changes it back to root otherwise */
+    printf("mkdir /home\n");
+    rv = mkdir("/home", 0755);
+    assert(rv == 0);
 
-  printf("chdir(%s)\n", MNT);
-  rv = chdir(MNT);
-  if (rv < 0)
+    printf("Setting environment\n");
+    setenv("BINDIR", "otp/lib/erlang/bin", 1);
+    setenv("ROOTDIR", "otp", 1);
+    setenv("PROGNAME", "erl.rtems", 1);
+    setenv("HOME", "/home", 1);
+
+    /* Need to change the directory here because some dunderheaded
+    library changes it back to root otherwise */
+
+    printf("chdir(%s)\n", MNT);
+    rv = chdir(MNT);
+    if (rv < 0)
     perror("can't chdir");
 
-  printf("\nerl_main: starting ...\n");
+    printf("\nerl_main: starting ...\n");
 
-  p = getcwd(pwd, 1024);
-  if (p == NULL)
+    p = getcwd(pwd, 1024);
+    if (p == NULL)
     printf("getcwd error\n");
-  else
+    else
     printf("getcwd: %s\n", p);
 
-  sethostname(hostname, strlen(hostname));
-  printf("hostname: %s\n", hostname);
+    if (wlan_enable) {
+        sethostname(wlan_hostname, strlen(wlan_hostname));
+        printf("WLAN hostname: %s\n", hostname);
+    }
+    else {
+        sethostname(hostname, strlen(hostname));
+        printf("hostname: %s\n", hostname);
+    }
 
-  printf("starting erlang runtime\n");
-  erl_start(argc, argv);
-  printf("erlang runtime exited\n");
-  sleep(2);
-  exit(0);
+    printf("starting erlang runtime\n");
+    erl_start(argc, argv);
+    printf("erlang runtime exited\n");
+    sleep(2);
+    exit(0);
 }
 
 /*
- * Configure LibBSD.
- */
+* Configure LibBSD.
+*/
 #include <grisp/libbsd-nexus-config.h>
 
 #define RTEMS_BSD_CONFIG_INIT
@@ -572,10 +585,10 @@ static void Init(rtems_task_argument arg)
 #include <rtems/confdefs.h>
 
 #else
-  int
-    main(int argc, char **argv)
-  {
+int
+main(int argc, char **argv)
+{
     erl_start(argc, argv);
     return 0;
-  }
+}
 #endif
