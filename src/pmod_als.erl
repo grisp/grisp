@@ -1,96 +1,124 @@
+%%%-------------------------------------------------------------------
+%%% @doc Digilent Pmod_ALS module
+%%% This component provides ambient light-to-digital
+%%% sensing through the SPI2 interface on a 6-pin connector.
+%%%
+%%% For further information about the Digilent Pmod_ALS
+%%% and its components :
+%%% https://store.digilentinc.com/pmod-als-ambient-light-sensor/
+%%%
+%%% Texas Instrument's ADC081S021 analog-to-digital converter
+%%% http://www.ti.com/lit/ds/symlink/adc081s021.pdf
+%%%
+%%% Vishay Semiconductor's TEMT6000X01.
+%%% http://www.vishay.com/docs/81579/temt6000.pdf
+%%%
+%%% @end
+%%% Created : 06. Nov 2018 21:47
+%%%-------------------------------------------------------------------
 -module(pmod_als).
 
--author("Alexandre Carlier").
-
--behavior(gen_server).
+-behaviour(gen_server).
 
 -include("grisp.hrl").
 
-% API
+%% API
 -export([start_link/2]).
--export([raw/0]).
--export([precise/0]).
+-export([read/0]).
 
-% Callbacks
--export([init/1]).
+%% gen_server callbacks
+-export([init/1].)
 -export([handle_call/3]).
 -export([handle_cast/2]).
 -export([handle_info/2]).
--export([code_change/3]).
 -export([terminate/2]).
+-export([code_change/3]]).
+
+ %%%===================================================================
+ %%% Macros
+ %%%===================================================================
 
 -define(SPI_MODE, #{cpol => high, cpha => trailing}).
 
-%--- Records -------------------------------------------------------------------
+%%%===================================================================
+%%% Records
+%%%===================================================================
 
--record(state, {
-    slot,
-    value
+-record(state , {
+    options = []
 }).
 
-%--- API -----------------------------------------------------------------------
+%%%===================================================================
+%%% API
+%%%===================================================================
 
-% @private
-start_link(Slot, _Opts) -> gen_server:start_link(?MODULE, Slot, []).
+%% @private
+start_link(Slot, Opts) ->
+    gen_server:start_link(?MODULE, [Slot, Opts], []).
 
-raw() ->
-    Result = call(raw),
-    Result.
-
-precise() ->
-     Result = call(precise),
-     if
-      Result < 34 -> grisp_led:color(1,blue);
-      Result < 67 -> grisp_led:color(1,green);
-      true ->  grisp_led:color(1,red)
-    end,
-    Result.
-
-
-%--- Callbacks -----------------------------------------------------------------
-
-% @private
-init(Slot) ->
-    grisp_devices:register(Slot, ?MODULE),
-    erlang:send_after(5000, self(), precise),
-    {ok, #state{slot = Slot}}.
-
-% @private
-handle_call(raw, _From, State) ->
-    Raw = get_value(State#state.slot),
-    {reply,  Raw, State}.
-
-% @private
-handle_cast(Request, _State) -> error({unknown_cast, Request}).
-
-handle_info(precise, State) ->
-  Raw = get_value(State#state.slot),
-  Precise = round((Raw/255) * 100),
-  %% NOTE : "Precise" value refers to the percentage of
-  %% ambient light, 0% being considered as absence of luminosity.
-    {noreply, Precise,State,1000};
-
-handle_info(timeout, State) ->
-  Raw = get_value(State#state.slot),
-  Precise = round((Raw/255) * 100),
-  if
-   Precise < 34 -> grisp_led:color(1,blue);
-   Precise < 67 -> grisp_led:color(1,green);
-   true ->  grisp_led:color(1,red)
- end,
-  {noreply, State, 1000}.
-% @private
-code_change(_OldVsn, State, _Extra) -> {ok, State}.
-
-% @private
-terminate(_Reason, _State) -> ok.
-
-%--- Internal ------------------------------------------------------------------
-
-call(Call) ->
+%% @doc Returns the ambient light value that is currently sensed
+%% by the ALS module. On success, the return value is a number
+%% in the 0..255 range that is proportional to the luminous
+%% intensity.
+%%
+%% Technically, the values are representative of the
+%% power perceived by the phototransistor from the light source
+%% incoming at an angle of ±60°. It is a model of the response
+%% of the human eye to the same light source that is obtained
+%% by calculating the luminosity function.
+%%
+%% The peak wavelength sensitivity of the module is at 570nm
+%% making it close to the human eye (555nm). This implies that
+%% return values will be the highest when the ALS is exposed to
+%% wavelengths of green light with a slight yellow tint.
+read() ->
     Dev = grisp_devices:default(?MODULE),
-    gen_server:call(Dev#device.pid, Call).
+    case gen_server:call(Dev#device.pid, {read, Dev#device.slot}) of
+        {error, Reason} -> error(Reason);
+        Result          -> Result
+    end.
+%%%===================================================================
+%%% gen_server callbacks
+%%%===================================================================
 
+%% @private
+init([Slot = spi2, Opts]) ->
+    process_flag(trap_exit, true),
+    ok = grisp_devices:register(Slot, ?MODULE),
+    {ok, #state{options = Opts}};
+init(Slot) ->
+    error({incompatible_slot, Slot}).
+
+%%--------------------------------------------------------------------
+%% @private
+handle_call({read, Slot} , _From , State) when Slot =:= spi2 ->
+    Val = get_value(Slot),
+    {reply, Val, State};
+
+handle_call(Request , _From , _State) ->
+    error({unknown_call, Request}).
+
+%% @private
+handle_cast(Request , _State) ->
+    error({unknown_cast, Request}).
+
+%% @private
+handle_info(Info , _State) ->
+    error({unknown_info, Info}).
+
+%% @private
+terminate(_Reason , _State) ->
+    ok.
+
+%% @private
+code_change(_OldVsn , State , _Extra) ->
+    {ok , State}.
+
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
+
+%% @private
 get_value(Slot) ->
     <<_:3,Resp:8,_Pad:5>> = grisp_spi:send_recv(Slot, ?SPI_MODE, <<0:8>>, 0, 1),
     Resp.
