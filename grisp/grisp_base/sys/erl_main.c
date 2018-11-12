@@ -47,8 +47,8 @@
 #define INI_FILE (MNT "grisp.ini")
 #define DHCP_CONF_FILE (MNT "dhcpcd.conf")
 
-#define PRIO_DHCP       (RTEMS_MAXIMUM_PRIORITY - 1)
-#define PRIO_WPA        (RTEMS_MAXIMUM_PRIORITY - 1)
+#define PRIO_DHCP		(RTEMS_MAXIMUM_PRIORITY - 1)
+#define PRIO_WPA		(RTEMS_MAXIMUM_PRIORITY - 1)
 
 void parse_args(char *args);
 
@@ -523,8 +523,8 @@ static void Init(rtems_task_argument arg)
 }
 
 /*
-* Configure LibBSD.
-*/
+ * Configure LibBSD.
+ */
 #include <grisp/libbsd-nexus-config.h>
 
 #define RTEMS_BSD_CONFIG_INIT
