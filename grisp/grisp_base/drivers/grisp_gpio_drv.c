@@ -44,7 +44,7 @@ static Pin pins[] =
     {PIO_PD11,             PIOD, ID_PIOD, PIO_INPUT,    PIO_PULLUP},  /* 17: jumper 4 */
     {PIO_PC10,             PIOC, ID_PIOC, PIO_INPUT,    PIO_PULLUP},  /* 18: jumper 5 */
     {PIO_PA2,              PIOA, ID_PIOA, PIO_INPUT,    PIO_DEFAULT}, /* 19: spi1 pin 7 (interrupt) */
-    {PIO_PB12,             PIOA, ID_PIOA, PIO_INPUT,    PIO_DEFAULT}, /* 20: spi1 pin 8 (reset) */
+    {PIO_PC9,              PIOA, ID_PIOA, PIO_INPUT,    PIO_DEFAULT}, /* 20: spi1 pin 8 (reset) */
     {PIO_PA9,              PIOA, ID_PIOA, PIO_INPUT,    PIO_DEFAULT}, /* 21: spi1 pin 9 */
     {PIO_PA10,             PIOA, ID_PIOA, PIO_INPUT,    PIO_DEFAULT}, /* 22: spi1 pin 10 */
     {PIO_PD12C_SPI0_NPCS2, PIOD, ID_PIOD, PIO_PERIPH_C, PIO_DEFAULT}, /* 23: SS1 */
