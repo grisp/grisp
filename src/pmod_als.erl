@@ -25,14 +25,15 @@
 %% API
 -export([start_link/2]).
 -export([read/0]).
+-export([percentage/0]).
 
 %% gen_server callbacks
--export([init/1].)
+-export([init/1]).
 -export([handle_call/3]).
 -export([handle_cast/2]).
 -export([handle_info/2]).
 -export([terminate/2]).
--export([code_change/3]]).
+-export([code_change/3]).
 
  %%%===================================================================
  %%% Macros
@@ -71,12 +72,27 @@ start_link(Slot, Opts) ->
 %% making it close to the human eye (555nm). This implies that
 %% return values will be the highest when the ALS is exposed to
 %% wavelengths of green light with a slight yellow tint.
+-spec read() -> 0..255 | no_return().
 read() ->
     Dev = grisp_devices:default(?MODULE),
     case gen_server:call(Dev#device.pid, {read, Dev#device.slot}) of
         {error, Reason} -> error(Reason);
         Result          -> Result
     end.
+
+%% @doc Returns a the percentage of current ambient light
+%% based on the {@link pmod_als:read} function. The value
+%% is rounded to the closest integer.
+-spec percentage() -> 0..100 | {error, atom()}.
+percentage() ->
+    try read() of
+        Raw when is_number(Raw) ->
+            round((( Raw / 255 ) * 100))
+    catch
+        error:Reason ->
+            {error, Reason}
+    end.
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
