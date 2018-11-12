@@ -263,50 +263,40 @@ printf ("grisp.ini: "
             ok = 1;
         }
         else if (strcmp(name, "wlan") == 0) {
-  	  if (strcmp(value, "enable") == 0) {
-  	      wlan_enable = 1;
-  	      ok = 1;
-  	  }
-  	  else if (strcmp(value, "disable") == 0) {
-  	      wlan_enable = 0;
-  	      ok = 1;
-  	  }
-        }
-        else if (strcmp(name, "wpa") == 0) {
-  	wpa_supplicant_conf = strdupcat(MNT, value);
-  	ok = 1;
-        }
-    }
-    else if (strcmp(section, "erlang") == 0) {
-        if (strcmp(name, "args") == 0) {
-  	  printf ("erl args: "
-  		  "section \"%s\", name \"%s\", value \"%s\"\n",
-  		  section, name, value);
-  	  erl_args = strdup(value);
-  	  ok = 1;
-        }
-    }
-    else
-      ok = 1;
-
-    if (!ok) {
-        printf ("erl_main: error in configuration file: "
-  	      "section \"%s\", name \"%s\", value \"%s\"\n",
-  	      section, name, value);
-        ok = 1;
+	  if (strcmp(value, "enable") == 0) {
+	      wlan_enable = 1;
+	      ok = 1;
+	  }
+	  else if (strcmp(value, "disable") == 0) {
+	      wlan_enable = 0;
+	      ok = 1;
+	  }
       }
-
-    return ok;
+      else if (strcmp(name, "wpa") == 0) {
+	wpa_supplicant_conf = strdupcat(MNT, value);
+	ok = 1;
+      }
   }
+  else if (strcmp(section, "erlang") == 0) {
+      if (strcmp(name, "args") == 0) {
+	  printf ("erl args: "
+		  "section \"%s\", name \"%s\", value \"%s\"\n",
+		  section, name, value);
+	  erl_args = strdup(value);
+	  ok = 1;
+      }
+  }
+  else
+    ok = 1;
 
-static void evaluate_ini_file(const char *ini_file)
-{
-    int rv;
-
-    rv = ini_parse(ini_file, ini_file_handler, NULL);
-    if (rv == -1) {
-	printf("WARNING: Can't find ini file %s -> using defaults\n", ini_file);
+  if (!ok) {
+      printf ("erl_main: error in configuration file: "
+	      "section \"%s\", name \"%s\", value \"%s\"\n",
+	      section, name, value);
+      ok = 1;
     }
+
+  return ok;
 }
 
 static void
