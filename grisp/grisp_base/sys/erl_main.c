@@ -322,7 +322,7 @@ default_network_ifconfig_lo0(void)
        "255.255.255.0",
        NULL
    };
-    char *lo0_inet6[] = {
+   char *lo0_inet6[] = {
        "ifconfig",
        "lo0",
        "inet6",
