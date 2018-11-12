@@ -1,23 +1,23 @@
 // #define UID_ERL_LOAD_NFS
 
 /*
-* %CopyrightBegin%
-*
-* Copyright Ericsson AB 2000-2009. All Rights Reserved.
-*
-* The contents of this file are subject to the Erlang Public License,
-* Version 1.1, (the "License"); you may not use this file except in
-* compliance with the License. You should have received a copy of the
-* Erlang Public License along with this software. If not, it can be
-* retrieved online at http://www.erlang.org/.
-*
-* Software distributed under the License is distributed on an "AS IS"
-* basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-* the License for the specific language governing rights and limitations
-* under the License.
-*
-* %CopyrightEnd%
-*/
+ * %CopyrightBegin%
+ *
+ * Copyright Ericsson AB 2000-2009. All Rights Reserved.
+ *
+ * The contents of this file are subject to the Erlang Public License,
+ * Version 1.1, (the "License"); you may not use this file except in
+ * compliance with the License. You should have received a copy of the
+ * Erlang Public License along with this software. If not, it can be
+ * retrieved online at http://www.erlang.org/.
+ *
+ * Software distributed under the License is distributed on an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
+ * the License for the specific language governing rights and limitations
+ * under the License.
+ *
+ * %CopyrightEnd%
+ */
 #ifdef HAVE_CONFIG_H
 #  include "config.h"
 #endif
@@ -148,7 +148,7 @@ static char *hostname = "defaulthostname";
 static char *wpa_supplicant_conf = NULL;
 
 static char *erl_args = "erl.rtems -- -root otp"
-" -home home -boot start_sasl -pa .";
+    " -home home -boot start_sasl -pa .";
 
 #define MAX_ARGC 256
 
@@ -158,39 +158,39 @@ static int argc;
 
 static char *strdupcat (char *s1, char *s2)
 {
-    char *res;
+  char *res;
 
-    res = malloc(strlen(s1) + strlen(s2) + 1);
-    strcpy(res, s1);
-    strcat(res, s2);
+  res = malloc(strlen(s1) + strlen(s2) + 1);
+  strcpy(res, s1);
+  strcat(res, s2);
 
-    return res;
+  return res;
 }
 
 void *
 mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset)
 {
-    errno = ENODEV;
-    return MAP_FAILED;
+  errno = ENODEV;
+  return MAP_FAILED;
 }
 
 int
 munmap(void *addr, size_t len)
 {
-    errno = EINVAL;
-    return -1;
+  errno = EINVAL;
+  return -1;
 }
 
 void
 fatal_extension(uint32_t source, uint32_t is_internal, uint32_t error)
 {
-    printk ("fatal extension: source=%ld, is_internal=%ld, error=%ld\n",
-    source, is_internal, error);
-    if (source == RTEMS_FATAL_SOURCE_EXCEPTION)
+  printk ("fatal extension: source=%ld, is_internal=%ld, error=%ld\n",
+	  source, is_internal, error);
+  if (source == RTEMS_FATAL_SOURCE_EXCEPTION)
     rtems_exception_frame_print((const rtems_exception_frame *)error);
 
-    /* rtems_stack_checker_report_usage(); */
-    while(1)
+  /* rtems_stack_checker_report_usage(); */
+  while(1)
     {
     }
 }
@@ -198,19 +198,19 @@ fatal_extension(uint32_t source, uint32_t is_internal, uint32_t error)
 void
 fatal_atexit(void)
 {
-    printk ("Erlang VM exited\n");
-    /* rtems_stack_checker_report_usage(); */
-    while(1)
+  printk ("Erlang VM exited\n");
+  /* rtems_stack_checker_report_usage(); */
+  while(1)
     {
     }
 }
 
 static int ini_file_handler(void *arg, const char *section, const char *name,
-    const char *value)
+			    const char *value)
 {
-    int ok = 0;
+  int ok = 0;
 
-    printf ("grisp.ini: "
+printf ("grisp.ini: "
     "section \"%s\", name \"%s\", value \"%s\"\n",
     section, name, value);
     if (strcmp(section, "network") == 0) {
@@ -263,41 +263,41 @@ static int ini_file_handler(void *arg, const char *section, const char *name,
             ok = 1;
         }
         else if (strcmp(name, "wlan") == 0) {
-            if (strcmp(value, "enable") == 0) {
-                wlan_enable = 1;
-                ok = 1;
-            }
-            else if (strcmp(value, "disable") == 0) {
-                wlan_enable = 0;
-                ok = 1;
-            }
+  	  if (strcmp(value, "enable") == 0) {
+  	      wlan_enable = 1;
+  	      ok = 1;
+  	  }
+  	  else if (strcmp(value, "disable") == 0) {
+  	      wlan_enable = 0;
+  	      ok = 1;
+  	  }
         }
         else if (strcmp(name, "wpa") == 0) {
-            wpa_supplicant_conf = strdupcat(MNT, value);
-            ok = 1;
+  	wpa_supplicant_conf = strdupcat(MNT, value);
+  	ok = 1;
         }
     }
     else if (strcmp(section, "erlang") == 0) {
         if (strcmp(name, "args") == 0) {
-            printf ("erl args: "
-            "section \"%s\", name \"%s\", value \"%s\"\n",
-            section, name, value);
-            erl_args = strdup(value);
-            ok = 1;
+  	  printf ("erl args: "
+  		  "section \"%s\", name \"%s\", value \"%s\"\n",
+  		  section, name, value);
+  	  erl_args = strdup(value);
+  	  ok = 1;
         }
     }
     else
-    ok = 1;
+      ok = 1;
 
     if (!ok) {
         printf ("erl_main: error in configuration file: "
-        "section \"%s\", name \"%s\", value \"%s\"\n",
-        section, name, value);
+  	      "section \"%s\", name \"%s\", value \"%s\"\n",
+  	      section, name, value);
         ok = 1;
-    }
+      }
 
     return ok;
-}
+  }
 
 static void evaluate_ini_file(const char *ini_file)
 {
@@ -305,59 +305,59 @@ static void evaluate_ini_file(const char *ini_file)
 
     rv = ini_parse(ini_file, ini_file_handler, NULL);
     if (rv == -1) {
-        printf("WARNING: Can't find ini file %s -> using defaults\n", ini_file);
+	printf("WARNING: Can't find ini file %s -> using defaults\n", ini_file);
     }
 }
 
 static void
 default_network_ifconfig_lo0(void)
 {
-    int exit_code;
-    char *lo0[] = {
-        "ifconfig",
-        "lo0",
-        "inet",
-        "127.0.0.1",
-        "netmask",
-        "255.255.255.0",
-        NULL
-    };
+   int exit_code;
+   char *lo0[] = {
+       "ifconfig",
+       "lo0",
+       "inet",
+       "127.0.0.1",
+       "netmask",
+       "255.255.255.0",
+       NULL
+   };
     char *lo0_inet6[] = {
-        "ifconfig",
-        "lo0",
-        "inet6",
-        "::1",
-        "prefixlen",
-        "128",
-        "alias",
-        NULL
-    };
+       "ifconfig",
+       "lo0",
+       "inet6",
+       "::1",
+       "prefixlen",
+       "128",
+       "alias",
+       NULL
+   };
 
-    exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(lo0), lo0);
-    assert(exit_code == EX_OK);
+   exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(lo0), lo0);
+   assert(exit_code == EX_OK);
 
-    exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(lo0_inet6), lo0_inet6);
-    assert(exit_code == EX_OK);
+   exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(lo0_inet6), lo0_inet6);
+   assert(exit_code == EX_OK);
 }
 
 static void
 create_wlandev(void)
 {
-    int exit_code;
-    char *ifcfg[] = {
-        "ifconfig",
-        "wlan0",
-        "create",
-        "wlandev",
-        "rtwn0",
-        "up",
-        NULL
-    };
+	int exit_code;
+	char *ifcfg[] = {
+		"ifconfig",
+		"wlan0",
+		"create",
+		"wlandev",
+		"rtwn0",
+		"up",
+		NULL
+	};
 
-    exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(ifcfg), ifcfg);
-    if(exit_code != EXIT_SUCCESS) {
-        printf("ERROR while creating wlan0 in infrastructure mode.");
-    }
+	exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(ifcfg), ifcfg);
+	if(exit_code != EXIT_SUCCESS) {
+		printf("ERROR while creating wlan0.");
+	}
 }
 
 static void
@@ -408,54 +408,54 @@ void parse_args(char *args)
     char *last;
 
     for (p = strtok_r(args, " \t", &last);
-    p;
-    p = strtok_r(NULL, " \t", &last))
+	 p;
+	 p = strtok_r(NULL, " \t", &last))
     {
-        if (argc >= MAX_ARGC) {
-            printf("ERROR: too many erl arguments\n");
-            exit(-1);
-        }
+	if (argc >= MAX_ARGC) {
+	        printf("ERROR: too many erl arguments\n");
+		exit(-1);
+	}
 
-        argv[argc++] = p;
+	argv[argc++] = p;
     }
 }
 
 static void Init(rtems_task_argument arg)
 {
-    rtems_status_code sc = RTEMS_SUCCESSFUL;
-    int rv = 0;
-    static char pwd[1024];
-    char *p;
+  rtems_status_code sc = RTEMS_SUCCESSFUL;
+  int rv = 0;
+  static char pwd[1024];
+  char *p;
 
-    atexit(fatal_atexit);
+  atexit(fatal_atexit);
 
-    grisp_led_set1(false, false, false);
-    grisp_led_set2(true, true, true);
-    printf("mounting sd card\n");
-    grisp_init_sd_card();
-    grisp_init_lower_self_prio();
-    grisp_init_libbsd();
-    printf("ifconfig lo0\n");
-    default_network_ifconfig_lo0();
+  grisp_led_set1(false, false, false);
+  grisp_led_set2(true, true, true);
+  printf("mounting sd card\n");
+  grisp_init_sd_card();
+  grisp_init_lower_self_prio();
+  grisp_init_libbsd();
+  printf("ifconfig lo0\n");
+  default_network_ifconfig_lo0();
 
-    /* Wait for the SD card */
-    grisp_led_set2(true, false, true);
-    sc = grisp_init_wait_for_sd();
-    if(sc == RTEMS_SUCCESSFUL) {
-        printf("sd card mounted\n");
-    } else {
-        printf("ERROR: SD could not be mounted after timeout\n");
-        grisp_led_set2(true, false, false);
-    }
+  /* Wait for the SD card */
+  grisp_led_set2(true, false, true);
+  sc = grisp_init_wait_for_sd();
+  if(sc == RTEMS_SUCCESSFUL) {
+    printf("sd card mounted\n");
+  } else {
+    printf("ERROR: SD could not be mounted after timeout\n");
+    grisp_led_set2(true, false, false);
+  }
 
-    evaluate_ini_file(INI_FILE);
-    printf("%s\n", erl_args);
-    parse_args(erl_args);
+  evaluate_ini_file(INI_FILE);
+  printf("%s\n", erl_args);
+  parse_args(erl_args);
 
-    if(start_dhcp) {
-        grisp_led_set2(false, true, true);
-        grisp_init_dhcpcd_with_config(PRIO_DHCP, DHCP_CONF_FILE);
-    }
+  if(start_dhcp) {
+      grisp_led_set2(false, true, true);
+      grisp_init_dhcpcd_with_config(PRIO_DHCP, DHCP_CONF_FILE);
+  }
     if (wlan_enable) {
         grisp_led_set2(false, false, true);
         rtems_task_wake_after(RTEMS_MILLISECONDS_TO_TICKS(4000));
@@ -466,44 +466,44 @@ static void Init(rtems_task_argument arg)
             create_wlandev_adhoc();
         }
     }
-    if (wpa_supplicant_conf != NULL) {
-        grisp_led_set2(true, false, true);
-        grisp_init_wpa_supplicant(wpa_supplicant_conf, PRIO_WPA);
-    }
-    grisp_led_set2(false, true, false);
+  if (wpa_supplicant_conf != NULL) {
+    grisp_led_set2(true, false, true);
+    grisp_init_wpa_supplicant(wpa_supplicant_conf, PRIO_WPA);
+  }
+  grisp_led_set2(false, true, false);
 
-    printf("mkdir /tmp\n");
-    rv = mkdir("/tmp", 0755);
-    assert(rv == 0);
+  printf("mkdir /tmp\n");
+  rv = mkdir("/tmp", 0755);
+  assert(rv == 0);
 
-    printf("mkdir /tmp/log\n");
-    rv = mkdir("/tmp/log", 0755);
-    assert(rv == 0);
+  printf("mkdir /tmp/log\n");
+  rv = mkdir("/tmp/log", 0755);
+  assert(rv == 0);
 
-    printf("mkdir /home\n");
-    rv = mkdir("/home", 0755);
-    assert(rv == 0);
+  printf("mkdir /home\n");
+  rv = mkdir("/home", 0755);
+  assert(rv == 0);
 
-    printf("Setting environment\n");
-    setenv("BINDIR", "otp/lib/erlang/bin", 1);
-    setenv("ROOTDIR", "otp", 1);
-    setenv("PROGNAME", "erl.rtems", 1);
-    setenv("HOME", "/home", 1);
+  printf("Setting environment\n");
+  setenv("BINDIR", "otp/lib/erlang/bin", 1);
+  setenv("ROOTDIR", "otp", 1);
+  setenv("PROGNAME", "erl.rtems", 1);
+  setenv("HOME", "/home", 1);
 
-    /* Need to change the directory here because some dunderheaded
-    library changes it back to root otherwise */
+  /* Need to change the directory here because some dunderheaded
+     library changes it back to root otherwise */
 
-    printf("chdir(%s)\n", MNT);
-    rv = chdir(MNT);
-    if (rv < 0)
+  printf("chdir(%s)\n", MNT);
+  rv = chdir(MNT);
+  if (rv < 0)
     perror("can't chdir");
 
-    printf("\nerl_main: starting ...\n");
+  printf("\nerl_main: starting ...\n");
 
-    p = getcwd(pwd, 1024);
-    if (p == NULL)
+  p = getcwd(pwd, 1024);
+  if (p == NULL)
     printf("getcwd error\n");
-    else
+  else
     printf("getcwd: %s\n", p);
 
     if (wlan_enable) {
@@ -515,11 +515,11 @@ static void Init(rtems_task_argument arg)
         printf("hostname: %s\n", hostname);
     }
 
-    printf("starting erlang runtime\n");
-    erl_start(argc, argv);
-    printf("erlang runtime exited\n");
-    sleep(2);
-    exit(0);
+  printf("starting erlang runtime\n");
+  erl_start(argc, argv);
+  printf("erlang runtime exited\n");
+  sleep(2);
+  exit(0);
 }
 
 /*
@@ -574,10 +574,10 @@ static void Init(rtems_task_argument arg)
 #include <rtems/confdefs.h>
 
 #else
-int
-main(int argc, char **argv)
-{
+  int
+    main(int argc, char **argv)
+  {
     erl_start(argc, argv);
     return 0;
-}
+  }
 #endif
