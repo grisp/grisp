@@ -299,6 +299,16 @@ printf ("grisp.ini: "
   return ok;
 }
 
+static void evaluate_ini_file(const char *ini_file)
+{
+    int rv;
+
+    rv = ini_parse(ini_file, ini_file_handler, NULL);
+    if (rv == -1) {
+	printf("WARNING: Can't find ini file %s -> using defaults\n", ini_file);
+    }
+}
+
 static void
 default_network_ifconfig_lo0(void)
 {
