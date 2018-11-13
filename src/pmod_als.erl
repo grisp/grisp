@@ -83,15 +83,10 @@ read() ->
 %% @doc Returns a the percentage of current ambient light
 %% based on the {@link pmod_als:read} function. The value
 %% is rounded to the closest integer.
--spec percentage() -> 0..100 | {error, atom()}.
+-spec percentage() -> 0..100.
 percentage() ->
-    try read() of
-        Raw when is_number(Raw) ->
-            round((( Raw / 255 ) * 100))
-    catch
-        error:Reason ->
-            {error, Reason}
-    end.
+    Raw = read(),
+    round((Raw / 255) * 100).
 
 %%%===================================================================
 %%% gen_server callbacks
