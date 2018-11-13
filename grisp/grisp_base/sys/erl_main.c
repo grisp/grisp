@@ -60,7 +60,7 @@ static int start_dhcp = 0;
 static int wlan_adhocmode = 0;
 static int wlan_enable = 0;
 
-static char *wlan_ip_self = "";
+static char *ip_self = "";
 static char *wlan_ip_netmask = "";
 
 /*
@@ -74,7 +74,7 @@ static char *wlan_ip_netmask = "";
 *
 *     [network]
 *     wlan=enable
-*     wlan_ip_self=169.254.16.1
+*     ip_self=169.254.16.1
 *     wlan_ip_netmask=255.255.0.0
 *     wlan_mode=adhoc
 *     wlan_adhocname=edge
@@ -223,16 +223,6 @@ printf ("grisp.ini: "
                 ok = 1;
             }
         }
-        else if (strcmp(name, "wlan_ip_self") == 0) {
-            if (strcmp(value, "dhcp") == 0) {
-                start_dhcp = 1;
-                ok = 1;
-            } else {
-                wlan_ip_self = strdup(value); // Set ip from ini file
-                printf("=== WLAN Ip is %s ===\n", wlan_ip_self);
-                ok = 1;
-            }
-        }
         else if (strcmp(name, "wlan_ip_netmask") == 0) {
             wlan_ip_netmask = strdup(value); // Set netmask from ini file
             ok = 1;
@@ -374,7 +364,7 @@ create_wlandev_adhoc(void)
         "ifconfig",
         "wlan0",
         "inet",
-        wlan_ip_self,
+        ip_self,
         "netmask",
         wlan_ip_netmask,
         "ssid",
