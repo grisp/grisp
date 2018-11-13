@@ -94,7 +94,6 @@ percentage() ->
 
 %% @private
 init([Slot = spi2, Opts]) ->
-    process_flag(trap_exit, true),
     ok = grisp_devices:register(Slot, ?MODULE),
     {ok, #state{options = Opts}};
 init(Slot) ->
