@@ -79,7 +79,7 @@ static char *wlan_ip_netmask = "";
 *     wlan_mode=adhoc
 *     wlan_adhocname=edge
 *     wlan_channel=6
-*     wlan_hostname=my_grisp_board_1
+*     hostname=my_grisp_board_1
 *
 * This will create a network named "edge"
 * in channel 6 and the host "my_grisp_board_1"
@@ -136,11 +136,6 @@ static char *wlan_mode = "infrastructure";
 */
 static char *wlan_channel = "6";
 
-/*
-* WLAN specific default hostname
-* and Ad hoc network SSID
-*/
-static char *wlan_hostname = "defaulthostname";
 static char *wlan_adhocname = "adhocnetwork";
 
 static char *hostname = "defaulthostname";
@@ -159,7 +154,7 @@ static int argc;
 static char *strdupcat (char *s1, char *s2)
 {
   char *res;
-  
+
   res = malloc(strlen(s1) + strlen(s2) + 1);
   strcpy(res, s1);
   strcat(res, s2);
@@ -240,10 +235,6 @@ printf ("grisp.ini: "
         }
         else if (strcmp(name, "wlan_ip_netmask") == 0) {
             wlan_ip_netmask = strdup(value); // Set netmask from ini file
-            ok = 1;
-        }
-        else if (strcmp(name, "wlan_hostname") == 0) {
-            wlan_hostname = strdup(value); // Set hostname applied only for WLAN interfaces
             ok = 1;
         }
         else if (strcmp(name, "wlan_channel") == 0) {
@@ -356,7 +347,7 @@ create_wlandev(void)
 
 	exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(ifcfg), ifcfg);
 	if(exit_code != EXIT_SUCCESS) {
-		printf("ERROR while creating wlan0.");
+		printf("ERROR while creating wlan0 in adhoc mode.");
 	}
 }
 
@@ -506,14 +497,8 @@ static void Init(rtems_task_argument arg)
   else
     printf("getcwd: %s\n", p);
 
-    if (wlan_enable) {
-        sethostname(wlan_hostname, strlen(wlan_hostname));
-        printf("WLAN hostname: %s\n", hostname);
-    }
-    else {
-        sethostname(hostname, strlen(hostname));
-        printf("hostname: %s\n", hostname);
-    }
+  sethostname(hostname, strlen(hostname));
+  printf("hostname: %s\n", hostname);
 
   printf("starting erlang runtime\n");
   erl_start(argc, argv);
