@@ -50,21 +50,21 @@ handle_cast(Request, _State) -> error({unknown_cast, Request}).
 handle_info({Port, {data, Data}}, #state{port = Port} = State) ->
     case Data of
         % "$GPGGA...\n"
-        <<36,71,80,71,71,65,_/binary>> ->
+        <<$$,$G,$P,$G,$G,$A,_/binary>> ->
             {noreply, State#state{last_gga = Data}};
         % "$GPGSA...\n"
-        <<36,71,80,71,83,65,_/binary>> ->
+        <<$$,$G,$P,$G,$S,$A,_/binary>> ->
             {noreply, State#state{last_gsa = Data}};
         % "$GPGSV...\n"
-        <<36,71,80,71,83,86,_/binary>> ->
+        <<$$,$G,$P,$G,$S,$V,_/binary>> ->
             {noreply, State#state{last_gsv = Data}};
         % "$GPRMC...\n"
-        <<36,71,80,82,77,67,_/binary>> ->
+        <<$$,$G,$P,$R,$M,$C,_/binary>> ->
             {noreply, State#state{last_rmc = Data}};
         % "$GPVTG...\n"
-        <<36,71,80,86,84,71,_/binary>> ->
+        <<$$,$G,$P,$V,$T,$G,_/binary>> ->
             {noreply, State#state{last_vtg = Data}};
-        <<10>> ->
+        <<$\n>> ->
             {noreply, State};
         _ ->
             {noreply, State}
