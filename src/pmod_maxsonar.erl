@@ -48,7 +48,7 @@ handle_info({Port, {data, Data}}, #state{port = Port} = State) ->
         % Format of response is 'Rxxx\n' where xxx is the decimal
         % representation of the measured range in inches (2.54cm)
         % (left-padded with zeros - so there are always three digits)
-        <<82, D1, D2, D3, 10>> when $0 =< D1, D1 =< $9,
+        <<$R, D1, D2, D3, $\n>> when $0 =< D1, D1 =< $9,
                                       $0 =< D2, D2 =< $9,
                                       $0 =< D3, D3 =< $9 ->
             % Val is given in inches
