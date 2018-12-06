@@ -45,9 +45,13 @@ handle_cast(Request, _State) -> error({unknown_cast, Request}).
 % @private
 handle_info({Port, {data, Data}}, #state{port = Port} = State) ->
     case Data of
-        <<_, _, D1, D2, D3, 10>> when $0 =< D1, D1 =< $9,
+        % Format of response is 'Rxxx\n' where xxx is the decimal
+        % representation of the measured range in inches (2.54cm)
+        % (left-padded with zeros - so there are always three digits)
+        <<82, D1, D2, D3, 10>> when $0 =< D1, D1 =< $9,
                                       $0 =< D2, D2 =< $9,
                                       $0 =< D3, D3 =< $9 ->
+            % Val is given in inches
             Val = (D1 - $0) * 100 + (D2 - $0) * 10 + (D3 - $0),
             {noreply, State#state{last_val = Val}};
         _ ->
