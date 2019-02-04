@@ -40,10 +40,10 @@ jobs:
           - run:
               command: "source ~/.bashrc && erl -noshell -eval '{ok, Config} = file:consult(\"rebar.config\"),
               {value, {grisp, GrispConfig}} = lists:keysearch(grisp, 1, Config),
-              NewGrispConfig = GrispConfig ++ [{build, [{toolchain, [{directory, ¸\"/tmp/rtems/5\"}]}]}],
+              NewGrispConfig = GrispConfig ++ [{build, [{toolchain, [{directory, \"/tmp/rtems/5\"}]}]}],
               NewConfig = lists:keyreplace(grisp, 1, Config, {grisp, NewGrispConfig}),
               io:fwrite(\"~p~n\", [NewConfig]).' -s init stop > rebar.config"
-              working_directory: ~/ciproject
+              working_directory: /root/ciproject
           - run: source ~/.bashrc && rebar3 grisp build --tar true
           - run: source ~/.bashrc && rebar3 grisp deploy -v 0.1.0 -n ciproject
           # TODO: deploy OTP to aws
