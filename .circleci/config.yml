@@ -1,0 +1,43 @@
+version: 2.1
+orbs:
+    aws-s3: circleci/aws-s3@1.0.0
+jobs:
+    build:
+        docker:
+          - image: 'opensuse:leap'
+        steps:
+          - run: 'zypper install -y --type pattern devel_basis devel_C_C++'
+          - run: 'zypper install -y git tar gzip'
+          - run: 'git clone https://github.com/asdf-vm/asdf.git ~/.asdf &&\
+            cd ~/.asdf && git checkout "$(git describe --abbrev=0 --tags)"'
+          - run: "echo -e '\n. $HOME/.asdf/asdf.sh' >> ~/.bashrc && \
+            echo -e '\n. $HOME/.asdf/completions/asdf.bash' >> ~/.bashrc"
+          - run: "source ~/.bashrc"
+          - run: 'asdf plugin-add erlang'
+          - run: 'asdf install erlang 21.0' # we might also test others later...
+          - run: 'asdf global erlang'
+          - run: 'mkdir ~/bin'
+          - run: 'wget -o ~/bin/rebar3 https://s3.amazonaws.com/rebar3/rebar3'
+          - run: echo 'export PATH=$HOME/bin/:$PATH' >> ~/.bashrc
+          - run: "GRISP_TOOLCHAIN_REVISION=$(git ls-remote -h https://github.com/grisp/grisp-software master | awk '{print $1}')"
+          - run: 'wget -o /tmp https://s3.amazonaws.com/grisp/platforms/grisp_base/toolchain/grisp_toolchain_arm-rtems5_Linux_$GRISP_TOOLCHAIN_REVISION.tar.gz'
+          - run:
+              command: tar -xzf /tmp/grisp_toolchain*
+              working_directory: /tmp/
+          - run: "echo '{plugins, [rebar3_hex, rebar3_grisp]}.' >> ~/.config/rebar3/rebar.config"
+          - run: mkdir /tmp/destination
+          - run:
+              command: rebar3 new grispapp ciproject --destination /tmp/destination
+              working_directory: ~
+          - run:
+              command: erl -noshell -eval '{ok, Config} = file:consult("rebar.config"),
+              {value, {grisp, GrispConfig}} = lists:keysearch(grisp, 1, Config),
+              NewGrispConfig = GrispConfig ++ [{build, [{toolchain, [{directory, "/tmp/rtems-install/rtems/5"}]}]}],
+              NewConfig = lists:keyreplace(grisp, 1, Config, {grisp, NewGrispConfig}),
+              io:fwrite("~p", [NewConfig]).' -s init stop
+              working_directory: ~/ciproject
+          - run: rebar3 grisp build --tar true
+          - run: rebar3 grisp deploy -v 0.1.0 -n ciproject
+          # TODO: deploy OTP to aws
+
+
