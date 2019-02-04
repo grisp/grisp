@@ -7,7 +7,7 @@ jobs:
           - image: 'opensuse:leap'
         steps:
           - run: 'zypper install -y --type pattern devel_basis devel_C_C++'
-          - run: 'zypper install -y git tar gzip wget curl'
+          - run: 'zypper install -y git tar gzip wget curl libopenssl-devel openssl'
           - run: 'git clone https://github.com/asdf-vm/asdf.git ~/.asdf'
           - run:
               command: git checkout "$(git describe --abbrev=0 --tags)"
