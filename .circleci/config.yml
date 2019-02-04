@@ -33,7 +33,7 @@ jobs:
           - run:
               command: "source ~/.bashrc &&
               rebar3 new grispapp ciproject --destination /tmp/destination"
-              working_directory: ~
+              working_directory: /root
           - run:
               command: "source ~/.bashrc && erl -noshell -eval '{ok, Config} = file:consult(\"rebar.config\"),
               {value, {grisp, GrispConfig}} = lists:keysearch(grisp, 1, Config),
