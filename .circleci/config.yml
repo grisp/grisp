@@ -21,7 +21,7 @@ jobs:
           - run: 'wget -o ~/bin/rebar3 https://s3.amazonaws.com/rebar3/rebar3'
           - run: echo 'export PATH=$HOME/bin/:$PATH' >> ~/.bashrc
           - run:
-              command: "GRISP_TOOLCHAIN_REVISION=$(git ls-remote -h https://github.com/grisp/grisp-software master | awk '{print $1}') &&
+              command: "GRISP_TOOLCHAIN_REVISION=$(git ls-remote -h https://github.com/nextl00p/grisp-software master | awk '{print $1}') &&
               wget https://s3.amazonaws.com/grisp/platforms/grisp_base/toolchain/grisp_toolchain_arm-rtems5_Linux_$GRISP_TOOLCHAIN_REVISION.tar.gz"
               working_directory: /tmp
           - run:
