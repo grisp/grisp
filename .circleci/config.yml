@@ -27,9 +27,10 @@ jobs:
               command: "GRISP_TOOLCHAIN_REVISION=$(git ls-remote -h https://github.com/nextl00p/grisp-software master | awk '{print $1}') &&
               wget https://s3.amazonaws.com/grisp/platforms/grisp_base/toolchain/grisp_toolchain_arm-rtems5_Linux_$GRISP_TOOLCHAIN_REVISION.tar.gz"
               working_directory: /tmp
+          - run: mkdir /root/project/rtems-install
           - run:
               command: tar -xzf /tmp/grisp_toolchain*
-              working_directory: /tmp/
+              working_directory: /root/project/rtems-install
           - run: mkdir -p ~/.config/rebar3
           - run: "echo '{plugins, [rebar3_hex, rebar3_grisp]}.' >> ~/.config/rebar3/rebar.config"
           - run: mkdir /tmp/destination
@@ -40,7 +41,7 @@ jobs:
           - run:
               command: "source ~/.bashrc && erl -noshell -eval '{ok, Config} = file:consult(\"rebar.config\"),
               {value, {grisp, GrispConfig}} = lists:keysearch(grisp, 1, Config),
-              NewGrispConfig = GrispConfig ++ [{build, [{toolchain, [{directory, \"/tmp/rtems/5\"}]}]}],
+              NewGrispConfig = GrispConfig ++ [{build, [{toolchain, [{directory, \"/root/project/rtems-install/rtems/5\"}]}]}],
               NewConfig = lists:keyreplace(grisp, 1, Config, {grisp, NewGrispConfig}),
               file:write_file(\"rebar.config\", lists:map(fun (E) -> io_lib:format(\"~p.~n\", [E]) end, NewConfig)).' -s init stop"
               working_directory: /root/ciproject
