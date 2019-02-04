@@ -7,17 +7,17 @@ jobs:
           - image: 'opensuse:leap'
         steps:
           - run: 'zypper install -y --type pattern devel_basis devel_C_C++'
-          - run: 'zypper install -y git tar gzip'
+          - run: 'zypper install -y git tar gzip wget'
           - run: 'git clone https://github.com/asdf-vm/asdf.git ~/.asdf'
           - run:
               command: git checkout "$(git describe --abbrev=0 --tags)"
               working_directory: ~/.asdf
           - run: "echo -e '\n. $HOME/.asdf/asdf.sh' >> ~/.bashrc && \
             echo -e '\n. $HOME/.asdf/completions/asdf.bash' >> ~/.bashrc"
-          - run: "source ~/.bashrc"
-          - run: 'asdf plugin-add erlang'
-          - run: 'asdf install erlang 21.0' # we might also test others later...
-          - run: 'asdf global erlang'
+          - run: 'source ~/.bashrc &&
+            asdf plugin-add erlang &&
+            asdf install erlang 21.0 &&
+            asdf global erlang' # we might also test others later...
           - run: 'mkdir ~/bin'
           - run: 'wget -o ~/bin/rebar3 https://s3.amazonaws.com/rebar3/rebar3'
           - run: echo 'export PATH=$HOME/bin/:$PATH' >> ~/.bashrc
