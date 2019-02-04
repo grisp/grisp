@@ -20,7 +20,7 @@ jobs:
             asdf global erlang 21.0'
           - run:
               command: wget https://s3.amazonaws.com/rebar3/rebar3
-              workind_directory: /root/bin
+              working_directory: /root/bin
           - run: chmod +x /root/bin/rebar3
           - run: echo 'export PATH=$HOME/bin/:$PATH' >> ~/.bashrc
           - run:
