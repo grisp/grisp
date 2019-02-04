@@ -27,6 +27,7 @@ jobs:
           - run:
               command: tar -xzf /tmp/grisp_toolchain*
               working_directory: /tmp/
+          - run: mkdir -p ~/.config/rebar3
           - run: "echo '{plugins, [rebar3_hex, rebar3_grisp]}.' >> ~/.config/rebar3/rebar.config"
           - run: mkdir /tmp/destination
           - run:
