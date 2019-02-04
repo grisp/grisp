@@ -39,5 +39,8 @@ jobs:
           - run: rebar3 grisp build --tar true
           - run: rebar3 grisp deploy -v 0.1.0 -n ciproject
           # TODO: deploy OTP to aws
-
-
+workflows:
+  version: 2
+  build-deploy:
+    jobs:
+      - build
