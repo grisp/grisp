@@ -44,8 +44,12 @@ jobs:
               NewConfig = lists:keyreplace(grisp, 1, Config, {grisp, NewGrispConfig}),
               file:write_file(\"rebar.config\", lists:map(fun (E) -> io_lib:format(\"~p.~n\", [E]) end, NewConfig)).' -s init stop"
               working_directory: /root/ciproject
-          - run: source ~/.bashrc && rebar3 grisp build --tar true
-          - run: source ~/.bashrc && rebar3 grisp deploy -v 0.1.0 -n ciproject
+          - run:
+              command: source ~/.bashrc && rebar3 grisp build --tar true
+              working_directory: /root/ciproject
+          - run:
+              command: source ~/.bashrc && rebar3 grisp deploy -v 0.1.0 -n ciproject
+              working_directory: /root/ciproject
           # TODO: deploy OTP to aws
 workflows:
   version: 2
