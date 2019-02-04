@@ -42,7 +42,7 @@ jobs:
               {value, {grisp, GrispConfig}} = lists:keysearch(grisp, 1, Config),
               NewGrispConfig = GrispConfig ++ [{build, [{toolchain, [{directory, \"/tmp/rtems/5\"}]}]}],
               NewConfig = lists:keyreplace(grisp, 1, Config, {grisp, NewGrispConfig}),
-              io:fwrite(\"~p~n\", [NewConfig]).' -s init stop > rebar.config"
+              lists:map(fun (E) -> io:fwrite(\"~p.~n\", [E]) end, NewConfig).' -s init stop > rebar.config"
               working_directory: /root/ciproject
           - run: source ~/.bashrc && rebar3 grisp build --tar true
           - run: source ~/.bashrc && rebar3 grisp deploy -v 0.1.0 -n ciproject
