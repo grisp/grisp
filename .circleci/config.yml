@@ -18,7 +18,10 @@ jobs:
             asdf plugin-add erlang &&
             asdf install erlang 21.0 &&
             asdf global erlang 21.0'
-          - run: 'wget -o ~/bin/rebar3 https://s3.amazonaws.com/rebar3/rebar3'
+          - run:
+              command: wget https://s3.amazonaws.com/rebar3/rebar3
+              workind_directory: /root/bin
+          - run: chmod +x /root/bin/rebar3
           - run: echo 'export PATH=$HOME/bin/:$PATH' >> ~/.bashrc
           - run:
               command: "GRISP_TOOLCHAIN_REVISION=$(git ls-remote -h https://github.com/nextl00p/grisp-software master | awk '{print $1}') &&
