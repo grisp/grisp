@@ -8,8 +8,10 @@ jobs:
         steps:
           - run: 'zypper install -y --type pattern devel_basis devel_C_C++'
           - run: 'zypper install -y git tar gzip'
-          - run: 'git clone https://github.com/asdf-vm/asdf.git ~/.asdf &&\
-            cd ~/.asdf && git checkout "$(git describe --abbrev=0 --tags)"'
+          - run: 'git clone https://github.com/asdf-vm/asdf.git ~/.asdf'
+          - run:
+              command: git checkout "$(git describe --abbrev=0 --tags)"
+              working_directory: ~/.asdf
           - run: "echo -e '\n. $HOME/.asdf/asdf.sh' >> ~/.bashrc && \
             echo -e '\n. $HOME/.asdf/completions/asdf.bash' >> ~/.bashrc"
           - run: "source ~/.bashrc"
