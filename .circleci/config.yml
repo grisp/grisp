@@ -30,11 +30,11 @@ jobs:
               command: rebar3 new grispapp ciproject --destination /tmp/destination
               working_directory: ~
           - run:
-              command: erl -noshell -eval '{ok, Config} = file:consult("rebar.config"),
+              command: "erl -noshell -eval '{ok, Config} = file:consult(\"rebar.config\"),
               {value, {grisp, GrispConfig}} = lists:keysearch(grisp, 1, Config),
-              NewGrispConfig = GrispConfig ++ [{build, [{toolchain, [{directory, "/tmp/rtems-install/rtems/5"}]}]}],
+              NewGrispConfig = GrispConfig ++ [{build, [{toolchain, [{directory, ¸\"/tmp/rtems-install/rtems/5\"}]}]}],
               NewConfig = lists:keyreplace(grisp, 1, Config, {grisp, NewGrispConfig}),
-              io:fwrite("~p", [NewConfig]).' -s init stop
+              io:fwrite(\"~p\", [NewConfig]).' -s init stop"
               working_directory: ~/ciproject
           - run: rebar3 grisp build --tar true
           - run: rebar3 grisp deploy -v 0.1.0 -n ciproject
