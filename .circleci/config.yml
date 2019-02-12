@@ -1,50 +1,16 @@
 version: 2.1
 orbs:
-    aws-s3: circleci/aws-s3@1.0.0
+  grisp: grisp-test/grisp@dev:latest
 jobs:
     build:
         docker:
           - image: 'opensuse:leap'
         steps:
-          - run: 'zypper install -y --type pattern devel_basis devel_C_C++'
-          - run: 'zypper install -y git tar gzip wget curl libopenssl-devel openssl'
-          - run: 'git clone https://github.com/asdf-vm/asdf.git ~/.asdf'
-          - run:
-              command: git checkout "$(git describe --abbrev=0 --tags)"
-              working_directory: ~/.asdf
-          - run: "echo -e '\n. $HOME/.asdf/asdf.sh' >> ~/.bashrc && \
-            echo -e '\n. $HOME/.asdf/completions/asdf.bash' >> ~/.bashrc"
-          - run: 'source ~/.bashrc &&
-            asdf plugin-add erlang &&
-            asdf install erlang 21.0 &&
-            asdf global erlang 21.0'
-          - run:
-              command: wget https://s3.amazonaws.com/rebar3/rebar3
-              working_directory: /root/bin
-          - run: chmod +x /root/bin/rebar3
-          - run: echo 'export PATH=$HOME/bin/:$PATH' >> ~/.bashrc
-          - run:
-              command: "GRISP_TOOLCHAIN_REVISION=$(git ls-remote -h https://github.com/nextl00p/grisp-software master | awk '{print $1}') &&
-              wget https://s3.amazonaws.com/grisp/platforms/grisp_base/toolchain/grisp_toolchain_arm-rtems5_Linux_$GRISP_TOOLCHAIN_REVISION.tar.gz"
-              working_directory: /tmp
-          - run: mkdir /root/project/rtems-install
-          - run:
-              command: tar -xzf /tmp/grisp_toolchain*
-              working_directory: /root/project/rtems-install
-          - run: mkdir -p ~/.config/rebar3
-          - run: "echo '{plugins, [rebar3_hex, rebar3_grisp]}.' >> ~/.config/rebar3/rebar.config"
-          - run: mkdir /tmp/destination
-          - run:
-              command: "source ~/.bashrc &&
-              rebar3 new grispapp ciproject dest=/tmp/destination"
-              working_directory: /root
-          - run:
-              command: "source ~/.bashrc && erl -noshell -eval '{ok, Config} = file:consult(\"rebar.config\"),
-              {value, {grisp, GrispConfig}} = lists:keysearch(grisp, 1, Config),
-              NewGrispConfig = GrispConfig ++ [{build, [{toolchain, [{directory, \"/root/project/rtems-install/rtems/5\"}]}]}],
-              NewConfig = lists:keyreplace(grisp, 1, Config, {grisp, NewGrispConfig}),
-              file:write_file(\"rebar.config\", lists:map(fun (E) -> io_lib:format(\"~p.~n\", [E]) end, NewConfig)).' -s init stop"
-              working_directory: /root/ciproject
+          - grisp/install-erlang
+          - grisp/install-rebar3
+          - grisp/install-toolchain
+          - grisp/create-grisp-project:
+              deploy-destination: /tmp/deploy
           - run:
               command: source ~/.bashrc && rebar3 grisp build --tar true
               working_directory: /root/ciproject
