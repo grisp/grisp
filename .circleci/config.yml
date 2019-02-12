@@ -1,6 +1,6 @@
 version: 2.1
 orbs:
-  grisp: grisp-test/grisp@dev:latest
+  grisp: grisp-test/grisp@dev:fix-empty-strings
 jobs:
     build:
         docker:
