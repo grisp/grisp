@@ -10,6 +10,7 @@ jobs:
           - grisp/install-rebar3
           - grisp/install-toolchain
           - grisp/create-grisp-project:
+              build-otp: true
               deploy-destination: '/tmp/deploy'
           - run:
               command: source ~/.bashrc && rebar3 grisp build --tar true
