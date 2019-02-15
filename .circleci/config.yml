@@ -1,6 +1,6 @@
 version: 2.1
 orbs:
-  grisp: grisp-test/grisp@dev:fixglob
+  grisp: grisp-test/grisp@dev:arrayglob
 jobs:
     build:
         docker:
