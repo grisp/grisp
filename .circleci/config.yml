@@ -37,6 +37,7 @@ jobs:
             if [ $COUNT -eq 0 ]; then
             aws s3 cp otp/*/package/grisp_otp_build_*.tar.gz s3://grisp/platforms/grisp_base/otp/ --acl public-read;
             fi"
+            working_directory: /root
 workflows:
   version: 2
   build-deploy:
