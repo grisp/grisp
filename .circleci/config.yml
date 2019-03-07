@@ -1,6 +1,6 @@
 version: 2.1
 orbs:
-grisp: grisp/grisp@0.0.1
+  grisp: grisp/grisp@0.0.1
 jobs:
     build:
         docker:
