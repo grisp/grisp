@@ -1,6 +1,6 @@
 version: 2.1
 orbs:
-  grisp: grisp-test/grisp@dev:dirfix
+grisp: grisp/grisp@0.0.1
 jobs:
     build:
         docker:
@@ -12,15 +12,38 @@ jobs:
           - grisp/create-grisp-project:
               build-otp: true
               deploy-destination: '/tmp/deploy'
+              grisp-repo: "${CIRCLE_REPOSITORY_URL}"
+              grisp-revision: "${CIRCLE_SHA1}"
           - run:
               command: source ~/.bashrc && rebar3 grisp build --tar true
               working_directory: /root/ciproject
           - run:
               command: source ~/.bashrc && rebar3 grisp deploy -v 0.1.0 -n ciproject
               working_directory: /root/ciproject
-          # TODO: deploy OTP to aws
+          - persist_to_workspace:
+              root: /root/ciproject/_grisp/otp
+              paths:
+                - "*/package/*.tar.gz"
+    deploy:
+      docker:
+        - image: 'opensuse:leap'
+      steps:
+        - run: 'zypper install -y aws-cli tar gzip'
+        - attach_workspace:
+            at: /root/
+        - deploy:
+            command: "ARCHIVENAME=$(basename otp/*/package/grisp_otp_build_*.tar.gz) &&
+            COUNT=$(aws s3 ls s3://grisp/platforms/grisp_base/otp/$ARCHIVENAME | wc -l) &&
+            if [[ $count -gt 0 ]]; then
+            echo 'File exists on s3 already';
+            else
+            aws s3 cp otp/*/package/grisp_otp_build_*.tar.gz s3://grisp/platforms/grisp_base/otp/ --acl public-read;
+            fi"
 workflows:
   version: 2
   build-deploy:
     jobs:
       - build
+      - deploy:
+          requires:
+            - build
