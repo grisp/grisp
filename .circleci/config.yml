@@ -33,7 +33,7 @@ jobs:
             at: /root/
         - deploy:
             command: "ARCHIVENAME=$(basename otp/*/package/grisp_otp_build_*.tar.gz) &&
-            COUNT=$(set -o pipefail; aws s3 ls s3://grisp/platforms/grisp_base/otp/$ARCHIVENAME | wc -l) &&
+            COUNT=$(set +o pipefail; aws s3 ls s3://grisp/platforms/grisp_base/otp/$ARCHIVENAME | wc -l) &&
             if [ $COUNT -eq 0 ]; then
             aws s3 cp otp/*/package/grisp_otp_build_*.tar.gz s3://grisp/platforms/grisp_base/otp/ --acl public-read;
             else
