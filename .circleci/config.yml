@@ -21,9 +21,9 @@ jobs:
               command: source ~/.bashrc && rebar3 grisp deploy -v 0.1.0 -n ciproject
               working_directory: /root/ciproject
           - persist_to_workspace:
-              root: /root/ciproject/_grisp/otp
+              root: /root/ciproject/_grisp/
               paths:
-                - "*/package/*.tar.gz"
+                - "otp/*/package/*.tar.gz"
     deploy:
       docker:
         - image: 'opensuse:leap'
@@ -35,8 +35,9 @@ jobs:
             command: "ARCHIVENAME=$(basename otp/*/package/grisp_otp_build_*.tar.gz) &&
             COUNT=$(aws s3 ls s3://grisp/platforms/grisp_base/otp/$ARCHIVENAME | wc -l) &&
             if [ $COUNT -gt 0 ]; then
-            echo 'File exists on s3 already';
+            echo 'File '$ARCHIVENAME' exists on s3 already';
             else
+            echo 'Uploading '$ARCHIVENAME' to S3' &&
             aws s3 cp otp/*/package/grisp_otp_build_*.tar.gz s3://grisp/platforms/grisp_base/otp/ --acl public-read;
             fi"
 workflows:
