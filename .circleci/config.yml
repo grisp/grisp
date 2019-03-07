@@ -34,10 +34,7 @@ jobs:
         - deploy:
             command: "ARCHIVENAME=$(basename otp/*/package/grisp_otp_build_*.tar.gz) &&
             COUNT=$(aws s3 ls s3://grisp/platforms/grisp_base/otp/$ARCHIVENAME | wc -l) &&
-            if [ $COUNT -gt 0 ]; then
-            echo 'File '$ARCHIVENAME' exists on s3 already';
-            else
-            echo 'Uploading '$ARCHIVENAME' to S3' &&
+            if [ $COUNT -eq 0 ]; then
             aws s3 cp otp/*/package/grisp_otp_build_*.tar.gz s3://grisp/platforms/grisp_base/otp/ --acl public-read;
             fi"
 workflows:
