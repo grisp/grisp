@@ -1,5 +1,9 @@
 {"1.1.0",
-[{<<"mapz">>,{pkg,<<"mapz">>,<<"0.3.0">>},0}]}.
+[{<<"grisp_emu">>,
+  {git,"git@github.com:Theuns-Botha/grisp_emu.git",
+       {ref,"b3ff170f9243f94f5311869b1e28578b5e80301a"}},
+  0},
+ {<<"mapz">>,{pkg,<<"mapz">>,<<"0.3.0">>},0}]}.
 [
 {pkg_hash,[
  {<<"mapz">>, <<"438D24746CE5A252101E00B2032EFDF7FC69EB32689D3B805DE5E6DD7F52614F">>}]}
