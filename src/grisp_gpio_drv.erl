@@ -8,6 +8,7 @@
 %--- Macros --------------------------------------------------------------------
 
 -define(PORT_COMMAND_TIMEOUT, 1000).
+-define(RESP_MSG_CODE, $R).
 
 %--- API -----------------------------------------------------------------------
 
@@ -16,8 +17,8 @@ open() -> open_port({spawn_driver, "grisp_gpio_drv"}, [binary]).
 command(Port, Command) ->
     Port ! {self(), {command, Command}},
     receive
-        {Port, {data, Resp}} ->
+        {Port, {data, <<?RESP_MSG_CODE, Resp/binary>>}} ->
             Resp
     after ?PORT_COMMAND_TIMEOUT ->
-            exit({gpio_driver_timeout, Command})
+            exit({gpio_ex_driver_timeout, Command})
     end.

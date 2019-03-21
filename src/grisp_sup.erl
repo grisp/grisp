@@ -21,8 +21,7 @@ start_link() ->
         ]),
         supervisor(grisp_devices_sup, grisp_devices_sup, []),
         supervisor(grisp_internal_sup, [
-            worker(grisp_gpio_events, gen_event, [{local, grisp_gpio_events}]),
-            worker(grisp_gpio_poller, []),
+            worker(grisp_gpio_events, grisp_gpio, start_link_handlers, []),
             worker(grisp_led, []),
             worker(grisp_devices, []),
             worker(grisp_onewire, [])
@@ -42,7 +41,8 @@ init(Children) ->
 %--- Internal ------------------------------------------------------------------
 
 worker(ID, A)    -> worker(ID, ID, A).
-worker(ID, M, A) -> #{id => ID, start => {M, start_link, A}}.
+worker(ID, M, A) -> worker(ID, M, start_link, A).
+worker(ID, M, F, A) -> #{id => ID, start => {M, F, A}}.
 
 supervisor(ID, Children) when is_list(Children) ->
     supervisor(ID, ?MODULE, [Children]).

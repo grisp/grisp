@@ -56,7 +56,7 @@ message(State, {spi, ?SPI_MODE, Req}) when ?ALT(State) ->
 message(State, {spi, ?SPI_MODE, <<Req, Value/binary>>}) ->
     error({unknown_spi_request, State, Req, Value}).
 
-broadcast(#state{pins = Pins} = State, {gpio, Pin, {configure, Mode, _}}) when ?PIN(Pin) ->
+broadcast(#state{pins = Pins} = State, {gpio, Pin, {configure, Mode, _, _, _, _, _}}) when ?PIN(Pin) ->
     State#state{pins = maps:update(Pin, {Mode, value(Mode)}, Pins)};
 broadcast(#state{pins = Pins} = State, {gpio, Pin, clear}) ->
     NewPins = maps:update_with(Pin, fun({Mode, _}) -> {Mode, 0} end, Pins),
