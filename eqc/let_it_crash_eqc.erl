@@ -121,11 +121,11 @@ driver_failure_callouts(_S, [Nr, _, _, Failure, _, _, _]) ->
        end,
   ?PAR([
         ?OPTIONAL(
-           ?CALLOUT(grisp_gpio_drv_emu, led, [led_eqc:pin(Nr, red),   ?WILDCARD], Ok(1))),
+           ?CALLOUT(grisp_emulation_gpio_drv, led, [led_eqc:pin(Nr, red),   ?WILDCARD], Ok(1))),
         ?OPTIONAL(
-           ?CALLOUT(grisp_gpio_drv_emu, led, [led_eqc:pin(Nr, green), ?WILDCARD], Ok(2))),
+           ?CALLOUT(grisp_emulation_gpio_drv, led, [led_eqc:pin(Nr, green), ?WILDCARD], Ok(2))),
         ?OPTIONAL(
-           ?CALLOUT(grisp_gpio_drv_emu, led, [led_eqc:pin(Nr, blue),  ?WILDCARD], Ok(3)))]).
+           ?CALLOUT(grisp_emulation_gpio_drv, led, [led_eqc:pin(Nr, blue),  ?WILDCARD], Ok(3)))]).
 
 driver_failure_next(S, V, _Args) ->
   S#state{crashes = S#state.crashes ++ [ V ]}.
