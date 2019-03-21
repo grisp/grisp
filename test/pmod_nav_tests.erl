@@ -19,9 +19,9 @@ nav_test_() ->
 setup() ->
     error_logger:tty(false),
     application:set_env(grisp, drivers, [
-        {spi, grisp_spi_drv_emu},
-        {gpio, grisp_gpio_drv_emu},
-        {i2c, grisp_i2c_drv_emu}
+        {spi, grisp_emulation_spi_drv},
+        {gpio, grisp_emulation_gpio_drv},
+        {i2c, grisp_emulation_i2c_drv}
     ]),
     application:set_env(grisp, devices, [
         {spi1, pmod_nav}

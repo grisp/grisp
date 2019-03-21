@@ -55,9 +55,9 @@ led_color(Nr, {_Name, RGB}, by_value) ->
 
 led_color_callouts(_S, [Nr, {_, {R, G, B}}, _]) ->
   ?PAR([
-        ?CALLOUT(grisp_gpio_drv_emu, led, [pin(Nr, red),   onoff(R)], ok),
-        ?CALLOUT(grisp_gpio_drv_emu, led, [pin(Nr, green), onoff(G)], ok),
-        ?CALLOUT(grisp_gpio_drv_emu, led, [pin(Nr, blue),  onoff(B)], ok)]),
+        ?CALLOUT(grisp_emulation_gpio_drv, led, [pin(Nr, red),   onoff(R)], ok),
+        ?CALLOUT(grisp_emulation_gpio_drv, led, [pin(Nr, green), onoff(G)], ok),
+        ?CALLOUT(grisp_emulation_gpio_drv, led, [pin(Nr, blue),  onoff(B)], ok)]),
   ?RET(ok).
 
 %% --- Operation: off ---
@@ -70,9 +70,9 @@ led_off(Nr) ->
 
 led_off_callouts(_S, [Nr]) ->
   ?PAR([
-        ?CALLOUT(grisp_gpio_drv_emu, led, [pin(Nr, red),   clear], ok),
-        ?CALLOUT(grisp_gpio_drv_emu, led, [pin(Nr, green), clear], ok),
-        ?CALLOUT(grisp_gpio_drv_emu, led, [pin(Nr, blue),  clear], ok)]),
+        ?CALLOUT(grisp_emulation_gpio_drv, led, [pin(Nr, red),   clear], ok),
+        ?CALLOUT(grisp_emulation_gpio_drv, led, [pin(Nr, green), clear], ok),
+        ?CALLOUT(grisp_emulation_gpio_drv, led, [pin(Nr, blue),  clear], ok)]),
   ?RET(ok).
 
 pin(1, red)   -> led1_r;
@@ -123,7 +123,7 @@ api_spec() ->
              mocking = eqc_mocking,
              modules =
                [ #api_module{
-                    name = grisp_gpio_drv_emu,
-                    fallback = grisp_gpio_drv_emu,
+                    name = grisp_emulation_gpio_drv,
+                    fallback = grisp_emulation_gpio_drv,
                     functions =  [ #api_fun{ name = led, arity = 2} ]}
                ]}.
