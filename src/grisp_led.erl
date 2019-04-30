@@ -45,7 +45,7 @@
 % A time interval for a color in milliseconds. Must be 1 or above, or
 % alternatively `infinity'.
 
--type pattern() :: [{time(), color() | function()}].
+-type pattern() :: [{time(), color() | fun(() -> color()) }].
 % A list of intervals and colors to show during those intervals.
 
 %--- Records -------------------------------------------------------------------
@@ -109,18 +109,18 @@ flash(Pos, Color, Interval) ->
 % 3> grisp_led:flash(2, Rainbow).
 % ok
 % '''
-% 
+%
 % The color can also be specified using functions as generators
 % instead of explicitly stating the color :
-% 
+%
 % ```
 % 2> Random = fun() -> {rand:uniform(2) - 1, rand:uniform(2) -1, rand:uniform(2) - 1} end.
 % #Fun<erl_eval.20.128620087>
 % 3> grisp_led:pattern(1, [{100, Random}]).
-% ''' 
-% 
-% As well as by composing lists of intervals and pattern functions : 
-% 
+% '''
+%
+% As well as by composing lists of intervals and pattern functions :
+%
 % ```
 % 4> Funs = [ fun() -> {X rem 2, rand:uniform(2) - 1 , 1} end || X <- lists:seq(1,10) ].
 % [#Fun<erl_eval.20.128620087>, ...
