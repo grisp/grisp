@@ -1,8 +1,6 @@
 # grisp
 GRiSP Erlang Runtime Library
 
-[![CircleCI](https://circleci.com/gh/grisp/grisp/tree/master.svg?style=svg)](https://circleci.com/gh/grisp/grisp/tree/master)
-
 ## Concepts
 
 <dl>
