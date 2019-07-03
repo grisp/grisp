@@ -50,7 +50,9 @@ static Pin pins[] =
     {PIO_PB2C_CTS0,        PIOB, ID_PIOB, PIO_PERIPH_C, PIO_DEFAULT}, /* 23: uart_1_cts */
     {PIO_PB1C_TXD0,        PIOB, ID_PIOB, PIO_PERIPH_C, PIO_DEFAULT}, /* 24: uart_2_txd */
     {PIO_PB0C_RXD0,        PIOB, ID_PIOB, PIO_PERIPH_C, PIO_DEFAULT}, /* 25: uart_3_rxd */
-    {PIO_PB3C_RTS0,        PIOB, ID_PIOB, PIO_PERIPH_C, PIO_DEFAULT}  /* 26: uart_4_rts */
+    {PIO_PB3C_RTS0,        PIOB, ID_PIOB, PIO_PERIPH_C, PIO_DEFAULT}, /* 26: uart_4_rts */
+    {PIO_PA2,              PIOA, ID_PIOA, PIO_INPUT,    PIO_DEFAULT}, /* 27: spi1_int */
+    {PIO_PC9,              PIOC, ID_PIOC, PIO_OUTPUT_1, PIO_DEFAULT}  /* 28: spi1_reset */
   };
 
 int grisp_gpio_init (void);
