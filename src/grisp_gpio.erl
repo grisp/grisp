@@ -105,14 +105,16 @@ index(jumper_2)   -> 15;
 index(jumper_3)   -> 16;
 index(jumper_4)   -> 17;
 index(jumper_5)   -> 18;
-index(spi1_pin9)  -> 19;
-index(spi1_pin10) -> 20;
-index(ss1)        -> 21;
-index(ss2)        -> 22;
-index(uart_1_cts) -> 23;
-index(uart_2_txd) -> 24;
-index(uart_3_rxd) -> 25;
-index(uart_4_rts) -> 26;
+index(spi1_pin7)  -> 19;
+index(spi1_pin8)  -> 20;
+index(spi1_pin9)  -> 21;
+index(spi1_pin10) -> 22;
+index(ss1)        -> 23;
+index(ss2)        -> 24;
+index(uart_1_cts) -> 25;
+index(uart_2_txd) -> 26;
+index(uart_3_rxd) -> 27;
+index(uart_4_rts) -> 28;
 index(Any) when is_integer(Any) ->
     Any.
 
