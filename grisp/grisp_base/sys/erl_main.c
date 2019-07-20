@@ -315,8 +315,7 @@ printf ("grisp.ini: "
         if (strcmp(value, "rtems") == 0) {
           rtems_shell = 1;
           ok = 1;
-      } else if {
-          (strcmp(value, "erlang") == 0)
+      } else if (strcmp(value, "erlang") == 0) {
           rtems_shell = 0;
           ok = 1;
       }
