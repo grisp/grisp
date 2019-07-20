@@ -462,14 +462,6 @@ static void Init(rtems_task_argument arg)
   int rv = 0;
   static char pwd[1024];
   char *p;
-  // char *argv_rtems_shell[] = { "erl.rtems", "--", "-root", relname,
-  //    "-home", "/home", "-boot", "cleanapp/releases/0.1.0/cleanapp", 
-  //    "-noshell", "-noinput",
-  //    "-config", "cleanapp/releases/0.1.0/sys.config",
-  // };
-  // int argc_rtems_shell = sizeof(argv_rtems_shell)/sizeof(*argv_rtems_shell);
-
-  // atexit(fatal_atexit);
 
   grisp_led_set1(false, false, false);
   grisp_led_set2(true, true, true);
@@ -493,19 +485,6 @@ static void Init(rtems_task_argument arg)
   evaluate_ini_file(INI_FILE);
   printf("%s\n", erl_args);
   parse_args(erl_args);
-
-  if (rtems_shell == 1)
-  {
-    grisp_led_set2(false, true, false);
-    char *argv_rtems_shell[] = { "erl.rtems", "--", "-root", erl_args_root,
-       "-home", "/home", "-boot", erl_args_boot, 
-       "-noshell", "-noinput",
-       "-config", erl_args_config,
-    };
-    int argc_rtems_shell = sizeof(argv_rtems_shell)/sizeof(*argv_rtems_shell);
-
-    atexit(fatal_atexit);  
-  }
 
   if(start_dhcp) {
       grisp_led_set2(false, true, true);
@@ -548,6 +527,7 @@ static void Init(rtems_task_argument arg)
   /* Need to change the directory here because some dunderheaded
      library changes it back to root otherwise */
 
+
   printf("chdir(%s)\n", MNT);
   rv = chdir(MNT);
   if (rv < 0)
@@ -564,8 +544,30 @@ static void Init(rtems_task_argument arg)
   sethostname(hostname, strlen(hostname));
   printf("hostname: %s\n", hostname);
 
-  printf("starting erlang runtime\n");
-  erl_start(argc, argv);
+  if (rtems_shell == 1)
+  {
+    grisp_led_set2(false, true, false);
+    char *argv_rtems_shell[] = { "erl.rtems", "--", "-root", erl_args_root,
+       "-home", "/home", "-boot", erl_args_boot, 
+       "-noshell", "-noinput",
+       "-config", erl_args_config,
+    };
+    int argc_rtems_shell = sizeof(argv_rtems_shell)/sizeof(*argv_rtems_shell);
+
+    atexit(fatal_atexit);
+
+    printf("\nstarting RTEMS shell...\n");
+    
+    sc = rtems_shell_init("SHLL", SHELL_STACK_SIZE, 10,
+      CONSOLE_DEVICE_NAME, true, false, NULL);
+
+    assert(sc == RTEMS_SUCCESSFUL);
+    erl_start(argc_rtems_shell, argv_rtems_shell);
+  } else {
+    printf("starting erlang runtime\n");
+    erl_start(argc, argv);
+  };
+
   printf("erlang runtime exited\n");
   sleep(2);
   exit(0);
