@@ -50,6 +50,31 @@
 #define PRIO_DHCP		(RTEMS_MAXIMUM_PRIORITY - 1)
 #define PRIO_WPA		(RTEMS_MAXIMUM_PRIORITY - 1)
 
+#define SHELL_STACK_SIZE (RTEMS_MINIMUM_STACK_SIZE * 4)
+
+/* erl args: section "erlang", name "args", value :
+* [0] "erl.rtems
+* [1] --
+* [2] -mode
+* [3] embedded
+* [4] -home
+* [5] .
+* [6] -pa
+* [7] .
+* [8] -root
+* [9] maxsonar
+* [10] -config
+* [11] maxsonar/releases/0.1.0/sys.config
+* [12] -boot
+* [13] maxsonar/releases/0.1.0/maxsonar
+* [14] -kernel
+* [15] inetrc
+* [16] "./erl_inetrc"
+*/ 
+#define ERL_ARGS_ROOT_POS 9
+#define ERL_ARGS_CONFIG_POS 11 
+#define ERL_ARGS_BOOT_POS 13
+
 void parse_args(char *args);
 
 const Pin atsam_pin_config[] = {GRISP_PIN_CONFIG};
@@ -62,6 +87,18 @@ static int wlan_enable = 0;
 
 static char *ip_self = "";
 static char *wlan_ip_netmask = "";
+
+static char *erl_args_root = "";
+static char *erl_args_config = "";
+static char *erl_args_boot = "";
+
+/*
+* Leaving the default configuration
+* such that without an explicit parameter
+* for the RTEMS shell with a silent Erlang VM
+* running, the Erlang shell would be visible.
+*/
+static int rtems_shell = 0;
 
 /*
 * Infrastructure mode by default.
@@ -208,6 +245,7 @@ static int ini_file_handler(void *arg, const char *section, const char *name,
 printf ("grisp.ini: "
     "section \"%s\", name \"%s\", value \"%s\"\n",
     section, name, value);
+
     if (strcmp(section, "network") == 0) {
         if (strcmp(name, "hostname") == 0) {
             hostname = strdup(value);
@@ -264,8 +302,24 @@ printf ("grisp.ini: "
 		  "section \"%s\", name \"%s\", value \"%s\"\n",
 		  section, name, value);
 	  erl_args = strdup(value);
+
+    erl_args_root = strdup(erl_args[ERL_ARGS_ROOT_POS]);
+    erl_args_config = strdup(erl_args[ERL_ARGS_CONFIG_POS]);
+    erl_args_boot = strdup(erl_args[ERL_ARGS_BOOT_POS]);
+
 	  ok = 1;
       }
+  }
+  else if (strcmp(section, "serial") == 0) {
+      if (strcmp(name, "shell") == 0) {
+        if (strcmp(value, "rtems") == 0) {
+          rtems_shell = 1;
+          ok = 1;
+      } else if (strcmp(value, "erlang") == 0) {
+          rtems_shell = 0;
+          ok = 1;
+      }
+    }
   }
   else
     ok = 1;
@@ -408,8 +462,6 @@ static void Init(rtems_task_argument arg)
   static char pwd[1024];
   char *p;
 
-  atexit(fatal_atexit);
-
   grisp_led_set1(false, false, false);
   grisp_led_set2(true, true, true);
   printf("mounting sd card\n");
@@ -474,6 +526,7 @@ static void Init(rtems_task_argument arg)
   /* Need to change the directory here because some dunderheaded
      library changes it back to root otherwise */
 
+
   printf("chdir(%s)\n", MNT);
   rv = chdir(MNT);
   if (rv < 0)
@@ -490,8 +543,30 @@ static void Init(rtems_task_argument arg)
   sethostname(hostname, strlen(hostname));
   printf("hostname: %s\n", hostname);
 
-  printf("starting erlang runtime\n");
-  erl_start(argc, argv);
+  if (rtems_shell == 1)
+  {
+    grisp_led_set2(false, true, false);
+    char *argv_rtems_shell[] = { "erl.rtems", "--", "-root", erl_args_root,
+       "-home", "/home", "-boot", erl_args_boot, 
+       "-noshell", "-noinput",
+       "-config", erl_args_config,
+    };
+    int argc_rtems_shell = sizeof(argv_rtems_shell)/sizeof(*argv_rtems_shell);
+
+    atexit(fatal_atexit);
+
+    printf("\nstarting RTEMS shell...\n");
+    
+    sc = rtems_shell_init("SHLL", SHELL_STACK_SIZE, 10,
+      CONSOLE_DEVICE_NAME, true, false, NULL);
+
+    assert(sc == RTEMS_SUCCESSFUL);
+    erl_start(argc_rtems_shell, argv_rtems_shell);
+  } else {
+    printf("starting erlang runtime\n");
+    erl_start(argc, argv);
+  };
+
   printf("erlang runtime exited\n");
   sleep(2);
   exit(0);
