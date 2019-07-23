@@ -310,12 +310,12 @@ printf ("grisp.ini: "
 	  ok = 1;
       }
   }
-  else if (strcmp(section, "serial") == 0) {
+  else if (strcmp(section, "rtems") == 0) {
       if (strcmp(name, "shell") == 0) {
-        if (strcmp(value, "rtems") == 0) {
+        if (strcmp(value, "true") == 0) {
           rtems_shell = 1;
           ok = 1;
-      } else if (strcmp(value, "erlang") == 0) {
+      } else if (strcmp(value, "false") == 0) {
           rtems_shell = 0;
           ok = 1;
       }
