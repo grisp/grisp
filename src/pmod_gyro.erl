@@ -22,8 +22,8 @@
 %--- API -----------------------------------------------------------------------
 
 % @private
-start_link(Slot, _Opts) ->
-    gen_server:start_link(?MODULE, Slot, []).
+start_link(Slot, Opts) ->
+    gen_server:start_link(?MODULE, [Slot, Opts], []).
 
 read() ->
     Dev = grisp_devices:default(?MODULE),
@@ -35,16 +35,30 @@ read() ->
 %--- Callbacks -----------------------------------------------------------------
 
 % @private
-init(Slot) ->
+init([Slot, Opts]) ->
     verify_device(Slot),
+    Res = maps:get(resolution, Opts, 250),
+    ResOpt = case Res of
+                 250   -> 2#00000000;
+                 500   -> 2#00010000;
+                 2000  -> 2#00100000;
+                 _     -> error({invalid_option, Res})
+             end,
+    %% set the resolution
+    <<>> = grisp_spi:send_recv(Slot, ?SPI_MODE, <<?RW_WRITE:1, ?MS_SAME:1, ?CTRL_REG4:6, ResOpt:8>>, 2, 0),
+    %% enable the device and axis sensors
     <<>> = grisp_spi:send_recv(Slot, ?SPI_MODE, <<?RW_WRITE:1, ?MS_SAME:1, ?CTRL_REG1:6, 2#00001111:8>>, 2, 0),
     grisp_devices:register(Slot, ?MODULE),
-    {ok, Slot}.
+    {ok, #{slot => Slot, unit_degree => (32766 / Res)}}.
 
 % @private
-handle_call(read, _From, Slot) ->
-    <<Reply:16/signed-little>> = grisp_spi:send_recv(Slot, ?SPI_MODE, <<?RW_READ:1, ?MS_INCR:1, ?OUT_X_L:6>>, 1, 2),
-    {reply, Reply, Slot};
+handle_call(read, _From, #{slot := Slot, unit_degree := UnitDeg} = State) ->
+    <<X:16/signed-little,
+      Y:16/signed-little,
+      Z:16/signed-little>> = grisp_spi:send_recv(Slot, ?SPI_MODE,
+                                                 <<?RW_READ:1, ?MS_INCR:1, ?OUT_X_L:6>>,
+                                                 1, 6),
+    {reply, {X / UnitDeg, Y / UnitDeg, Z / UnitDeg}, State};
 handle_call(Request, From, _State) ->
     error({unknown_request, Request, From}).
 
