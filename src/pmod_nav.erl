@@ -1,8 +1,72 @@
-% LSM9DS1 3-axis accelerometer, 3-axis gyroscope, 3-axis magnetometer:
-% http://www.st.com/web/en/resource/technical/document/datasheet/DM00103319.pdf
-%
-% LPS25HB digital barometer
-% http://www.st.com/web/en/resource/technical/document/datasheet/DM00141379.pdf
+%%%-------------------------------------------------------------------
+%%% @doc Driver module for the Pmod_NAV 9-axis sensor device.
+%%% 
+%%% <h2>WARNING : </h2>
+%%% 
+%%% PMODs are intended to be connected at startup and never added or
+%%% removed while the board is being powered on. Doing so may result in
+%%% damage to the PMOD depending on its specification and build quality.
+%%% <b>Always power down the board before adding or removing PMODs!</b>
+%%%
+%%% For further information please refer to the dedicated GRiSP Wiki page :
+%%%
+%%% <b>PmodNAV Tutorial : </b> 
+%%% <a href="https://github.com/grisp/grisp/wiki/PmodNAV-Tutorial"><b>Pmod_NAV</b></a>. 
+%%% 
+%%% This device provides sensor data from one of these three
+%%% main components :
+%%%
+%%% <ul>
+%%%     <li> Accelerometer => acc </li>
+%%%     <li> Gyroscope => alt </li>
+%%%     <li> Magnetometer => mag </li>
+%%% </ul>
+%%%
+%%% These components are able to provide raw data measurements for :
+%%%
+%%% <ul>
+%%%     <li> Acceloremeter values in G's for X, Y and Z axises </li>
+%%%     <li> Gyroscope values in DPS for X, Y and Z axises </li>
+%%%     <li> Magnetometer values in Gauss for X, Y and Z axises </li>
+%%%     <li> Pressure value in hPa </li>
+%%%     <li> Temperature value in degrees Celcius </li>
+%%% </ul>
+%%%
+%%% The GRiSP application can be setup through the `sys.config'
+%%% by specifying that a Pmod_NAV device is connected to the
+%%% SPI1 slot :
+%%%
+%%% ```
+%%% {grisp , [
+%%%     {drivers , [
+%%%         {spi , grisp_spi_drv}
+%%%     ]} ,
+%%%     {devices , [
+%%%         {spi1 , pmod_nav}
+%%%     ]}
+%%% ]}.
+%%% '''
+%%%
+%%% Or added at runtime by calling :
+%%%
+%%% ```
+%%% 1> grisp:add_device(spi1, pmod_nav).
+%%% {device,spi1,pmod_nav,<0.124.0>,
+%%%         #Ref<0.4148633910.4154982401.135288>}
+%%% '''
+%%% 
+%%% Data can be retrieved as follows :
+%%%
+%%% ```
+%%% Temperature = pmod_nav:read(acc, [out_temp]).
+%%% '''
+%%%
+%%% Where `acc' is the component providing the
+%%% data and `[out_temp]' is the list of registers
+%%% that is read.
+%%%
+%%% @end
+%%%-------------------------------------------------------------------
 -module(pmod_nav).
 
 -behavior(gen_server).
