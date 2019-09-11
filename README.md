@@ -13,7 +13,7 @@ This repository contains the Erlang runtime and support code for the GRiSP hardw
 A GRiSP board has many slots. Two SPI slots, one UART slot, two GPIO slots and one I<sup>2</sup>C and one 1-Wire slot respectively. It also has two RGB leds and a JTAG connection.
 
 * **Slot** - A physical slot where a component can be connected. E.g. <em>SPI1</em> where a Pmod can be connected.
-* **Pmod** - A peripheral device that implements the [Digilent Pmod™ connection form factor and interafe][1].
+* **Pmod** - A peripheral device that implements the [Digilent Pmod™ connection form factor and interface][1].
 * **SPI** - Serial Peripheral Interface. Synchronous serial communication interface.
 * **UART** - Universal Asynchronous Receiver-Transmitter. Asynchronous serial communication interface.
 * **GPIO** - General Purpose Input/Output. Digital signal pin interface used to interface with single pins.
