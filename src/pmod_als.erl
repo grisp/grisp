@@ -81,7 +81,7 @@ read() ->
     end.
 
 %% @doc Returns a the percentage of current ambient light
-%% based on the {@link pmod_als:read} function. The value
+%% based on the {@link pmod_als:read/0} function. The value
 %% is rounded to the closest integer.
 -spec percentage() -> 0..100.
 percentage() ->
