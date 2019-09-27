@@ -1,6 +1,37 @@
 # Change Log
 
+## [1.1.5](https://github.com/grisp/grisp/tree/1.1.5) (2019-09-27)
+
+[Full Changelog](https://github.com/grisp/grisp/compare/1.1.4...1.1.5)
+
+**Implemented enhancements:**
+
+- Make it possible to configure UART pins as GPIO [\#37](https://github.com/grisp/grisp/issues/37)
+
+**Fixed bugs:**
+
+- Edoc doesn't build on master [\#60](https://github.com/grisp/grisp/issues/60)
+
+**Closed issues:**
+
+- grisp\_led:pattern documentation is missing the Fun argument [\#49](https://github.com/grisp/grisp/issues/49)
+- Data decoding for pmod\_maxsonar is wrong [\#42](https://github.com/grisp/grisp/issues/42)
+
+**Merged pull requests:**
+
+- Quickfix for typo [\#64](https://github.com/grisp/grisp/pull/64) ([Laymer](https://github.com/Laymer))
+- Gps [\#57](https://github.com/grisp/grisp/pull/57) ([aytchell](https://github.com/aytchell))
+- Add missing SPI pins [\#56](https://github.com/grisp/grisp/pull/56) ([Theuns-Botha](https://github.com/Theuns-Botha))
+- Add support for OTP 22 [\#54](https://github.com/grisp/grisp/pull/54) ([sylane](https://github.com/sylane))
+- Examples for grisp\_led:pattern/2 using functions [\#50](https://github.com/grisp/grisp/pull/50) ([Laymer](https://github.com/Laymer))
+- Split out emulation layer [\#46](https://github.com/grisp/grisp/pull/46) ([Theuns-Botha](https://github.com/Theuns-Botha))
+- Fixed data decoding for 'Digilent PmodMAXSONAR' [\#43](https://github.com/grisp/grisp/pull/43) ([aytchell](https://github.com/aytchell))
+- Add Feature wireless ad hoc network mode [\#41](https://github.com/grisp/grisp/pull/41) ([Laymer](https://github.com/Laymer))
+-  Add Digilent Pmod\_ALS ambient light sensor driver.  [\#40](https://github.com/grisp/grisp/pull/40) ([Laymer](https://github.com/Laymer))
+- Add pmod hygro driver [\#31](https://github.com/grisp/grisp/pull/31) ([sebb7](https://github.com/sebb7))
+
 ## [1.1.4](https://github.com/grisp/grisp/tree/1.1.4) (2018-07-30)
+
 [Full Changelog](https://github.com/grisp/grisp/compare/1.1.3...1.1.4)
 
 **Fixed bugs:**
@@ -8,6 +39,7 @@
 - PmodNAV magnetometer fails initialization "sometimes" [\#11](https://github.com/grisp/grisp/issues/11)
 
 ## [1.1.3](https://github.com/grisp/grisp/tree/1.1.3) (2018-07-30)
+
 [Full Changelog](https://github.com/grisp/grisp/compare/1.1.2...1.1.3)
 
 **Closed issues:**
@@ -17,15 +49,14 @@
 **Merged pull requests:**
 
 - deprecated erlang:get\_stacktrace/0 function [\#36](https://github.com/grisp/grisp/pull/36) ([getong](https://github.com/getong))
-
-## [1.1.2](https://github.com/grisp/grisp/tree/1.1.2) (2018-06-21)
-[Full Changelog](https://github.com/grisp/grisp/compare/1.1.1...1.1.2)
-
-**Merged pull requests:**
-
 - Make embedded mode the default [\#34](https://github.com/grisp/grisp/pull/34) ([nextl00p](https://github.com/nextl00p))
 
+## [1.1.2](https://github.com/grisp/grisp/tree/1.1.2) (2018-06-21)
+
+[Full Changelog](https://github.com/grisp/grisp/compare/1.1.1...1.1.2)
+
 ## [1.1.1](https://github.com/grisp/grisp/tree/1.1.1) (2018-06-06)
+
 [Full Changelog](https://github.com/grisp/grisp/compare/1.1.0...1.1.1)
 
 **Closed issues:**
@@ -39,6 +70,7 @@
 - \[WIP\] Update to support RTEMS 5.0 [\#26](https://github.com/grisp/grisp/pull/26) ([eproxus](https://github.com/eproxus))
 
 ## [1.1.0](https://github.com/grisp/grisp/tree/1.1.0) (2018-05-24)
+
 [Full Changelog](https://github.com/grisp/grisp/compare/1.0.1...1.1.0)
 
 **Merged pull requests:**
@@ -49,6 +81,7 @@
 - Add board config and OTP cross-compilation config [\#18](https://github.com/grisp/grisp/pull/18) ([sylane](https://github.com/sylane))
 
 ## [1.0.1](https://github.com/grisp/grisp/tree/1.0.1) (2017-12-19)
+
 [Full Changelog](https://github.com/grisp/grisp/compare/1.0.0...1.0.1)
 
 **Closed issues:**
@@ -58,6 +91,7 @@
 - Build failing on Mac 10.10.5 [\#15](https://github.com/grisp/grisp/issues/15)
 
 ## [1.0.0](https://github.com/grisp/grisp/tree/1.0.0) (2017-11-17)
+
 [Full Changelog](https://github.com/grisp/grisp/compare/0.1.1...1.0.0)
 
 **Closed issues:**
@@ -69,9 +103,13 @@
 - Fix display of error message during boot, even when correct hostname … [\#14](https://github.com/grisp/grisp/pull/14) ([nextl00p](https://github.com/nextl00p))
 
 ## [0.1.1](https://github.com/grisp/grisp/tree/0.1.1) (2017-11-08)
+
 [Full Changelog](https://github.com/grisp/grisp/compare/0.1.0...0.1.1)
 
 ## [0.1.0](https://github.com/grisp/grisp/tree/0.1.0) (2017-11-06)
+
+[Full Changelog](https://github.com/grisp/grisp/compare/09339d122828df2ee9c26338d578519fc084b29b...0.1.0)
+
 **Fixed bugs:**
 
 - grisp\_led is accepting interval 0 \(as well as negative intervals\) [\#2](https://github.com/grisp/grisp/issues/2)
