@@ -1,5 +1,13 @@
 # Change Log
 
+## [1.1.6](https://github.com/grisp/grisp/tree/1.1.6) (2019-09-27)
+
+[Full Changelog](https://github.com/grisp/grisp/compare/1.1.5...1.1.6)
+
+**Merged pull requests:**
+
+- Remove deprecated maintainers section [\#65](https://github.com/grisp/grisp/pull/65) ([nextl00p](https://github.com/nextl00p))
+
 ## [1.1.5](https://github.com/grisp/grisp/tree/1.1.5) (2019-09-27)
 
 [Full Changelog](https://github.com/grisp/grisp/compare/1.1.4...1.1.5)
