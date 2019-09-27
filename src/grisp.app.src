@@ -11,12 +11,6 @@
     {env,[]},
     {modules, []},
 
-    % Hex.pm
-    {maintainers, [
-        "Adam Lindberg",
-        "Peer Stritzinger",
-        "Sebastien Merle"
-    ]},
     {licenses, [
         "Apache License 2.0"
     ]},
