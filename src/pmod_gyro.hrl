@@ -10,6 +10,7 @@
 
 -define(WHO_AM_I,         16#0F).
 -define(CTRL_REG1,        16#20).
+-define(CTRL_REG4,        16#23).
 -define(OUT_TEMP,         16#26).
 -define(OUT_X_L,          16#28).
 
