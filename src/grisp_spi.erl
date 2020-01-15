@@ -1,3 +1,13 @@
+%% -----------------------------------------------------------------------------
+%% @doc SPI driver API.
+%%
+%% @type spi_slot() = spi1 | spi2
+%% @type spi_mode() = #{cpol => low,  cpha => leading} |
+%%                    #{cpol => low,  cpha => trailing} |
+%%                    #{cpol => high, cpha => leading} |
+%%                    #{cpol => high, cpha => trailing}
+%% @end
+%% -----------------------------------------------------------------------------
 -module(grisp_spi).
 
 -behavior(gen_server).
@@ -35,12 +45,25 @@
 start_link(DriverMod) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, DriverMod, []).
 
+%% @doc Send request and receive response.
+%%
+%% The send data is `Req' appended with `Pad' times `<<16#ff>>', i.e, `Pad * 8'
+%% bits of value 1.
+%%
+%% The parameter `Skip' denotes the number of bytes skipped at the beginning of
+%% the received response.
+%%
+%% @spec send_recv(spi_slot(), spi_mode(), binary(), integer(), integer()) ->
+%% Response::binary()
 send_recv(Slot, Mode, Req, Skip, Pad) ->
     P = binary:copy(<<16#ff>>, Pad),
     Resp = send_recv(Slot, Mode, <<Req/binary, P/binary>>),
     <<_:Skip/binary, R/binary>> = Resp,
     R.
 
+%% @doc Send request and receive response.
+%%
+%% @spec send_recv(spi_slot(), spi_mode(), binary()) -> Response::binary()
 send_recv(Slot, Mode, Req) when byte_size(Req) < ?RES_MAX_SIZE ->
     gen_server:call(?MODULE, {send_recv, Slot, Mode, Req}).
 
