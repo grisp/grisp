@@ -54,8 +54,9 @@ handle_info({Port, {data, Data}}, #state{port = Port} = State) ->
             % Val is given in inches
             Val = (D1 - $0) * 100 + (D2 - $0) * 10 + (D3 - $0),
             {noreply, State#state{last_val = Val}};
-        % All subsequent calls to pmod_maxsonar:get/0 will return
-        % The same value if the case clause below is not present
+        % Sometimes for no obvious reason we receive
+        % a different value from the sonar.
+        % Instead of $R we get two garbage characters
         <<_, _, D1, D2, D3, $\n>> when $0 =< D1, D1 =< $9,
                                       $0 =< D2, D2 =< $9,
                                       $0 =< D3, D3 =< $9 ->
