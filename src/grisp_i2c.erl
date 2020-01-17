@@ -1,3 +1,4 @@
+%% @doc I2C driver API
 -module(grisp_i2c).
 
 -behavior(gen_server).
@@ -26,6 +27,15 @@
 start_link(DriverMod) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, DriverMod, []).
 
+%% @doc Send messages.
+%%
+%% The first entry in the list has to be the address, i.e., an integer.
+%% The entry `{sleep, Time}' can be used to add delays between messages.
+%%
+%% @spec msgs([X]) -> any()
+%%      X  = integer() | {sleep, integer()}
+%%           | {write, binary()} | {write, binary(), integer()}
+%%           | {read, integer()} | {read, integer(), integer()}
 msgs([Adr | Msgs]) ->
     EncodedMsgs = do_msgs(Adr, Msgs),
     gen_server:call(?MODULE, {msgs, EncodedMsgs}).
