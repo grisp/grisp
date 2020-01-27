@@ -1,27 +1,26 @@
 %% -----------------------------------------------------------------------------
 %% @doc GRiSP API for configuration of pins
-%%
-%% @type pin() = integer() | Pin
-%%      Pin = gpio1_1 | gpio1_2 | gpio1_3 | gpio1_4
-%%          | gpio2_1 | gpio2_2 | gpio2_3 | gpio2_4
-%%          | led1_r | led1_g | led1_b | led2_r | led2_g | led2_b
-%%          | jumper_1 | jumper_2 | jumper_3 | jumper_4 | jumper_5
-%%          | spi1_pin7 | spi1_pin8 | spi1_pin9 | spi1_pin10
-%%          | ss1 | ss2
-%%          | uart_1_cts | uart_2_txd | uart_3_rxd | uart_4_rts.
-%%
-%% See the GRiSP Wiki for the <a href="https://github.com/grisp/grisp/wiki/Physical-to-atom-pin-mappings">physical to atom pin mappings</a>.
-%%
-%% @type pin_type() = periph_a | periph_b | periph_c | periph_d
-%%                  | input | output_0 | output_1.
-%%
-%% @type slot() = gpio1 | gpio2 | spi1 | spi2
-%%
 %% @end
 %% -----------------------------------------------------------------------------
 -module(grisp_gpio).
 
 -behavior(gen_server).
+
+% Types
+-type pin() :: integer()
+         | gpio1_1 | gpio1_2 | gpio1_3 | gpio1_4
+         | gpio2_1 | gpio2_2 | gpio2_3 | gpio2_4
+         | led1_r | led1_g | led1_b | led2_r | led2_g | led2_b
+         | jumper_1 | jumper_2 | jumper_3 | jumper_4 | jumper_5
+         | spi1_pin7 | spi1_pin8 | spi1_pin9 | spi1_pin10
+         | ss1 | ss2
+         | uart_1_cts | uart_2_txd | uart_3_rxd | uart_4_rts.
+%% See the GRiSP Wiki for the <a href="https://github.com/grisp/grisp/wiki/Physical-to-atom-pin-mappings">physical to atom pin mappings</a>.
+
+-type pin_type() :: periph_a | periph_b | periph_c | periph_d | input
+                    | output_0 | output_1.
+
+-type slot() :: gpio1 | gpio2 | spi1 | spi2.
 
 % API
 -export([start_link/1]).
@@ -51,22 +50,22 @@ start_link(DriverMod) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, DriverMod, []).
 
 %% @equiv configure(Pin, Type, [default])
+-spec configure(pin(), pin_type()) -> any().
 configure(Pin, Type) -> configure(Pin, Type, [default]).
 
 %% @doc Configure pin type.
-%%
-%% @spec configure(Pin::pin(), Type::pin_type(), Attr) -> any()
-%%      Attr = [default]
+-spec configure(pin(), pin_type(), [default]) -> any().
 configure(Pin, Type, Attr) ->
     Command = <<(index(Pin)):8, 1:8, (map_type(Type)):8, (map_attr(Attr)):8>>,
     gen_server:call(?MODULE, {command, Command}).
 
 %% @doc Configure slot.
 %%
-%% @spec configure_slot(Slot::slot(), Config::Config) -> ok
-%%      Config = GPIO_Config | SPI_Config
-%%      GPIO_Config = {pin_type(), pin_type(), pin_type(), pin_type()}
-%%      SPI_Config = disable_cs | enable_cs
+%% The GPIO slots can be configured with `{T1, T2, T3, T4}'
+%% and the SPI slots allow the configuration `disable_cs | enable_cs'.
+-spec configure_slot(Slot::slot(),
+                     Config::{T1::pin_type(), T2::pin_type(), T3::pin_type(), T4::pin_type()}
+                        | disable_cs | enable_cs) -> ok.
 configure_slot(gpio1, {T1, T2, T3, T4}) ->
     configure(gpio1_1, T1),
     configure(gpio1_2, T2),
@@ -84,7 +83,7 @@ configure_slot(spi1, enable_cs)  -> configure(ss1, periph_c);
 configure_slot(spi2, disable_cs) -> configure(ss2, output_1);
 configure_slot(spi2, enable_cs)  -> configure(ss2, periph_c).
 
-%% @doc Gets the given pins value
+%% @doc Gets the value of a pin.
 %%
 %% === Example ===
 %% To see whether the red led of `led_1' is on use:
@@ -93,9 +92,10 @@ configure_slot(spi2, enable_cs)  -> configure(ss2, periph_c).
 %% false
 %% '''
 %% In this case it was off.
+- spec get(pin()) -> any().
 get(Pin) -> gen_server:call(?MODULE, {command, <<(index(Pin)):8, 2:8>>}).
 
-%% @doc Sets the given pin to false
+%% @doc Sets a pin to `false'.
 %%
 %% === Example ===
 %% Turn off the red led of `led_1' with:
@@ -103,9 +103,10 @@ get(Pin) -> gen_server:call(?MODULE, {command, <<(index(Pin)):8, 2:8>>}).
 %% 1> grisp_gpio:clear(led1_r).
 %% <<>>
 %% '''
+- spec clear(pin()) -> any().
 clear(Pin) -> gen_server:call(?MODULE, {command, <<(index(Pin)):8, 3:8>>}).
 
-%% @doc Sets the given pin to true
+%% @doc Sets a pin to `true'.
 %%
 %% === Example ===
 %% Turn on the red led of `led_1' with:
@@ -113,6 +114,7 @@ clear(Pin) -> gen_server:call(?MODULE, {command, <<(index(Pin)):8, 3:8>>}).
 %% 3> grisp_gpio:set(led1_r).
 %% <<>>
 %% '''
+- spec set(pin()) -> any().
 set(Pin) -> gen_server:call(?MODULE, {command, <<(index(Pin)):8, 4:8>>}).
 
 
