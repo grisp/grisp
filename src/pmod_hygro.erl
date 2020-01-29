@@ -1,8 +1,20 @@
+%% -----------------------------------------------------------------------------
+%% @doc API for the
+%% <a href="https://reference.digilentinc.com/reference/pmod/pmodhygro/start">
+%% PmodHYGRO
+%% </a>.
+%%
+%% Start the server with
+%% ```
+%% 1> grisp:add_device(i2c, pmod_hygro).
+%% '''
+%% @end
+%% -----------------------------------------------------------------------------
 -module(pmod_hygro).
 -behaviour(gen_server).
 
 % API
--export([start_link/0]).
+-export([start_link/2]).
 -export([temp/0]).
 -export([humid/0]).
 -export([measurements/0]).
@@ -26,23 +38,48 @@
 %--- API -----------------------------------------------------------------------
 
 % @private
-start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+start_link(Slot, _Opts) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, Slot, []).
 
+%% @doc Measure the temperature in °C.
+%%
+%% === Example ===
+%% ```
+%% 2> pmod_hygro:temp().
+%% [{temp,24.6746826171875}]
+%% '''
+-spec temp() -> [{temp, float()}].
 temp() ->
     gen_server:call(?MODULE, temp).
 
+%% @doc Measure the humidity in %.
+%%
+%% === Example ===
+%% ```
+%% 2> pmod_hygro:humid().
+%% [{humid,50.225830078125}]
+%% '''
+-spec humid() -> [{humid, float()}].
 humid() ->
     gen_server:call(?MODULE, humid).
 
+%% @doc Measure the temperature and humidity.
+%%
+%% === Example ===
+%% ```
+%% 2> pmod_hygro:measurements().
+%% [{temp,24.52362060546875},{humid,50.823974609375}]
+%% '''
+-spec measurements() -> [{temp, float()}|{humid, float()}].
 measurements() ->
     gen_server:call(?MODULE, measurements).
 
 %--- Callbacks -----------------------------------------------------------------
 
 % @private
-init([]) ->
-  {ok, #state{}}.
+init(Slot) ->
+    grisp_devices:register(Slot, ?MODULE),
+    {ok, #state{}}.
 
 % @private
 handle_call(temp, _From, State) ->
@@ -76,7 +113,7 @@ terminate(_Reason, _State) -> ok.
 device_request(BytesToRead) ->
     Response = grisp_i2c:msgs([?DEVICE_ADR, {write, <<?TEMP_REGISTER>>},
                                {sleep, ?DELAY_TIME},
-                               {read, BytesToRead, ?TEMP_REGISTER}]),
+                               {read, BytesToRead}]),
     {ok, Response}.
 
 evaluate_temp(T) ->
