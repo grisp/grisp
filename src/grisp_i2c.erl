@@ -1,4 +1,11 @@
-%% @doc I2C driver API
+%% @doc I2C driver API.
+%%
+%% This API is based on the
+%% <a href="https://docs.rtems.org/doxygen/branches/master/group__I2CLinux.html">
+%% Linux I2C User Space API
+%% </a>.
+%% For a description of the I2C protocol see
+%% [https://www.kernel.org/doc/Documentation/i2c/i2c-protocol].
 -module(grisp_i2c).
 
 -behavior(gen_server).
@@ -27,15 +34,60 @@
 start_link(DriverMod) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, DriverMod, []).
 
-%% @doc Send messages.
+%% @doc Communicate with the I2C bus.
 %%
-%% The first entry in the list has to be the address, i.e., an integer.
+%% The first entry in the list has to be the address as an integer.
 %% The entry `{sleep, Time}' can be used to add delays between messages.
+%% For possible flags see the
+%% <a href="https://docs.rtems.org/doxygen/branches/master/group__I2CLinux.html">
+%% Linux I2C User Space API
+%% </a>.
 %%
-%% @spec msgs([X]) -> any()
-%%      X  = integer() | {sleep, integer()}
-%%           | {write, binary()} | {write, binary(), integer()}
-%%           | {read, integer()} | {read, integer(), integer()}
+%% Sending a read message `{read, Length}' the `I2C_M_RD' flag will be set
+%% automatcally. The `Length' is the number of bytes to be read.
+%%
+%% === Example ===
+%% A read message like
+%% ```
+%% 1> grisp_i2c:msgs([16#40, {read, 2}]).
+%% '''
+%% will send an I2C message with
+%% ```
+%% addr  = 16#40
+%% flags = I2C_M_RD
+%% len   = 2
+%% '''
+%% using the notation from
+%% [https://www.kernel.org/doc/Documentation/i2c/i2c-protocol]
+%% this message will look like:
+%% ```
+%% S 16#40 Rd [A] [Data] A [Data] NA P
+%% '''
+%%
+%% A write message like
+%% ```
+%% 2> grisp_i2c:msgs([16#40, {write, <<16#02>>}]).
+%% '''
+%% will send an I2C message with
+%% ```
+%% addr  = 16#40
+%% flags = 16#0000
+%% len   = 1
+%% *buf  = 16#02
+%% '''
+%% using the notation from
+%% [https://www.kernel.org/doc/Documentation/i2c/i2c-protocol]
+%% this message will look like:
+%% ```
+%% S 16#40 Wr [A] 16#02 P
+%% '''
+-spec msgs([Adr::integer()
+            | {sleep, Time::integer()}
+            | {write, Data::binary()}
+            | {write, Data::binary(), Flags::integer()}
+            | {read, Length::integer()}
+            | {read, Length::integer(), Flags::integer()}])
+    -> LastResponse::any().
 msgs([Adr | Msgs]) ->
     EncodedMsgs = do_msgs(Adr, Msgs),
     gen_server:call(?MODULE, {msgs, EncodedMsgs}).
