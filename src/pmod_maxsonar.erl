@@ -1,3 +1,11 @@
+%% -----------------------------------------------------------------------------
+%% @doc
+%% <a href="https://store.digilentinc.com/pmodmaxsonar-maxbotix-ultrasonic-range-finder/">
+%% Pmod MAXSONAR
+%% </a>
+%% module that provides data request through the UART interface.
+%% @end
+%% -----------------------------------------------------------------------------
 -module(pmod_maxsonar).
 
 -behavior(gen_server).
@@ -24,6 +32,8 @@
 start_link(Slot, _Opts) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Slot, []).
 
+%% @doc Get the distance in inches.
+-spec get() -> integer().
 get() ->
     gen_server:call(?MODULE, get_value).
 
