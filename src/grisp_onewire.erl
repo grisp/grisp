@@ -59,8 +59,11 @@ start_link() -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 %%
 %% === Example ===
 %% ```
-%%  2> grisp_onewire:transaction(fun grisp_onewire:bus_reset/0).
-%%  presence_detected
+%%  2> grisp_onewire:transaction(fun() ->
+%%                                  presence_detected = grisp_onewire:bus_reset(),
+%%                                  grisp_onewire:write_byte(16#cc)
+%%                               end).
+%%  ok
 %% '''
 -spec transaction(fun()) -> any().
 transaction(Fun) when is_function(Fun) ->
@@ -78,7 +81,8 @@ transaction(Fun) when is_function(Fun) ->
 %%
 %% This function can only be used inside of a {@link transaction/1} call.
 %% @end
-% Spec: | S | AD,0 ‖ A ‖ DRST ‖ A ‖ Sr | AD,1 ‖ A | <byte> ‖ A\ | P |
+% I2C messages to 1-Wire Master:
+% | S | AD,0 ‖ A ‖ DRST ‖ A ‖ Sr | AD,1 ‖ A | <byte> ‖ A\ | P |
 -spec reset() -> 'ok'.
 reset() ->
     assert_transaction(),
@@ -90,23 +94,41 @@ reset() ->
         Any -> error({invalid_status, Any})
     end.
 
-%% @doc Write configuration into device register.
+%% @doc Write configuration into 1-Wire master register.
 %%
 %% Command code: d2h.
 %%
-%% The default configuration is 0, i.e., all 3 configurable bits set to 0.
+%% This function can only be used inside of a {@link transaction/1} call.
+%%
+%% The default configuration is 0, i.e., all three configurable bits set to 0.
+%% This corresponds to an empty list. Each atom in the list activates the
+%% corresponding configuration (sets the bit to 1) and each atom not present in
+%% the list leads to a deactivation (sets the bit to 0).
 %%
 %% === Atom to Integer to Configuration Bit Mapping ===
 %% <table border="1" summary="Atom to Integer to Configuration Bit Mapping">
-%%  <tr><th>Atom</th><th>Integer</th><th>Configuration Bit</th></tr>
-%%  <tr><td>`apu'</td><td>1</td><td>Bit 0 APU</td></tr>
-%%  <tr><td>`spu'</td><td>4</td><td>Bit 2 SPU</td></tr>
-%%  <tr><td>`overdrive'</td><td>8</td><td>Bit 3 1WS</td></tr>
+%%  <tr><th>Atom</th><th>Integer</th><th>Configuration Bit</th>
+%%  <th>Activates</th></tr>
+%%  <tr><td>`apu'</td><td>1</td><td>Bit 0 (APU)</td><td>Active pullup</td></tr>
+%%  <tr><td>`spu'</td><td>4</td><td>Bit 2 (SPU)</td><td>Strong pullup</td></tr>
+%%  <tr><td>`overdrive'</td><td>8</td><td>Bit 3 (1WS)</td><td>1-Wire overdrive
+%%  speed</td></tr>
 %% </table>
 %%
-%% This function can only be used inside of a {@link transaction/1} call.
+%% === Example ===
+%% To activate active pullup and overdrive speed use:
+%% ```
+%%  3> grisp_onewire:transaction(fun() -> grisp_onewire:write_config([apu, overdrive]) end).
+%%  ok
+%% '''
+%% This is the same as:
+%% ```
+%%  4> grisp_onewire:transaction(fun() -> grisp_onewire:write_config(1 bor 8) end).
+%%  ok
+%% '''
 %% @end
-% Spec: | S | AD,0 ‖ A ‖ WCFG ‖ A ‖ <byte> ‖ A ‖ Sr | AD,1 ‖ A | <byte> ‖ A\ | P |
+% I2C messages to 1-Wire Master:
+% | S | AD,0 ‖ A ‖ WCFG ‖ A ‖ <byte> ‖ A ‖ Sr | AD,1 ‖ A | <byte> ‖ A\ | P |
 -spec write_config([apu | overdrive | spu] | integer()) -> ok.
 write_config(Conf) when is_list(Conf) ->
     write_config(lists:foldl(fun(X, A) -> A bor map_config(X) end, 0, Conf));
@@ -139,12 +161,13 @@ detect() ->
 %%
 %% This function can only be used inside of a {@link transaction/1} call.
 %%
-%% === Return Value to Register Bit Mapping ===
-%% <table border="1" summary="Return Value to Register Mapping">
-%%  <tr><th>Atom</th><th>Bit 1 PPD</th><th>Bit 2 SD</th></tr>
-%%  <tr><td>`nothing_present'</td><td>0</td><td>0</td></tr>
-%%  <tr><td>`presence_detected'</td><td>1</td><td>0</td></tr>
-%%  <tr><td>`short_detected'</td><td>0</td><td>1</td></tr>
+%% === Return Value Description ===
+%% <table border="1" summary="Return Value Description">
+%%  <tr><th>Atom</th><th>Description</th></tr>
+%%  <tr><td>`nothing_present'</td><td>No device on the bus detected</td></tr>
+%%  <tr><td>`presence_detected'</td><td>Some devices on the bus detected</td></tr>
+%%  <tr><td>`short_detected'</td><td>A short circuit between data and ground on the
+%%  bus detected</td></tr>
 %% </table>
 %% @end
 -spec bus_reset() -> 'nothing_present' | 'presence_detected' | 'short_detected'.
@@ -199,9 +222,15 @@ write_triplet(Dir) ->
 %%
 %% This function can only be used inside of a {@link transaction/1} call.
 %%
+%% If there are connected devices, i.e., {@link bus_reset/0} returns
+%% `present_detected', this function provides a list of the unique 64-bit
+%% addresses of all detected devices.
+%% Otherwise, the return values match the values from {@link bus_reset/0} or
+%% `fail' for other failures during the search.
+%% The addresses are represented as lists of eight byte values.
+%%
 %% === Example ===
-%% With five DS18B20 temperature sensors connected one can get the unique 64-Bit
-%% ROM codes like:
+%% With five DS18B20 temperature sensors connected one get something like:
 %% ```
 %%  1> grisp_onewire:transaction(fun grisp_onewire:search/0).
 %%  [[40,255,203,173,80,23,4,182],
