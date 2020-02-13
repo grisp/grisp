@@ -1,6 +1,20 @@
+%% -----------------------------------------------------------------------------
+%% @doc
+%% <a href="https://reference.digilentinc.com/reference/pmod/pmodgps/reference-manual">
+%% PmodGPS</a>
+%% module.
+%%
+%% The PmodGPS sends the GPS data over UART.
+%%
+%% Start the server with
+%% ```
+%% 1> grisp:add_device(uart, pmod_gps).
+%% '''
+%% @end
+%% -----------------------------------------------------------------------------
 -module(pmod_gps).
 
--behavior(gen_server).
+-behaviour(gen_server).
 
 % API
 -export([start_link/2]).
@@ -26,6 +40,28 @@
 start_link(Slot, _Opts) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Slot, []).
 
+%% @doc Get the GPS data.
+%%
+%% The input parameter specifies which sentence to get. For a description of
+%% the sentences see the
+%% <a href="https://reference.digilentinc.com/_media/reference/pmod/pmodgps/pmodgps_rm.pdf">
+%% PmodGPS Reference Manual
+%% </a>.
+%%
+%% === Example ===
+%% ```
+%%  2> pmod_gps:get(gga).
+%%  <<"$GPGGA,145832.000,5207.3597,N,01135.6957,E,1,5,2.50,61.9,M,46.7,M,,*6F\n">>
+%%  3> pmod_gps:get(gsa).
+%%  <<"$GPGSA,A,3,17,06,19,02,24,,,,,,,,2.69,2.51,0.97*0B\n">>
+%%  4> pmod_gps:get(gsv).
+%%  <<"$GPGSV,3,3,12,14,22,317,17,17,10,040,35,29,09,203,,22,02,351,*7F\n">>
+%%  5> pmod_gps:get(rmc).
+%%  <<"$GPRMC,150007.000,A,5207.3592,N,01135.6895,E,0.46,255.74,120220,,,A*64\n">>
+%%  6> pmod_gps:get(vtg).
+%%  <<"$GPVTG,297.56,T,,M,0.65,N,1.21,K,A*33\n">>
+%% '''
+-spec get('gga' | 'gsa' | 'gsv' | 'rmc' | 'vtg') -> binary().
 get(Sentence) ->
     call({get, Sentence}).
 

@@ -1,6 +1,19 @@
+%% -----------------------------------------------------------------------------
+%% @doc
+%% <a href="https://reference.digilentinc.com/reference/pmod/pmodgyro/reference-manual">
+%% PmodGYRO
+%% </a>
+%% module that gets the gyroscopes data via SPI.
+%%
+%% Start the server with
+%%  ```
+%%  1> grisp:add_device(spi1, pmod_gyro).
+%%  '''
+%% @end
+%% -----------------------------------------------------------------------------
 -module(pmod_gyro).
 
--behavior(gen_server).
+-behaviour(gen_server).
 
 -include("grisp.hrl").
 -include("pmod_gyro.hrl").
@@ -25,6 +38,14 @@
 start_link(Slot, Opts) ->
     gen_server:start_link(?MODULE, [Slot, Opts], []).
 
+%% @doc Read the gyroscopes X, Y and Z values in degrees per second.
+%%
+%% === Example ===
+%% ```
+%%  2> pmod_gyro:read().
+%%  {249.28279313922965,-26.078862235243843,12.764756149667337}
+%% '''
+-spec read() -> {X::float(), Y::float(), Z::float()}.
 read() ->
     Dev = grisp_devices:default(?MODULE),
     case gen_server:call(Dev#device.pid, read) of
