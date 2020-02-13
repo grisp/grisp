@@ -8,11 +8,15 @@
 %% The Pmod MAXSONAR cyclically sends measurements via the UART interface.
 %% This module converts and stores the latest measurement.
 %%
+%% Start the server with
+%%  ```
+%%  1> grisp:add_device(uart, pmod_maxsonar).
+%%  '''
 %% @end
 %% -----------------------------------------------------------------------------
 -module(pmod_maxsonar).
 
--behavior(gen_server).
+-behaviour(gen_server).
 
 % API
 -export([start_link/2]).

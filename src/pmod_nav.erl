@@ -8,11 +8,16 @@
 %% @doc Driver module for the <a href="https://store.digilentinc.com/pmod-nav-9-axis-imu-plus-barometer/">PmodNAV</a> 9-axis IMU plus barometer device.
 %%
 %% For more information see the Tutorial at the GRiSP Wiki: <a href= "https://github.com/grisp/grisp/wiki/PmodNAV-Tutorial">PmodNAV Tutorial</a>.
+%%
+%% Start the server with
+%%  ```
+%%  1> grisp:add_device(spi1, pmod_nav).
+%%  '''
 %% @end
 %% -----------------------------------------------------------------------------
 -module(pmod_nav).
 
--behavior(gen_server).
+-behaviour(gen_server).
 
 % API
 -export([start_link/2]).
@@ -45,12 +50,12 @@ start_link(Slot, Opts) -> gen_server:start_link(?MODULE, [Slot, Opts], []).
 %% === Examples ===
 %% To switch to accelerometer only mode, i.e., power down the gyroscope, use:
 %% ```
-%% 1> pmod_nav:config(acc, #{odr_g => power_down}).
+%% 2> pmod_nav:config(acc, #{odr_g => power_down}).
 %% ok
 %% '''
 %% To turn the gyroscope back on use:
 %% ```
-%% 2> pmod_nav:config(acc, #{odr_g => {hz,14.9}}).
+%% 3> pmod_nav:config(acc, #{odr_g => {hz,14.9}}).
 %% ok
 %% '''
 %%
@@ -75,7 +80,7 @@ read(Comp, Registers) -> read(Comp, Registers, #{}).
 %% === Examples ===
 %% To read the accelerometer X, Y and Z axises G-forces in milli g, use:
 %% ```
-%%  3> pmod_nav:read(acc, [out_x_xl, out_y_xl, out_z_xl], #{xl_unit => mg}).
+%%  4> pmod_nav:read(acc, [out_x_xl, out_y_xl, out_z_xl], #{xl_unit => mg}).
 %%  [50.813,6.527,983.7470000000001]
 %% '''
 %%
