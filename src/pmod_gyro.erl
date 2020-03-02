@@ -1,16 +1,14 @@
-%% -----------------------------------------------------------------------------
-%% @doc
-%% <a href="https://reference.digilentinc.com/reference/pmod/pmodgyro/reference-manual">
-%% PmodGYRO
-%% </a>
-%% module that gets the gyroscopes data via SPI.
-%%
-%% Start the server with
-%%  ```
-%%  1> grisp:add_device(spi1, pmod_gyro).
-%%  '''
-%% @end
-%% -----------------------------------------------------------------------------
+% @doc
+% <a href="https://reference.digilentinc.com/reference/pmod/pmodgyro/reference-manual">
+% PmodGYRO
+% </a>
+% module that gets the gyroscopes data via SPI.
+%
+% Start the server with
+%  ```
+%  1> grisp:add_device(spi1, pmod_gyro).
+%  '''
+% @end
 -module(pmod_gyro).
 
 -behaviour(gen_server).
@@ -38,13 +36,13 @@
 start_link(Slot, Opts) ->
     gen_server:start_link(?MODULE, [Slot, Opts], []).
 
-%% @doc Read the gyroscopes X, Y and Z values in degrees per second.
-%%
-%% === Example ===
-%% ```
-%%  2> pmod_gyro:read().
-%%  {249.28279313922965,-26.078862235243843,12.764756149667337}
-%% '''
+% @doc Read the gyroscopes X, Y and Z values in degrees per second.
+%
+% === Example ===
+% ```
+%  2> pmod_gyro:read().
+%  {249.28279313922965,-26.078862235243843,12.764756149667337}
+% '''
 -spec read() -> {X::float(), Y::float(), Z::float()}.
 read() ->
     Dev = grisp_devices:default(?MODULE),
@@ -65,9 +63,9 @@ init([Slot, Opts]) ->
                  2000  -> 2#00100000;
                  _     -> error({invalid_option, Res})
              end,
-    %% set the resolution
+    % set the resolution
     <<>> = grisp_spi:send_recv(Slot, ?SPI_MODE, <<?RW_WRITE:1, ?MS_SAME:1, ?CTRL_REG4:6, ResOpt:8>>, 2, 0),
-    %% enable the device and axis sensors
+    % enable the device and axis sensors
     <<>> = grisp_spi:send_recv(Slot, ?SPI_MODE, <<?RW_WRITE:1, ?MS_SAME:1, ?CTRL_REG1:6, 2#00001111:8>>, 2, 0),
     grisp_devices:register(Slot, ?MODULE),
     {ok, #{slot => Slot, unit_degree => (32766 / Res)}}.
