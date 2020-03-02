@@ -7,7 +7,7 @@
 % The Pmod MAXSONAR cyclically sends measurements via the UART interface.
 % This module converts and stores the latest measurement.
 %
-% Start the server with
+% Start the driver with
 %  ```
 %  1> grisp:add_device(uart, pmod_maxsonar).
 %  '''

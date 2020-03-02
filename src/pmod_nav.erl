@@ -8,7 +8,7 @@
 %
 % For more information see the Tutorial at the GRiSP Wiki: <a href= "https://github.com/grisp/grisp/wiki/PmodNAV-Tutorial">PmodNAV Tutorial</a>.
 %
-% Start the server with
+% Start the driver with
 %  ```
 %  1> grisp:add_device(spi1, pmod_nav).
 %  '''

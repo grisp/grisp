@@ -4,7 +4,7 @@
 % </a>
 % module that gets the gyroscopes data via SPI.
 %
-% Start the server with
+% Start the driver with
 %  ```
 %  1> grisp:add_device(spi1, pmod_gyro).
 %  '''

@@ -12,7 +12,7 @@
 % Vishay Semiconductor's TEMT6000X01.
 % http://www.vishay.com/docs/81579/temt6000.pdf
 %
-% Start the server with
+% Start the driver with
 % ```
 %  1> grisp:add_device(spi2, pmod_als).
 % '''

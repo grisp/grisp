@@ -3,7 +3,7 @@
 % PmodHYGRO
 % </a>.
 %
-% Start the server with
+% Start the driver with
 % ```
 % 1> grisp:add_device(i2c, pmod_hygro).
 % '''
