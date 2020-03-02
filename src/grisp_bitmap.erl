@@ -20,8 +20,9 @@
 %
 % === Example ===
 % ```
-%  5> grisp_bitmap:set_bits(<<1,2,3,4,5>>, 6, <<2:2>>).
-%  <<2,2,3,4,5>>
+%  5> grisp_bitmap:pp(grisp_bitmap:set_bits(<<2#00000000>>, 6, <<2#1:1>>), bin).
+%  00000010
+%  ok
 % '''
 -spec set_bits(bitstring(),non_neg_integer(),bitstring()) -> bitstring().
 set_bits(Bin, Start, Value) when bit_size(Bin) >= Start + bit_size(Value) ->
@@ -51,7 +52,7 @@ set_bytes(Bin, Start, Value) when byte_size(Bin) >= Start + byte_size(Value) ->
 get_bytes(Bin, Start, Len) when byte_size(Bin) >= Start + Len ->
     get_bits(Bin, Start * 8, Len * 8).
 
-% @doc Print bitstring as hexadecimal numbers.
+% @doc Print binary as hexadecimal numbers.
 %
 % === Example ===
 % ```
