@@ -1,15 +1,13 @@
-%% -----------------------------------------------------------------------------
-%% @doc API for the
-%% <a href="https://reference.digilentinc.com/reference/pmod/pmodhygro/start">
-%% PmodHYGRO
-%% </a>.
-%%
-%% Start the server with
-%% ```
-%% 1> grisp:add_device(i2c, pmod_hygro).
-%% '''
-%% @end
-%% -----------------------------------------------------------------------------
+% @doc API for the
+% <a href="https://reference.digilentinc.com/reference/pmod/pmodhygro/start">
+% PmodHYGRO
+% </a>.
+%
+% Start the driver with
+% ```
+% 1> grisp:add_device(i2c, pmod_hygro).
+% '''
+% @end
 -module(pmod_hygro).
 -behaviour(gen_server).
 
@@ -41,35 +39,35 @@
 start_link(Slot, _Opts) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Slot, []).
 
-%% @doc Measure the temperature in °C.
-%%
-%% === Example ===
-%% ```
-%% 2> pmod_hygro:temp().
-%% [{temp,24.6746826171875}]
-%% '''
+% @doc Measure the temperature in °C.
+%
+% === Example ===
+% ```
+% 2> pmod_hygro:temp().
+% [{temp,24.6746826171875}]
+% '''
 -spec temp() -> [{temp, float()}].
 temp() ->
     gen_server:call(?MODULE, temp).
 
-%% @doc Measure the humidity in %.
-%%
-%% === Example ===
-%% ```
-%% 2> pmod_hygro:humid().
-%% [{humid,50.225830078125}]
-%% '''
+% @doc Measure the humidity in %.
+%
+% === Example ===
+% ```
+% 2> pmod_hygro:humid().
+% [{humid,50.225830078125}]
+% '''
 -spec humid() -> [{humid, float()}].
 humid() ->
     gen_server:call(?MODULE, humid).
 
-%% @doc Measure the temperature and humidity.
-%%
-%% === Example ===
-%% ```
-%% 2> pmod_hygro:measurements().
-%% [{temp,24.52362060546875},{humid,50.823974609375}]
-%% '''
+% @doc Measure the temperature and humidity.
+%
+% === Example ===
+% ```
+% 2> pmod_hygro:measurements().
+% [{temp,24.52362060546875},{humid,50.823974609375}]
+% '''
 -spec measurements() -> [{temp, float()}|{humid, float()}].
 measurements() ->
     gen_server:call(?MODULE, measurements).

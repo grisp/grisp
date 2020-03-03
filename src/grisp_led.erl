@@ -66,9 +66,9 @@ start_link() ->
 %
 % <h5>Examples</h5>
 % ```
-% 1> grisp_led:color(1, red)
+% 1> grisp_led:color(1, red).
 % ok
-% 2> grisp_led:color(2, {0, 1, 0})
+% 2> grisp_led:color(2, {0, 1, 0}).
 % ok
 % '''
 -spec color(position(), color()) -> ok.
@@ -96,7 +96,7 @@ flash(Pos, Color, Interval) ->
 %
 % <h5>Examples</h5>
 % ```
-% 1> grisp_led:flash(1, [{300, green}, {500, yellow}, {700, red}, {infinity, off}]).
+% 1> grisp_led:pattern(1, [{300, green}, {500, yellow}, {700, red}, {infinity, off}]).
 % ok
 % 2> Rainbow = [{300, {R, G, B}} || R <- [0,1], G <- [0,1], B <- [0,1], {R, G, B} =/= {0, 0, 0}].
 % [{300,{0,0,1}},
@@ -106,7 +106,7 @@ flash(Pos, Color, Interval) ->
 %  {300,{1,0,1}},
 %  {300,{1,1,0}},
 %  {300,{1,1,1}}]
-% 3> grisp_led:flash(2, Rainbow).
+% 3> grisp_led:pattern(2, Rainbow).
 % ok
 % '''
 %

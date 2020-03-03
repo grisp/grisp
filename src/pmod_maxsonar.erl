@@ -1,6 +1,20 @@
+% @doc
+% <a href="https://store.digilentinc.com/pmodmaxsonar-maxbotix-ultrasonic-range-finder/">
+% Pmod MAXSONAR
+% </a>
+% module.
+%
+% The Pmod MAXSONAR cyclically sends measurements via the UART interface.
+% This module converts and stores the latest measurement.
+%
+% Start the driver with
+%  ```
+%  1> grisp:add_device(uart, pmod_maxsonar).
+%  '''
+% @end
 -module(pmod_maxsonar).
 
--behavior(gen_server).
+-behaviour(gen_server).
 
 % API
 -export([start_link/2]).
@@ -24,6 +38,8 @@
 start_link(Slot, _Opts) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Slot, []).
 
+% @doc Get the latest measured distance in inches.
+-spec get() -> integer().
 get() ->
     gen_server:call(?MODULE, get_value).
 

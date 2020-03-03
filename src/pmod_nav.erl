@@ -4,15 +4,18 @@
 % LPS25HB digital barometer
 % http://www.st.com/web/en/resource/technical/document/datasheet/DM00141379.pdf
 
-%% -----------------------------------------------------------------------------
-%% @doc Driver module for the <a href="https://store.digilentinc.com/pmod-nav-9-axis-imu-plus-barometer/">PmodNAV</a> 9-axis IMU plus barometer device.
-%%
-%% For more information see the Tutorial at the GRiSP Wiki: <a href= "https://github.com/grisp/grisp/wiki/PmodNAV-Tutorial">PmodNAV Tutorial</a>.
-%% @end
-%% -----------------------------------------------------------------------------
+% @doc Driver module for the <a href="https://store.digilentinc.com/pmod-nav-9-axis-imu-plus-barometer/">PmodNAV</a> 9-axis IMU plus barometer device.
+%
+% For more information see the Tutorial at the GRiSP Wiki: <a href= "https://github.com/grisp/grisp/wiki/PmodNAV-Tutorial">PmodNAV Tutorial</a>.
+%
+% Start the driver with
+%  ```
+%  1> grisp:add_device(spi1, pmod_nav).
+%  '''
+% @end
 -module(pmod_nav).
 
--behavior(gen_server).
+-behaviour(gen_server).
 
 % API
 -export([start_link/2]).
@@ -40,83 +43,83 @@
 % @private
 start_link(Slot, Opts) -> gen_server:start_link(?MODULE, [Slot, Opts], []).
 
-%% @doc Change configurations.
-%%
-%% === Examples ===
-%% To switch to accelerometer only mode, i.e., power down the gyroscope, use:
-%% ```
-%% 1> pmod_nav:config(acc, #{odr_g => power_down}).
-%% ok
-%% '''
-%% To turn the gyroscope back on use:
-%% ```
-%% 2> pmod_nav:config(acc, #{odr_g => {hz,14.9}}).
-%% ok
-%% '''
-%%
-%% For more possible configurations see the datasheets
-%% <a href="http://www.st.com/web/en/resource/technical/document/datasheet/DM00103319.pdf">LSM9DS1</a>
-%% and
-%% <a href="http://www.st.com/web/en/resource/technical/document/datasheet/DM00141379.pdf">LPS25HB</a>.
-%% Use {@link registers/0} and {@link registers/1} to see the mapping between
-%% Erlang expressions and the bits on the hardware.
+% @doc Change configurations.
+%
+% === Examples ===
+% To switch to accelerometer only mode, i.e., power down the gyroscope, use:
+% ```
+% 2> pmod_nav:config(acc, #{odr_g => power_down}).
+% ok
+% '''
+% To turn the gyroscope back on use:
+% ```
+% 3> pmod_nav:config(acc, #{odr_g => {hz,14.9}}).
+% ok
+% '''
+%
+% For more possible configurations see the datasheets
+% <a href="http://www.st.com/web/en/resource/technical/document/datasheet/DM00103319.pdf">LSM9DS1</a>
+% and
+% <a href="http://www.st.com/web/en/resource/technical/document/datasheet/DM00141379.pdf">LPS25HB</a>.
+% Use {@link registers/0} and {@link registers/1} to see the mapping between
+% Erlang expressions and the bits on the hardware.
 
-%% @spec config(Comp, Options) -> Result
-%%      Comp = acc | mag | alt
-%%      Options = Map
+% @spec config(Comp, Options) -> Result
+%      Comp = acc | mag | alt
+%      Options = Map
 config(Comp, Options) when is_map(Options) -> call({config, Comp, Options}).
 
-%% @equiv read(Comp, Registers, #{})
-%% @spec read(Comp, Registers) -> {error, Reason} | Result
+% @equiv read(Comp, Registers, #{})
+% @spec read(Comp, Registers) -> {error, Reason} | Result
 read(Comp, Registers) -> read(Comp, Registers, #{}).
 
-%% @doc Read registers of a component.
-%%
-%% === Examples ===
-%% To read the accelerometer X, Y and Z axises G-forces in milli g, use:
-%% ```
-%%  3> pmod_nav:read(acc, [out_x_xl, out_y_xl, out_z_xl], #{xl_unit => mg}).
-%%  [50.813,6.527,983.7470000000001]
-%% '''
-%%
-%% === Further Registers ===
-%% <table border="1" summary="Examples of register entries">
-%%  <tr><th>Component</th><th>Registers</th><th>Possible Options</th>
-%%      <th>Description</th>
-%%  </tr>
-%%  <tr><td>`acc'</td><td>`[out_x_g, out_y_g, out_z_g]'</td>
-%%      <td>`#{g_unit => dps | mdps} default dps'</td>
-%%      <td>Rotation of the axises x,y and z in (milli) degrees per second</td>
-%%  </tr>
-%%  <tr><td>`acc'</td><td>`[out_x_xl, out_y_xl, out_z_xl]'</td>
-%%      <td>`#{xl_unit => g | mg} default g'</td>
-%%      <td>G-force on the axises x,y and z</td>
-%%  </tr>
-%%  <tr><td>`mag'</td><td>`[out_x_m, out_y_m, out_z_m]'</td>
-%%      <td>`#{mag_unit => gauss | mgauss} default gauss'</td>
-%%      <td>Strength of the magnetic field in (milli) gauss</td>
-%%  </tr>
-%%  <tr><td>`alt'</td><td>`[press_out]'</td>
-%%      <td></td>
-%%      <td>Pressure in hPa</td>
-%%  </tr>
-%%  <tr><td>`alt'</td><td>`[temp_out]'</td>
-%%      <td></td>
-%%      <td>Temperature in °C</td>
-%%  </tr>
-%% </table>
-%%
-%% For all registers see {@link registers/0} and {@link registers/1}
-%% and use the datasheets
-%% <a href="http://www.st.com/web/en/resource/technical/document/datasheet/DM00103319.pdf">LSM9DS1</a>
-%% and
-%% <a href="http://www.st.com/web/en/resource/technical/document/datasheet/DM00141379.pdf">LPS25HB</a>
-%% for a complete description.
-%%
-%% @spec read(Comp, Registers, Opts) -> {error, Reason} | Result
-%%      Comp = acc | mag | alt
-%%      Registers = [Atom]
-%%      Opts = Map
+% @doc Read registers of a component.
+%
+% === Examples ===
+% To read the accelerometer X, Y and Z axises G-forces in milli g, use:
+% ```
+%  4> pmod_nav:read(acc, [out_x_xl, out_y_xl, out_z_xl], #{xl_unit => mg}).
+%  [50.813,6.527,983.7470000000001]
+% '''
+%
+% === Further Registers ===
+% <table border="1" summary="Examples of register entries">
+%  <tr><th>Component</th><th>Registers</th><th>Possible Options</th>
+%      <th>Description</th>
+%  </tr>
+%  <tr><td>`acc'</td><td>`[out_x_g, out_y_g, out_z_g]'</td>
+%      <td>`#{g_unit => dps | mdps} default dps'</td>
+%      <td>Rotation of the axises x,y and z in (milli) degrees per second</td>
+%  </tr>
+%  <tr><td>`acc'</td><td>`[out_x_xl, out_y_xl, out_z_xl]'</td>
+%      <td>`#{xl_unit => g | mg} default g'</td>
+%      <td>G-force on the axises x,y and z</td>
+%  </tr>
+%  <tr><td>`mag'</td><td>`[out_x_m, out_y_m, out_z_m]'</td>
+%      <td>`#{mag_unit => gauss | mgauss} default gauss'</td>
+%      <td>Strength of the magnetic field in (milli) gauss</td>
+%  </tr>
+%  <tr><td>`alt'</td><td>`[press_out]'</td>
+%      <td></td>
+%      <td>Pressure in hPa</td>
+%  </tr>
+%  <tr><td>`alt'</td><td>`[temp_out]'</td>
+%      <td></td>
+%      <td>Temperature in °C</td>
+%  </tr>
+% </table>
+%
+% For all registers see {@link registers/0} and {@link registers/1}
+% and use the datasheets
+% <a href="http://www.st.com/web/en/resource/technical/document/datasheet/DM00103319.pdf">LSM9DS1</a>
+% and
+% <a href="http://www.st.com/web/en/resource/technical/document/datasheet/DM00141379.pdf">LPS25HB</a>
+% for a complete description.
+%
+% @spec read(Comp, Registers, Opts) -> {error, Reason} | Result
+%      Comp = acc | mag | alt
+%      Registers = [Atom]
+%      Opts = Map
 read(Comp, Registers, Opts) when is_list(Registers) ->
     call({read, Comp, Registers, Opts}).
 
@@ -482,8 +485,8 @@ pin(acc) -> ss1;
 pin(mag) -> spi1_pin9;
 pin(alt) -> spi1_pin10.
 
-%% @doc Get the registers (with the possible entries) of all components.
-%% @spec registers() -> Map
+% @doc Get the registers (with the possible entries) of all components.
+% @spec registers() -> Map
 registers() ->
     #{
         acc => registers(acc),
@@ -491,28 +494,28 @@ registers() ->
         alt => registers(alt)
     }.
 
-%% @doc Get the registers (with the possible entries) of one component.
-%%
-%% === Example ===
-%% To see the possible configurations in `ctrl_reg1_g' use:
-%% ```
-%% 4> maps:find(ctrl_reg1_g, pmod_nav:registers(acc)).
-%% {ok,{16,read_write,1,
-%%      [{odr_g,3,
-%%              #{power_down => 0,
-%%                {hz,119} => 3,
-%%                {hz,238} => 4,
-%%                {hz,476} => 5,
-%%                {hz,952} => 6,
-%%                {hz,14.9} => 1,
-%%                {hz,59.5} => 2}},
-%%       {fs_g,2,#{{dps,245} => 0,{dps,500} => 1,{dps,2000} => 3}},
-%%       {0,1},
-%%       {bw_g,2,raw}]}}
-%% '''
-%%
-%% @spec registers(Comp) -> Map
-%%        Comp = acc | mag | alt
+% @doc Get the registers (with the possible entries) of one component.
+%
+% === Example ===
+% To see the possible configurations in `ctrl_reg1_g' use:
+% ```
+% 4> maps:find(ctrl_reg1_g, pmod_nav:registers(acc)).
+% {ok,{16,read_write,1,
+%      [{odr_g,3,
+%              #{power_down => 0,
+%                {hz,119} => 3,
+%                {hz,238} => 4,
+%                {hz,476} => 5,
+%                {hz,952} => 6,
+%                {hz,14.9} => 1,
+%                {hz,59.5} => 2}},
+%       {fs_g,2,#{{dps,245} => 0,{dps,500} => 1,{dps,2000} => 3}},
+%       {0,1},
+%       {bw_g,2,raw}]}}
+% '''
+%
+% @spec registers(Comp) -> Map
+%        Comp = acc | mag | alt
 registers(acc) ->
     #{
         act_ths => {16#04, read_write, 1, [
