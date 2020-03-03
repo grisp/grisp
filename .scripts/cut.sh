@@ -39,6 +39,10 @@ if [ -f doc/overview.edoc ]; then
     git add doc/overview.edoc
 fi
 
+# Update changelog
+github_changelog_generator --future-release "$VSN"
+git add CHANGELOG.md
+
 # Commit, tag and push
 git commit -m "Version $VSN"
 git tag -s "$VSN" -m "Version $VSN"
@@ -51,9 +55,5 @@ rm -rf test/**/*.beam
 rebar3 hex publish
 rebar3 hex docs
 
-# Generate and push changelog
-github_changelog_generator
-git add CHANGELOG.md
-git commit -m "Update changelog for version $VSN"
-git push
+# Push changelog to GitHub Releases
 chandler push "$VSN"
