@@ -43,12 +43,12 @@ get_bits(Bin, Start, Len) when bit_size(Bin) >= Start + Len ->
     Bytes.
 
 % @equiv set_bits(Bin, Start * 8, Value)
--spec set_bytes(bitstring(),non_neg_integer(),bitstring()) -> bitstring().
+-spec set_bytes(binary(),non_neg_integer(),bitstring()) -> binary().
 set_bytes(Bin, Start, Value) when byte_size(Bin) >= Start + byte_size(Value) ->
     set_bits(Bin, Start * 8, Value).
 
 % @equiv get_bits(Bin, Start * 8, Len * 8)
--spec get_bytes(bitstring(),non_neg_integer(),non_neg_integer()) -> bitstring().
+-spec get_bytes(binary(),non_neg_integer(),non_neg_integer()) -> binary().
 get_bytes(Bin, Start, Len) when byte_size(Bin) >= Start + Len ->
     get_bits(Bin, Start * 8, Len * 8).
 
@@ -60,10 +60,10 @@ get_bytes(Bin, Start, Len) when byte_size(Bin) >= Start + Len ->
 %  F2 11
 %  ok
 % '''
--spec pp(bitstring()) -> 'ok'.
+-spec pp(binary()) -> 'ok'.
 pp(Bin) -> pp(Bin, #{display => hex}).
 
-% @doc Print bitstring as numbers.
+% @doc Print binary as numbers.
 %
 % === Example ===
 % ```
@@ -74,7 +74,7 @@ pp(Bin) -> pp(Bin, #{display => hex}).
 %  1111 0010  0001 0001
 %  ok
 % '''
--spec pp(bitstring(), coding() | #{display := coding()}) -> 'ok'.
+-spec pp(binary(), coding() | #{display := coding()}) -> 'ok'.
 pp(Bin, Display) when is_atom(Display) ->
     pp(Bin, #{display => Display});
 pp(<<B:8/bitstring, Rest/bitstring>>, Opts) ->
