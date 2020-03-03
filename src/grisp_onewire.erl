@@ -2,6 +2,14 @@
 % <a href="https://datasheets.maximintegrated.com/en/ds/DS2482-100.pdf">
 % DS2482-100 Single-Channel 1-Wire Master
 % </a>.
+%
+% The functions in this module refer to the function commands documented in the
+% masters
+% <a href="https://datasheets.maximintegrated.com/en/ds/DS2482-100.pdf">
+% data sheet
+% </a>.
+% Each function has a hexadecimal command code that is referenced in the
+% specification sheet.
 % @end
 -module(grisp_onewire).
 
@@ -72,12 +80,11 @@ transaction(Fun) when is_function(Fun) ->
             erlang:raise(Class, Reason, Stacktrace)
     end.
 
-% @doc <q>Performs a global reset of device state machine logic. Terminates any
-% ongoing 1-Wire communication.</q>
-%
-% Command code: f0h.
+% @doc Reset the 1-Wire Master and terminate any ongoing 1-Wire communication.
 %
 % This function can only be used inside of a {@link transaction/1} call.
+%
+% <em>Command code: `f0h'.</em>
 % @end
 % I2C messages to 1-Wire Master:
 % | S | AD,0 ‖ A ‖ DRST ‖ A ‖ Sr | AD,1 ‖ A | <byte> ‖ A\ | P |
@@ -94,22 +101,20 @@ reset() ->
 
 % @doc Write configuration into 1-Wire master register.
 %
-% Command code: d2h.
-%
 % This function can only be used inside of a {@link transaction/1} call.
 %
-% The default configuration is 0, i.e., all three configurable bits set to 0.
-% This corresponds to an empty list. Each atom in the list activates the
-% corresponding configuration (sets the bit to 1) and each atom not present in
-% the list leads to a deactivation (sets the bit to 0).
+% The default configuration is `0', i.e., all three configurable bits set to
+% `0'. This corresponds to an empty list. Each atom in the list activates the
+% corresponding configuration (sets the bit to `1') and each atom not present in
+% the list leads to a deactivation (sets the bit to `0').
 %
 % === Atom to Integer to Configuration Bit Mapping ===
 % <table border="1" summary="Atom to Integer to Configuration Bit Mapping">
 %  <tr><th>Atom</th><th>Integer</th><th>Configuration Bit</th>
 %  <th>Activates</th></tr>
-%  <tr><td>`apu'</td><td>1</td><td>Bit 0 (APU)</td><td>Active pullup</td></tr>
-%  <tr><td>`spu'</td><td>4</td><td>Bit 2 (SPU)</td><td>Strong pullup</td></tr>
-%  <tr><td>`overdrive'</td><td>8</td><td>Bit 3 (1WS)</td><td>1-Wire overdrive
+%  <tr><td>`apu'</td><td>`1'</td><td>Bit 0 (APU)</td><td>Active pullup</td></tr>
+%  <tr><td>`spu'</td><td>`4'</td><td>Bit 2 (SPU)</td><td>Strong pullup</td></tr>
+%  <tr><td>`overdrive'</td><td>`8'</td><td>Bit 3 (1WS)</td><td>1-Wire overdrive
 %  speed</td></tr>
 % </table>
 %
@@ -124,6 +129,8 @@ reset() ->
 %  4> grisp_onewire:transaction(fun() -> grisp_onewire:write_config(1 bor 8) end).
 %  ok
 % '''
+%
+% <em>Command code: `d2h'.</em>
 % @end
 % I2C messages to 1-Wire Master:
 % | S | AD,0 ‖ A ‖ WCFG ‖ A ‖ <byte> ‖ A ‖ Sr | AD,1 ‖ A | <byte> ‖ A\ | P |
@@ -155,8 +162,6 @@ detect() ->
 
 % @doc Reset the bus and check the register for devices.
 %
-% Command code: b4h.
-%
 % This function can only be used inside of a {@link transaction/1} call.
 %
 % === Return Value Description ===
@@ -167,6 +172,8 @@ detect() ->
 %  <tr><td>`short_detected'</td><td>A short circuit between data and ground on the
 %  bus detected</td></tr>
 % </table>
+%
+% <em>Command code: `b4h'.</em>
 % @end
 -spec bus_reset() -> 'nothing_present' | 'presence_detected' | 'short_detected'.
 bus_reset() ->
@@ -178,9 +185,9 @@ bus_reset() ->
 
 % @doc Write one data byte to the 1-Wire line.
 %
-% Command: a5h
-%
 % This function can only be used inside of a {@link transaction/1} call.
+%
+% <em>Command code: `a5h'</em>
 -spec write_byte(integer()) -> ok.
 write_byte(Byte) ->
     assert_transaction(),
@@ -189,9 +196,9 @@ write_byte(Byte) ->
 
 % @doc Read one data byte from the 1-Wire line.
 %
-% Command codes: 96h, e1h
-%
 % This function can only be used inside of a {@link transaction/1} call.
+%
+% <em>Command codes: `96h', `e1h'</em>
 read_byte() ->
     assert_transaction(),
     grisp_i2c:msgs([?DS2482_I2C_ADR,
@@ -203,9 +210,9 @@ read_byte() ->
 
 % @private
 %
-% Command:78h
-%
 % This function can only be used inside of a {@link transaction/1} call.
+%
+% <em>Command code:`78h'</em>
 -spec write_triplet(0 | 1) -> {0 | 1,0 | 1,0 | 1}.
 write_triplet(Dir) ->
     assert_transaction(),
@@ -221,14 +228,15 @@ write_triplet(Dir) ->
 % This function can only be used inside of a {@link transaction/1} call.
 %
 % If there are connected devices, i.e., {@link bus_reset/0} returns
-% `present_detected', this function provides a list of the unique 64-bit
+% `presence_detected', this function provides a list of the unique 64-bit
 % addresses of all detected devices.
 % Otherwise, the return values match the values from {@link bus_reset/0} or
 % `fail' for other failures during the search.
 % The addresses are represented as lists of eight byte values.
 %
 % === Example ===
-% With five DS18B20 temperature sensors connected one get something like:
+% With five DS18B20 temperature sensors connected one can list the five device
+% IDs:
 % ```
 %  1> grisp_onewire:transaction(fun grisp_onewire:search/0).
 %  [[40,255,203,173,80,23,4,182],
