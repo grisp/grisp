@@ -7,7 +7,7 @@ pipeline {
       }
     }
 
-    stage('') {
+    stage('Test') {
       steps {
         sh 'rebar3 eunit'
       }
