@@ -50,6 +50,9 @@
 #define PRIO_DHCP		(RTEMS_MAXIMUM_PRIORITY - 1)
 #define PRIO_WPA		(RTEMS_MAXIMUM_PRIORITY - 1)
 
+#define SHELL_STACK_SIZE (RTEMS_MINIMUM_STACK_SIZE * 4)
+#define CONSOLE_DEVICE_NAME "/dev/console"
+
 void parse_args(char *args);
 
 const Pin atsam_pin_config[] = {GRISP_PIN_CONFIG};
@@ -62,6 +65,44 @@ static int wlan_enable = 0;
 
 static char *ip_self = "";
 static char *wlan_ip_netmask = "";
+
+/*
+* Leaving the default configuration
+* such that without an explicit parameter
+* the Erlang shell will be visible.
+* 
+* Although it is possible to run both
+* shells simultaneously, that is not
+* part of the scope of handled configurations.
+* 
+* - Erlang shell :
+*     To access the Erlang shell either the
+*     default configuration or an explicit
+*     declaration can be done :
+*       
+*       - grisp/grisp_base/files/grisp.ini.mustache :
+*         
+*         [erlang]
+*         args = erl.rtems -- -mode embedded <rest of emulator flags...>
+*         shell=erlang
+* - RTEMS shell :
+*     RTEMS shell access should be done with
+*     additional emulator flags : 
+*   
+*         [erlang]
+*         args = erl.rtems -- -mode embedded -noshell -noinput <rest of emulator flags...>
+*         shell=rtems
+* 
+* - No shell :
+*     If no shell is necessary, the following can be
+*     configured in the grisp.ini.mustache file :
+*
+*         [erlang]
+*         args = erl.rtems -- -mode embedded -noshell -noinput <rest of emulator flags...>
+*         shell=none
+*  
+*/
+static int shell = 0;
 
 /*
 * Infrastructure mode by default.
@@ -266,6 +307,28 @@ printf ("grisp.ini: "
 	  erl_args = strdup(value);
 	  ok = 1;
       }
+      // Will default to Erlang shell if not present
+      else if (strcmp(name, "shell") == 0) {
+      printf ("shell setting: "
+        "section \"%s\", name \"%s\", value \"%s\"\n",
+        section, name, value);
+          if (strcmp(value, "erlang") == 0) {
+            shell = 0;
+            ok = 1;
+            printf("Shell set to Erlang\n");
+          } else if (strcmp(value, "rtems") == 0) {
+            // NOTE : -noshell -noinput flags must
+            // be specified in args by user, 
+            // currently no verification is performed
+            shell = 1;
+            ok = 1;
+            printf("Shell set to RTEMS\n");
+          } else if (strcmp(value, "none") == 0) {
+            shell = 2;
+            ok = 1;
+            printf("Shell set to none\n");
+          }
+      } 
   }
   else
     ok = 1;
@@ -491,7 +554,39 @@ static void Init(rtems_task_argument arg)
   printf("hostname: %s\n", hostname);
 
   printf("starting erlang runtime\n");
-  erl_start(argc, argv);
+  
+  // Erlang shell
+  if (shell == 0) 
+  {
+    printf("Erlang shell mode\n");
+    erl_start(argc, argv);
+
+  // RTEMS shell
+  } else if (shell == 1) 
+  { 
+
+    grisp_led_set2(false, true, false);
+    printf(" =========================\n");
+    printf(" Starting RTEMS shell...\n");
+    printf(" =========================\n");
+
+    sc = rtems_shell_init("SHLL"  /* task name */
+        , SHELL_STACK_SIZE        /* task stack size */
+        , 10                      /* task priority */
+        , CONSOLE_DEVICE_NAME     /* device name */
+        , true                    /* run forever */
+        , false                   /* wait for shell to terminate */
+        , NULL);                  /* login check function,
+                                   use NULL to disable a login check */
+    assert(sc == RTEMS_SUCCESSFUL);
+    erl_start(argc, argv);
+
+  // No shell
+  } else if (shell == 2) 
+  { 
+    printf("No shell mode\n");
+    erl_start(argc, argv);
+  }
   printf("erlang runtime exited\n");
   sleep(2);
   exit(0);
