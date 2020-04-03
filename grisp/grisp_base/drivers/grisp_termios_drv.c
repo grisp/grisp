@@ -105,8 +105,7 @@ ErlDrvData grisp_tio_start (ErlDrvPort port, char *command)
   if (tcsetattr(data->fd, TCSAFLUSH, &term) < 0)
     return ERL_DRV_ERROR_ERRNO;
 
-  driver_select(data->port, (ErlDrvEvent)data->fd,
-                ERL_DRV_READ | ERL_DRV_WRITE, 1);
+  driver_select(data->port, (ErlDrvEvent)data->fd, ERL_DRV_READ, 1);
 
   return (ErlDrvData)data;
 }
@@ -148,14 +147,24 @@ void grisp_tio_dowrite(struct grisp_tio_data *data)
   iov = (struct iovec *)driver_peekq(data->port, &vlen);
 
   DEBUG_PRINT("grisp_tio_dowrite: vlen=%ld", vlen);
-  
-  for (i = 0; i < vlen; i++) {
-    len = iov[i].iov_len;
-    wlen = write(data->fd, iov[i].iov_base, len);
-    DEBUG_PRINT("grisp_tio_dowrite: i=%d, len=ld wlen", i, len, wlen);
-    driver_deq(data->port, wlen);
-    if (wlen != len) break;
-  }
+  if (vlen == 0)
+    {
+      driver_select(data->port, (ErlDrvEvent)data->fd, ERL_DRV_WRITE, 0);
+    } 
+  else
+    {
+      for (i = 0; i < vlen; i++) {
+        len = iov[i].iov_len;
+        wlen = write(data->fd, iov[i].iov_base, len);
+        DEBUG_PRINT("grisp_tio_dowrite: i=%d, len=ld wlen", i, len, wlen);
+        driver_deq(data->port, wlen);
+        if (wlen != len)
+          {
+            driver_select(data->port, (ErlDrvEvent)data->fd, ERL_DRV_WRITE, 1);
+            break;
+          }
+      }
+    }
 }
 
 void grisp_tio_ready_in (ErlDrvData drv_data, ErlDrvEvent event)
