@@ -2,8 +2,15 @@ pipeline {
   agent any
   stages {
     stage('Build') {
+      agent {
+        docker {
+          image 'erlang/latest'
+        }
+
+      }
       steps {
-        sh 'rebar3 compile'
+        sh '''whoami
+rebar3 compile'''
       }
     }
 
