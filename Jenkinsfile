@@ -9,8 +9,7 @@ pipeline {
 
       }
       steps {
-        sh '''whoami
-rebar3 compile'''
+        sh 'rebar3 compile'
       }
     }
 
