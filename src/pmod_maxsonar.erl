@@ -19,7 +19,6 @@
 % API
 -export([start_link/2]).
 -export([get/0]).
--export([get_single/0]).
 -export([set_mode/1]).
 
 % Callbacks
