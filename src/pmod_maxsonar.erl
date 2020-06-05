@@ -53,7 +53,7 @@ get() ->
 
 -spec set_mode(disabled | continuous | single) -> any().
 set_mode(Mode) ->
-  gen_server:cast(?MODULE, {set_mode, Mode}).
+  gen_server:call(?MODULE, {set_mode, Mode}).
 
 %--- Callbacks -----------------------------------------------------------------
 
