@@ -79,13 +79,13 @@ handle_call(get_value, From, #state{mode = single, callers = Callers} = State) -
   {noreply, State#state{callers = State#state.callers ++ [From]}};
 handle_call({set_mode, disabled}, _From, State) ->
   grisp_gpio:configure(uart_2_txd, output_0),
-  {noreply, State#state{mode = disabled}};
+  {reply, ok, State#state{mode = disabled}};
 handle_call({set_mode, single}, _From, State) ->
   grisp_gpio:configure(uart_2_txd, output_0),
-  {noreply, State#state{mode = single}};
+  {reply, ok, State#state{mode = single}};
 handle_call({set_mode, continuous}, _From, State) ->
   grisp_gpio:configure(uart_2_txd, output_1),
-  {noreply, State#state{mode = continuous}}.
+  {reply, ok, State#state{mode = continuous}}.
 
 % @private
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
