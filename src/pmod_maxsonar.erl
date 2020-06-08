@@ -94,7 +94,7 @@ handle_cast(Request, _State) -> error({unknown_cast, Request}).
 handle_info({Port, {data, Data}}, #state{port = Port, mode = continuous} = State) ->
   {noreply, State#state{last_val = decode(Data, State)}};
 handle_info({Port, {data, Data}}, #state{port = Port, mode = single, callers = Callers} = State) ->
-  lists:map(fun(C) -> gen_server:reply(C, Data) end, Callers),
+  lists:map(fun(C) -> gen_server:reply(C, decode(Data, State)) end, Callers),
   {noreply, State#state{port = Port, callers = []}}.
 
 % @private
