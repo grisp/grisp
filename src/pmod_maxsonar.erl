@@ -72,19 +72,18 @@ handle_call(get_value, _From, #state{last_val = Val, mode = continuous} = State)
 handle_call(get_value, From, #state{mode = single, callers = Callers} = State) ->
   case length(Callers) of
     0 ->
-      grisp_gpio:configure(uart_2_txd, output_1),
-      grisp_gpio:configure(uart_2_txd, output_0);
+      grisp_gpio:set(uart_2_txd);
     _ -> ok
   end,
   {noreply, State#state{callers = State#state.callers ++ [From]}};
 handle_call({set_mode, disabled}, _From, State) ->
-  grisp_gpio:configure(uart_2_txd, output_0),
+  grisp_gpio:clear(uart_2_txd),
   {reply, ok, State#state{mode = disabled}};
 handle_call({set_mode, single}, _From, State) ->
-  grisp_gpio:configure(uart_2_txd, output_0),
+  grisp_gpio:clear(uart_2_txd),
   {reply, ok, State#state{mode = single}};
 handle_call({set_mode, continuous}, _From, State) ->
-  grisp_gpio:configure(uart_2_txd, output_1),
+  grisp_gpio:set(uart_2_txd),
   {reply, ok, State#state{mode = continuous}}.
 
 % @private
@@ -94,6 +93,7 @@ handle_cast(Request, _State) -> error({unknown_cast, Request}).
 handle_info({Port, {data, Data}}, #state{port = Port, mode = continuous} = State) ->
   {noreply, State#state{last_val = decode(Data, State)}};
 handle_info({Port, {data, Data}}, #state{port = Port, mode = single, callers = Callers} = State) ->
+  grisp_gpio:clear(uart_2_txd),
   lists:map(fun(C) -> gen_server:reply(C, decode(Data, State)) end, Callers),
   {noreply, State#state{port = Port, callers = []}}.
 
