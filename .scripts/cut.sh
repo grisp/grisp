@@ -15,7 +15,6 @@ check_path() {
 check_path git
 check_path sed
 check_path rebar3 "http://www.rebar3.org"
-check_path github_changelog_generator "https://github.com/github-changelog-generator/github-changelog-generator"
 check_path chandler "https://github.com/mattbrictson/chandler"
 
 if [ -z "$1" ]; then
@@ -38,10 +37,6 @@ if [ -f doc/overview.edoc ]; then
     sed -i "" -e "s/@version .*/@version $VSN/g" doc/overview.edoc
     git add doc/overview.edoc
 fi
-
-# Update changelog
-github_changelog_generator --future-release "$VSN"
-git add CHANGELOG.md
 
 # Commit, tag and push
 git commit -m "Version $VSN"
