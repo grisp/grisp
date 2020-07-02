@@ -1,4 +1,3 @@
-
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -7,7 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## Unreleased
+
+## [1.2.1] - 2020-07-02
+
+### Fixed
+
+- Updated to `grisp_emulation` 0.1.2 with proper PmodGYRO emulation
+  ([\#76](https://github.com/grisp/grisp/issues/76))
 
 ## [1.2.0] - 2020-03-03
 
@@ -137,7 +143,8 @@ and this project adheres to
 * Fix for \#2. Negative intervals are now treated by turning off leds [\#5](https://github.com/grisp/grisp/pull/5) ([nextl00p](https://github.com/nextl00p))
 
 
-[unreleased]: https://github.com/grisp/grisp/compare/v1.2.0...HEAD
+[unreleased]: https://github.com/grisp/grisp/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/grisp/grisp/compare/1.2.0...1.2.1
 [1.2.0]: https://github.com/grisp/grisp/compare/1.1.6...1.2.0
 [1.1.6]: https://github.com/grisp/grisp/compare/1.1.5...1.1.6
 [1.1.5]: https://github.com/grisp/grisp/compare/1.1.4...1.1.5
