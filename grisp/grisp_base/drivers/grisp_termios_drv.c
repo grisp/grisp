@@ -93,6 +93,9 @@ ErlDrvData grisp_tio_start (ErlDrvPort port, char *command)
   cfsetispeed(&term, B9600);
   cfsetospeed(&term, B9600);
 
+#if 0  
+
+
   term.c_lflag |= ICANON;
   term.c_lflag &= ~(ECHO | ECHOE | ECHOK | ECHONL);
   term.c_iflag |= ICRNL;
@@ -100,7 +103,14 @@ ErlDrvData grisp_tio_start (ErlDrvPort port, char *command)
   term.c_cflag &= ~CSIZE;
   term.c_cflag |= CS8;
   term.c_cflag &= ~(CSTOPB | PARENB);   /* 8N1 */
-    
+  term.c_cflag |= CLOCAL;
+  term.c_cflag &= ~CRTSCTS;
+  term.c_oflag &= ~(OPOST);  /* XXX it probably was the cause for the problem */
+#else
+  /* term.c_cflag |= CRTSCTS; */
+  term.c_lflag &= ~(ICANON | ISIG | ECHO | ECHOE | ECHOK | ECHONL);
+  term.c_iflag &= ~(ICRNL);
+#endif
   
   if (tcsetattr(data->fd, TCSAFLUSH, &term) < 0)
     return ERL_DRV_ERROR_ERRNO;
@@ -156,7 +166,8 @@ void grisp_tio_dowrite(struct grisp_tio_data *data)
       for (i = 0; i < vlen; i++) {
         len = iov[i].iov_len;
         wlen = write(data->fd, iov[i].iov_base, len);
-        DEBUG_PRINT("grisp_tio_dowrite: i=%d, len=ld wlen", i, len, wlen);
+        DEBUG_PRINT("grisp_tio_dowrite: fd=%d, i=%d, len=%ld wlen=%ld",
+                    data->fd, i, len, wlen);
         driver_deq(data->port, wlen);
         if (wlen != len)
           {
