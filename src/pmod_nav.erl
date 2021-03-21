@@ -1068,7 +1068,7 @@ convert_dps(Raw, Context, Opts) ->
     {Result, NewContext}.
 
 convert_gauss(Raw, Context, Opts) ->
-    Value = decode(unsigned_little, Raw),
+    Value = decode(signed_little, Raw),
     Scale = case maps:get(mag_unit, Opts, gauss) of
         gauss  -> 0.001;
         mgauss -> 1.0;
