@@ -1,3 +1,7 @@
+# macOS
+.DS_Store
+
+# Erlang
 .rebar3
 _*
 .eunit
