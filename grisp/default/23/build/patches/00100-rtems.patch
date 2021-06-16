@@ -1,0 +1,625 @@
+diff --git a/.gitignore b/.gitignore
+index 171ddfb9af..1ed53392d2 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -51,6 +51,11 @@ powerpc-unknown-linux-gnu
+ aarch64-unknown-linux-gnu
+ i386-elf-ose
+ powerpc-unknown-ose
++arm-unknown-rtems[0-9]*.[0-9]*
++powerpc-unknown-rtems[0-9]*.[0-9]*
++
++# Compilation/linking artifacts
++linker.map
+ 
+ # Mac OS X
+ a.out.dSYM/
+diff --git a/Makefile.in b/Makefile.in
+index 16bc7b1a3a..8a637475b3 100644
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -1099,7 +1099,11 @@ $(TEST_DIRS):
+ #
+ # Order is important here, don't change it!
+ #
++ifeq ($(findstring rtems,$(TARGET)),rtems)
++INST_DEP += install.dirs install.emulator install.libs install.Install install.otp_version
++else
+ INST_DEP += install.dirs install.emulator install.libs install.Install install.otp_version install.bin
++endif
+ 
+ install: $(INST_DEP)
+ 
+diff --git a/erts/Makefile b/erts/Makefile
+index 4827789c96..a8124f02a7 100644
+--- a/erts/Makefile
++++ b/erts/Makefile
+@@ -27,7 +27,12 @@ include $(ERL_TOP)/make/$(TARGET)/otp.mk
+ # ----------------------------------------------------------------------
+ 
+ # Other erts dirs than the emulator dir...
++ifeq ($(findstring rtems, $(TARGET)), rtems)
++ERTSDIRS = etc lib_src
++else
+ ERTSDIRS = etc epmd lib_src
++endif
++ERTSDIRS = etc lib_src
+ XINSTDIRS = preloaded
+ ifeq ($(NO_START_SCRIPTS),)
+ ERTSDIRS += start_scripts
+diff --git a/erts/emulator/Makefile.in b/erts/emulator/Makefile.in
+index 98dd6ea669..23d6b9be47 100644
+--- a/erts/emulator/Makefile.in
++++ b/erts/emulator/Makefile.in
+@@ -445,7 +445,11 @@ endif
+ # ----------------------------------------------------------------------
+ 
+ ifeq ($(ERLANG_OSTYPE), unix)
++ifeq ($(findstring rtems, $(TARGET)), rtems)
++UNIX_ONLY_BUILDS =
++else
+ UNIX_ONLY_BUILDS =	$(BINDIR)/$(CS_EXECUTABLE)
++endif
+ else
+ UNIX_ONLY_BUILDS =
+ endif
+@@ -514,9 +518,11 @@ release_spec: all
+ 	$(INSTALL_DATA) $(RELEASE_INCLUDES) "$(RELSYSDIR)/include"
+ 	$(INSTALL_PROGRAM) $(BINDIR)/$(EMULATOR_EXECUTABLE) "$(RELSYSDIR)/bin"
+ ifeq ($(ERLANG_OSTYPE), unix)
++ifneq ($(findstring rtems, $(TARGET)), rtems)
+ 	$(INSTALL_PROGRAM) $(BINDIR)/$(CS_EXECUTABLE) "$(RELSYSDIR)/bin"
+ endif
+ endif
++endif
+ 
+ .PHONY: release_docs_spec
+ release_docs_spec:
+diff --git a/erts/emulator/beam/io.c b/erts/emulator/beam/io.c
+index d2c6dffa53..edef9c4524 100644
+--- a/erts/emulator/beam/io.c
++++ b/erts/emulator/beam/io.c
+@@ -3004,7 +3004,7 @@ void erts_init_io(int port_tab_size,
+     init_driver(&fd_driver, &fd_driver_entry, NULL);
+     init_driver(&vanilla_driver, &vanilla_driver_entry, NULL);
+     init_driver(&spawn_driver, &spawn_driver_entry, NULL);
+-#ifndef __WIN32__
++#if !(defined(__WIN32__) || defined(__rtems__))
+     init_driver(&forker_driver, &forker_driver_entry, NULL);
+ #endif
+     erts_init_static_drivers();
+diff --git a/erts/emulator/beam/sys.h b/erts/emulator/beam/sys.h
+index 90e3008102..889cd52b67 100644
+--- a/erts/emulator/beam/sys.h
++++ b/erts/emulator/beam/sys.h
+@@ -183,7 +183,7 @@ typedef ERTS_SYS_FD_TYPE ErtsSysFdType;
+ #if (defined(__APPLE__) && defined(__MACH__)) || defined(__DARWIN__)
+ #  define ERTS_WRITE_UNLIKELY(X) X __attribute__ ((section ("__DATA,ERTS_LOW_WRITE") ))
+ #else
+-#  define ERTS_WRITE_UNLIKELY(X) X __attribute__ ((section ("ERTS_LOW_WRITE") ))
++#  define ERTS_WRITE_UNLIKELY(X) X __attribute__ ((section (".data.read_mostly") ))
+ #endif
+ #else
+ #  define ERTS_WRITE_UNLIKELY(X) X
+diff --git a/erts/emulator/sys/common/erl_mmap.h b/erts/emulator/sys/common/erl_mmap.h
+index 7a3fdd0aa9..c837c897e3 100644
+--- a/erts/emulator/sys/common/erl_mmap.h
++++ b/erts/emulator/sys/common/erl_mmap.h
+@@ -204,7 +204,7 @@ ERTS_GLB_INLINE void erts_mem_discard(void *p, UWord size);
+             data[i] = pattern[i % sizeof(pattern)];
+         }
+     }
+-#elif defined(HAVE_SYS_MMAN_H) && defined(HAVE_MADVISE) && !(defined(__sun) || defined(__sun__))
++#elif defined(HAVE_SYS_MMAN_H) && defined(HAVE_MADVISE) && !(defined(__sun) || defined(__sun__)) && !defined(__rtems__)
+     #include <sys/mman.h>
+ 
+     ERTS_GLB_INLINE void erts_mem_discard(void *ptr, UWord size) {
+diff --git a/erts/emulator/sys/unix/sys.c b/erts/emulator/sys/unix/sys.c
+index 46a035214b..9b2298095a 100644
+--- a/erts/emulator/sys/unix/sys.c
++++ b/erts/emulator/sys/unix/sys.c
+@@ -413,6 +413,7 @@ erts_sys_is_area_readable(char *start, char *stop) {
+ static ERTS_INLINE int
+ prepare_crash_dump(int secs)
+ {
++#ifndef __rtems__
+ #define NUFBUF (3)
+     int i;
+     char env[21]; /* enough to hold any 64-bit integer */
+@@ -474,6 +475,9 @@ prepare_crash_dump(int secs)
+     UnUseTmpHeapNoproc(NUFBUF);
+ #undef NUFBUF
+     return has_heart;
++#else  /* __rtems__ */
++    return 0;
++#endif /* __rtems__ */
+ }
+ 
+ int erts_sys_prepare_crash_dump(int secs)
+diff --git a/erts/etc/common/Makefile.in b/erts/etc/common/Makefile.in
+index 7a2b821c46..549132d409 100644
+--- a/erts/etc/common/Makefile.in
++++ b/erts/etc/common/Makefile.in
+@@ -190,6 +190,26 @@ endif
+ PORT_ENTRY_POINT=erl_port_entry
+ ENTRY_LDFLAGS=-entry:$(PORT_ENTRY_POINT)
+ 
++else # UNIX (!win32)
++ifeq ($(findstring rtems,$(TARGET)), rtems)
++ENTRY_LDFLAGS=
++ENTRY_OBJ=
++ERLSRV_OBJECTS=
++MC_OUTPUTS=
++INET_GETHOST=$(BINDIR)/inet_gethost@EXEEXT@
++INSTALL_EMBEDDED_PROGS=
++INSTALL_EMBEDDED_DATA=../unix/start.src ../unix/start_erl.src
++INSTALL_TOP=Install
++INSTALL_TOP_BIN=
++INSTALL_MISC=
++INSTALL_SRC=
++ERLEXECDIR=
++INSTALL_LIBS=
++INSTALL_OBJS=
++INSTALL_INCLUDES=
++TEXTFILES=Install erl.src
++INSTALL_PROGS=
++
+ else
+ ENTRY_LDFLAGS=
+ ENTRY_OBJ=
+@@ -222,6 +242,7 @@ INSTALL_PROGS =              \
+ 	$(BINDIR)/$(ERLEXEC) \
+ 	$(INSTALL_EMBEDDED_PROGS)
+ endif
++endif
+ 
+ .PHONY: etc
+ etc:	$(ENTRY_OBJ) $(INSTALL_PROGS) $(INSTALL_LIBS) $(TEXTFILES) $(INSTALL_TOP_BIN)
+@@ -470,11 +491,13 @@ $(BINDIR)/typer@EXEEXT@: $(OBJDIR)/typer.o $(ERTS_LIB)
+ $(OBJDIR)/typer.o: typer.c $(RC_GENERATED)
+ 	$(V_CC) $(CFLAGS) -o $@ -c typer.c
+ 
++ifneq ($(findstring rtems,$(TARGET)), rtems)
+ $(BINDIR)/escript@EXEEXT@: $(OBJDIR)/escript.o $(ERTS_LIB)
+ 	$(ld_verbose)$(PURIFY) $(LD) $(LDFLAGS) -o $@ $(OBJDIR)/escript.o -L$(OBJDIR) $(LIBS) $(ERTS_INTERNAL_LIBS)
+ 
+ $(OBJDIR)/escript.o: escript.c $(RC_GENERATED)
+ 	$(V_CC) $(CFLAGS) -o $@ -c escript.c
++endif
+ 
+ $(BINDIR)/ct_run@EXEEXT@: $(OBJDIR)/ct_run.o $(ERTS_LIB)
+ 	$(ld_verbose)$(PURIFY) $(LD) $(LDFLAGS) -o $@ $(OBJDIR)/ct_run.o -L$(OBJDIR) $(LIBS) $(ERTS_INTERNAL_LIBS)
+diff --git a/erts/etc/unix/Install.src b/erts/etc/unix/Install.src
+index 2dbf628972..f8d5ed8459 100644
+--- a/erts/etc/unix/Install.src
++++ b/erts/etc/unix/Install.src
+@@ -86,13 +86,34 @@ chmod 755 erl
+ 
+ cd "$ERL_ROOT/bin"
+ 
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erl" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erlc" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erl_call" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/dialyzer" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/typer" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/ct_run" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/escript" .
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/erl" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erl" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/erlc" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erlc" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/erl_call" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erl_call" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/dialyzer" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/dialyzer" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/typer" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/typer" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/ct_run" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/ct_run" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/escript" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/escript" .
++fi
+ 
+ #
+ # Set a soft link to epmd
+@@ -106,9 +127,19 @@ fi
+ 
+ ln -s ../erts-%I_VSN%/bin/epmd epmd
+ 
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/run_erl" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/to_erl" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/start" .
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/run_erl" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/run_erl" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/to_erl" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/to_erl" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/start" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/start" .
++fi
++
+ sed -e "s;%EMU%;%EMULATOR%%EMULATOR_NUMBER%;" "$ERL_ROOT/erts-%I_VSN%/bin/start_erl.src" > start_erl
+ chmod 755 start_erl
+ echo ""
+diff --git a/erts/lib_src/Makefile.in b/erts/lib_src/Makefile.in
+index 8fddd3479e..4aa1953a85 100644
+--- a/erts/lib_src/Makefile.in
++++ b/erts/lib_src/Makefile.in
+@@ -39,6 +39,7 @@ INSTALL=@INSTALL@
+ INSTALL_DIR=@INSTALL_DIR@
+ INSTALL_DATA=@INSTALL_DATA@
+ INSTALL_PROGRAM=@INSTALL_PROGRAM@
++CROSS_COMPILING = @CROSS_COMPILING@
+ 
+ ERLANG_OSTYPE=@ERLANG_OSTYPE@
+ 
+@@ -358,7 +359,13 @@ YCF_SOURCE_DIR=$(ERL_TOP)/erts/lib_src/yielding_c_fun
+ 
+ include $(YCF_SOURCE_DIR)/main_target.mk
+ 
++ifeq ($(CROSS_COMPILING),no)
++# TODO: Move this to a proper flag in erts/configure.in
++#       (erl_xcomp_build_ycf=true|false)
+ $(OBJ_DIR)/MADE: $(YCF_EXECUTABLE) $(ETHREAD_LIB) $(ERTS_LIBS) $(ERTS_INTERNAL_LIBS)
++else
++$(OBJ_DIR)/MADE: $(ETHREAD_LIB) $(ERTS_LIBS) $(ERTS_INTERNAL_LIBS)
++endif
+ 	$(gen_verbose)
+ ifeq ($(OMIT_OMIT_FP),yes)
+ 	@echo '* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *'
+@@ -511,7 +518,11 @@ INTERNAL_RELEASE_LIBS= \
+ 
+ .PHONY: release_spec
+ release_spec: all
++ifeq ($(CROSS_COMPILING),no)
++# TODO: Move this to a proper flag in erts/configure.in
++#       (erl_xcomp_build_ycf=true|false)
+ 	$(INSTALL_PROGRAM) $(YCF_EXECUTABLE) "$(RELSYSDIR)/bin"
++endif
+ ifneq ($(strip $(RELEASE_INCLUDES)),)
+ 	$(INSTALL_DIR) "$(RELSYSDIR)/include"
+ 	$(INSTALL_DIR) "$(RELEASE_PATH)/usr/include"
+diff --git a/erts/lib_src/pthread/ethread.c b/erts/lib_src/pthread/ethread.c
+index f7262c02b1..8e7aa28e1a 100644
+--- a/erts/lib_src/pthread/ethread.c
++++ b/erts/lib_src/pthread/ethread.c
+@@ -155,6 +155,7 @@ ppc_init__(void)
+     /* If anything what so ever failes we assume no lwsync for safety */
+     ethr_runtime__.conf.have_lwsync = 0;
+ 
++#ifndef __rtems__
+     /*
+      * We perform the lwsync test (which might cause an illegal
+      * instruction signal) in a separate process in order to be
+@@ -186,6 +187,8 @@ ppc_init__(void)
+ 	    }
+ 	}
+     }
++#endif
++
+     return 0;
+ }
+ 
+diff --git a/lib/Makefile b/lib/Makefile
+index a59532eed7..0e72ced7e2 100644
+--- a/lib/Makefile
++++ b/lib/Makefile
+@@ -83,7 +83,7 @@ endif
+ 
+ # Any applications listed in SKIP-APPLICATIONS should be skipped
+ SKIP_FILE := $(wildcard SKIP-APPLICATIONS)
+-SKIP_APPLICATIONS := $(if $(SKIP_FILE),$(shell cat $(SKIP_FILE)))
++SKIP_APPLICATIONS += $(if $(SKIP_FILE),$(shell cat $(SKIP_FILE)))
+ SUB_DIRECTORIES := $(filter-out $(SKIP_APPLICATIONS),$(SUB_DIRECTORIES))
+ 
+ # ----------------------------------------------------------------------
+diff --git a/lib/asn1/c_src/Makefile b/lib/asn1/c_src/Makefile
+index cb606fd74e..84b91ce5fb 100644
+--- a/lib/asn1/c_src/Makefile
++++ b/lib/asn1/c_src/Makefile
+@@ -69,7 +69,9 @@ NIF_LIB_FILE = $(LIBDIR)/asn1rt_nif.lib
+ CLIB_FLAGS =
+ LN=cp
+ else
++ifneq ($(findstring rtems,$(TARGET)),rtems)
+ NIF_SHARED_OBJ_FILE = $(LIBDIR)/asn1rt_nif.so
++endif
+ NIF_LIB_FILE = $(LIBDIR)/asn1rt_nif.a
+ CLIB_FLAGS =
+ LN= ln -s
+@@ -135,7 +137,9 @@ include $(ERL_TOP)/make/otp_release_targets.mk
+ 
+ release_spec: opt
+ 	$(INSTALL_DIR) "$(RELSYSDIR)/priv/lib"
++ifneq ($(findstring rtems,$(TARGET)),rtems)
+ 	$(INSTALL_PROGRAM) $(NIF_SHARED_OBJ_FILE) "$(RELSYSDIR)/priv/lib"
++endif
+ 	$(INSTALL_DIR) "$(RELSYSDIR)/c_src"
+ 	$(INSTALL_DATA) *.c "$(RELSYSDIR)/c_src"
+ 
+diff --git a/lib/crypto/c_src/Makefile.in b/lib/crypto/c_src/Makefile.in
+index 0821bd8d00..ff8b32c9c8 100644
+--- a/lib/crypto/c_src/Makefile.in
++++ b/lib/crypto/c_src/Makefile.in
+@@ -119,9 +119,17 @@ NIF_ARCHIVE = $(LIBDIR)/crypto$(TYPEMARKER).a
+ 
+ TEST_ENGINE_OBJS = $(OBJDIR)/otp_test_engine$(TYPEMARKER).o
+ 
++ifneq ($(findstring rtems,$(TARGET)),rtems)
++ifeq ($(findstring win32,$(TARGET)), win32)
+ NIF_LIB = $(LIBDIR)/crypto$(TYPEMARKER).@DED_EXT@
+ CALLBACK_LIB = $(LIBDIR)/crypto_callback$(TYPEMARKER).@DED_EXT@
+ TEST_ENGINE_LIB = $(LIBDIR)/otp_test_engine$(TYPEMARKER).@DED_EXT@
++else
++NIF_LIB = $(LIBDIR)/crypto$(TYPEMARKER).so
++CALLBACK_LIB = $(LIBDIR)/crypto_callback$(TYPEMARKER).so
++TEST_ENGINE_LIB = $(LIBDIR)/otp_test_engine$(TYPEMARKER).so
++endif
++endif
+ 
+ DYNAMIC_CRYPTO_LIB=@SSL_DYNAMIC_ONLY@
+ 
+@@ -240,6 +248,7 @@ release_spec: opt
+ 	$(INSTALL_DIR) "$(RELSYSDIR)/priv/obj"
+ 	$(INSTALL_DIR) "$(RELSYSDIR)/priv/lib"
+ 	$(INSTALL_DATA) $(NIF_MAKEFILE) "$(RELSYSDIR)/priv/obj"
++ifneq ($(findstring rtems,$(TARGET)),rtems)
+ 	$(INSTALL_PROGRAM) $(CRYPTO_OBJS) "$(RELSYSDIR)/priv/obj"
+ 	$(INSTALL_PROGRAM) $(NIF_LIB) "$(RELSYSDIR)/priv/lib"
+ ifeq ($(DYNAMIC_CRYPTO_LIB),yes)
+@@ -248,6 +257,7 @@ ifeq ($(DYNAMIC_CRYPTO_LIB),yes)
+ endif
+ 	$(INSTALL_PROGRAM) $(TEST_ENGINE_OBJS) "$(RELSYSDIR)/priv/obj"
+ 	$(INSTALL_PROGRAM) $(TEST_ENGINE_LIB) "$(RELSYSDIR)/priv/lib"
++endif
+ 
+ release_docs_spec:
+ 
+diff --git a/lib/crypto/configure.in b/lib/crypto/configure.in
+index acab542cda..e7235a75cd 100644
+--- a/lib/crypto/configure.in
++++ b/lib/crypto/configure.in
+@@ -52,6 +52,8 @@ ERL_DED
+ dnl
+ dnl SSL, SSH and CRYPTO need the OpenSSL libraries
+ dnl
++dnl TODO: Update comments
++dnl
+ dnl Check flags --with-ssl, --without-ssl --with-ssl=PATH.
+ dnl If no option is given or --with-ssl is set without a path then we
+ dnl search for OpenSSL libraries and header files in the standard locations. 
+@@ -141,12 +143,17 @@ AS_HELP_STRING([--with-ssl=PATH], [specify location of OpenSSL include and lib])
+ AS_HELP_STRING([--with-ssl], [use SSL (default)])
+ AS_HELP_STRING([--without-ssl], [don't use SSL]))
+ 
++dnl TODO: Add checks regarding conflicts between --with-ssl and --with-ssl-lib
++AC_ARG_WITH(ssl-lib,
++AS_HELP_STRING([--with-ssl-lib=PATH], [location of the library containing OpenSSL, if not standard]))
++
++dnl TODO: Add checks related to --with-ssl-lib, re-enable checks related to --with-ssl
+ AC_ARG_WITH(ssl-incl,
+ AS_HELP_STRING([--with-ssl-incl=PATH], [location of OpenSSL include dir, if different than specified by --with-ssl=PATH]),
+ [
+-case X$with_ssl in
+-    X | Xyes | Xno) AC_MSG_ERROR([--with-ssl-incl=PATH set without --with-ssl=PATH]);;
+-esac
++dnl case X$with_ssl in
++dnl     X | Xyes | Xno) AC_MSG_ERROR([--with-ssl-incl=PATH set without --with-ssl=PATH]);;
++dnl esac
+ ],
+ [with_ssl_incl=$with_ssl]) #default
+ 
+@@ -210,8 +217,8 @@ done
+ SSL_DYNAMIC_ONLY=$enable_dynamic_ssl
+ SSL_STATIC_ONLY=no
+ 
+-case "$erl_xcomp_without_sysroot-$with_ssl" in
+-  yes-* | no-no)
++case "$erl_xcomp_without_sysroot-$with_ssl-$with_ssl_lib" in
++  yes-* | no-no-*)
+     SSL_APP=
+     CRYPTO_APP=
+     SSH_APP=
+@@ -224,7 +231,7 @@ case "$erl_xcomp_without_sysroot-$with_ssl" in
+         echo "$skip" > $ERL_TOP/lib/$a/SKIP
+     done
+     ;;
+-  no-yes | no- )
++  no-yes- | no-- )
+     # On windows, we could try to find the installation
+     # of Shining Light OpenSSL, which can be found by poking in
+     # the uninstall section in the registry, it's worth a try...
+@@ -475,6 +482,43 @@ dnl		so it is - be adoptable
+        done
+     fi
+     ;;
++  *-yes-*)
++    # Non-standard library specified by PATH
++    if test ! -f "$with_ssl_lib" ; then
++       AC_MSG_ERROR(Invalid path to option --with-ssl-lib=PATH)
++    fi
++    case $with_ssl_incl in
++      yes|"")
++        with_ssl_incl=""
++        SSL_INCDIR=""
++        ;;
++      *)
++        if ! -d "$with_ssl_incl" ; then
++          AC_MSG_ERROR(Invalid path to option --with-ssl-incl=PATH)
++        fi
++        SSL_INCDIR="$with_ssl_incl"
++        ;;
++    esac
++
++    libname_with_ext=${with_ssl_lib##*lib}
++    SSL_LIBDIR=$(dirname $with_ssl_lib)
++    SSL_CRYPTO_LIBNAME=${libname_with_ext%%.*}
++    SSL_SSL_LIBNAME=$SSL_CRYPTO_LIBNAME
++    dnl TODO: Add support for .so library ?
++    if test -f "${SSL_LIBDIR}/lib${SSL_CRYPTO_LIBNAME}.a"; then
++      SSL_STATIC_ONLY=yes
++    else
++      AC_MSG_ERROR(--with-ssl-lib not supported with dynamic linking)
++    fi
++    if test ! x"$with_ssl_incl" = x ; then
++      SSL_INCLUDE="-I$with_ssl_incl/include"
++    fi
++    SSL_APP=ssl
++    CRYPTO_APP=crypto
++    SSH_APP=ssh
++
++    dnl TODO: Add a check for the lib actually having OpenSSL symbols ?
++    ;;
+   *)
+     # Option given with PATH to package
+     if test ! -d "$with_ssl" ; then
+diff --git a/lib/erl_interface/src/connect/ei_connect.c b/lib/erl_interface/src/connect/ei_connect.c
+index f5471777b0..ed0ca4899f 100644
+--- a/lib/erl_interface/src/connect/ei_connect.c
++++ b/lib/erl_interface/src/connect/ei_connect.c
+@@ -2025,7 +2025,7 @@ static unsigned int gen_challenge(void)
+     uname(&s.name);
+     s.cpu  = clock();
+     s.pid  = getpid();
+-#if defined(__ANDROID__) || defined(__HAIKU__)
++#if defined(__ANDROID__) || defined(__HAIKU__) || defined(__rtems__)
+     s.hid  = 0;
+ #else
+     s.hid  = gethostid();
+diff --git a/lib/erl_interface/src/connect/ei_resolve.c b/lib/erl_interface/src/connect/ei_resolve.c
+index 1d11c5043d..8e97eacb93 100644
+--- a/lib/erl_interface/src/connect/ei_resolve.c
++++ b/lib/erl_interface/src/connect/ei_resolve.c
+@@ -401,7 +401,7 @@ struct hostent *ei_gethostbyaddr_r(const char *addr,
+ #ifndef HAVE_GETHOSTBYNAME_R
+   return my_gethostbyaddr_r(addr,length,type,hostp,buffer,buflen,h_errnop);
+ #else
+-#if (defined(__GLIBC__) || defined(__linux__) || (__FreeBSD_version >= 602000) || defined(__DragonFly__))
++#if (defined(__GLIBC__) || defined(__linux__) || (__FreeBSD_version >= 602000) || defined(__DragonFly__)) || defined(__rtems__)
+   struct hostent *result;
+ 
+   gethostbyaddr_r(addr, length, type, hostp, buffer, buflen, &result,
+@@ -428,7 +428,7 @@ struct hostent *ei_gethostbyname_r(const char *name,
+ #ifndef HAVE_GETHOSTBYNAME_R
+   return my_gethostbyname_r(name,hostp,buffer,buflen,h_errnop);
+ #else
+-#if (defined(__GLIBC__) || defined(__linux__) || (__FreeBSD_version >= 602000) || defined(__DragonFly__) || defined(__ANDROID__))
++#if (defined(__GLIBC__) || defined(__linux__) || (__FreeBSD_version >= 602000) || defined(__DragonFly__) || defined(__ANDROID__)) || defined(__rtems__)
+   struct hostent *result;
+   int err;
+ 
+diff --git a/lib/kernel/src/erl_distribution.erl b/lib/kernel/src/erl_distribution.erl
+index a0d55d62f6..e9dfa02f49 100644
+--- a/lib/kernel/src/erl_distribution.erl
++++ b/lib/kernel/src/erl_distribution.erl
+@@ -70,7 +70,7 @@ start_link(Args, CleanHalt, NetSup) ->
+     supervisor:start_link({local,net_sup}, ?MODULE, [Args,CleanHalt,NetSup]).
+ 
+ init(NetArgs) ->
+-    Epmd = 
++    Epmd =
+ 	case init:get_argument(no_epmd) of
+ 	    {ok, [[]]} ->
+ 		[];
+@@ -83,6 +83,13 @@ init(NetArgs) ->
+                    type => worker,
+                    modules => [EpmdMod]}]
+ 	end,
++    EpmdSrv = case init:get_argument(internal_epmd) of
++        {ok, [[EpmdSrvMod]]} ->
++            Esm = list_to_atom(EpmdSrvMod),
++            Esm:get_childspecs();
++        _ ->
++            []
++    end,
+     Auth = #{id => auth,
+              start => {auth,start_link,[]},
+              restart => permanent,
+@@ -99,7 +106,7 @@ init(NetArgs) ->
+     SupFlags = #{strategy => one_for_all,
+                  intensity => 0,
+                  period => 1},
+-    {ok, {SupFlags, EarlySpecs ++ Epmd ++ [Auth,Kernel]}}.
++    {ok, {SupFlags, EarlySpecs ++ EpmdSrv ++ Epmd ++ [Auth,Kernel]}}.
+ 
+ do_start_link([{Arg,Flag}|T]) ->
+     case init:get_argument(Arg) of
+diff --git a/lib/runtime_tools/c_src/Makefile.in b/lib/runtime_tools/c_src/Makefile.in
+index 75b3a98d56..c944d29d58 100644
+--- a/lib/runtime_tools/c_src/Makefile.in
++++ b/lib/runtime_tools/c_src/Makefile.in
+@@ -39,7 +39,11 @@ SHELL = /bin/sh
+ LIBS = $(DED_LIBS) @LIBS@
+ LDFLAGS += $(DED_LDFLAGS)
+ 
++ifeq ($(findstring rtems,$(TARGET)),rtems)
++TRACE_LIBNAME =
++else
+ TRACE_LIBNAME = dyntrace trace_file_drv trace_ip_drv
++endif
+ 
+ SYSINCLUDE = $(DED_SYS_INCLUDE)
+ 
+@@ -108,9 +112,13 @@ docs:
+ # ----------------------------------------------------
+ include $(ERL_TOP)/make/otp_release_targets.mk
+ 
++ifeq ($(findstring rtems,$(TARGET)),rtems)
++release_spec:
++else
+ release_spec: opt
+ 	$(INSTALL_DIR) "$(RELSYSDIR)/priv/lib"
+ 	$(INSTALL_PROGRAM) $(TRACE_LIBS) "$(RELSYSDIR)/priv/lib"
++endif
+ 
+ release_docs_spec:
+ 
+diff --git a/lib/tools/c_src/Makefile.in b/lib/tools/c_src/Makefile.in
+index 8e13571786..19d2da01de 100644
+--- a/lib/tools/c_src/Makefile.in
++++ b/lib/tools/c_src/Makefile.in
+@@ -93,10 +93,12 @@ DRIVERS=
+ #
+ 
+ 
++ifneq ($(findstring rtems, $(TARGET)), rtems)
+ ifneq ($(strip $(ETHR_LIB_NAME)),)
+ # Need ethread package for emem
+ PROGS += $(BIN_DIR)/emem$(TYPEMARKER)@EXEEXT@
+ endif
++endif
+ 
+ EMEM_OBJ_DIR=$(OBJ_DIR)/emem
+ CREATE_DIRS += $(EMEM_OBJ_DIR)
+diff --git a/make/configure.in b/make/configure.in
+index d603c9d202..f60b4fc1ea 100644
+--- a/make/configure.in
++++ b/make/configure.in
+@@ -275,6 +275,10 @@ AS_HELP_STRING([--with-ssl=PATH], [specify location of OpenSSL include and lib])
+ AS_HELP_STRING([--with-ssl], [use SSL (default)])
+ AS_HELP_STRING([--without-ssl], [don't use SSL]))
+ 
++AC_ARG_WITH(ssl-lib,
++AS_HELP_STRING([--with-ssl-lib=PATH],
++               [location of the library containing OpenSSL, if not standard]))
++
+ AC_ARG_WITH(ssl-incl,
+ AS_HELP_STRING([--with-ssl-incl=PATH],
+                [location of OpenSSL include dir, if different than specified by --with-ssl=PATH]))
