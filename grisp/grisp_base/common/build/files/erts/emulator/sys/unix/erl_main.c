@@ -341,6 +341,7 @@ void parse_args(char *args) {
 }
 
 static void Init(rtems_task_argument arg) {
+  printf("[ERL] Initializing\n");
   rtems_status_code sc = RTEMS_SUCCESSFUL;
   int rv = 0;
   static char pwd[1024];
@@ -427,8 +428,6 @@ static void Init(rtems_task_argument arg) {
   if (rv < 0)
     perror("can't chdir");
 
-  printf("\n[ERL] erl_main: starting ...\n");
-
   p = getcwd(pwd, 1024);
   if (p == NULL)
     printf("[ERL] getcwd error\n");
@@ -438,9 +437,9 @@ static void Init(rtems_task_argument arg) {
   sethostname(hostname, strlen(hostname));
   printf("[ERL] hostname: %s\n", hostname);
 
-  printf("[ERL] starting erlang runtime\n");
+  printf("[ERL] Starting BEAM\n");
   erl_start(argc, argv);
-  printf("[ERL] erlang runtime exited\n");
+  printf("[ERL] BEAM exited\n");
   sleep(2);
   exit(0);
 }
