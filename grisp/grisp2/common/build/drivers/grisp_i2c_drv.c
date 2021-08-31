@@ -10,6 +10,14 @@
 #include <sys/ioctl.h>
 
 #include <bsp.h>
+#if defined LIBBSP_ARM_ATSAM_BSP_H
+#define GRISP_I2C_BUS_PATH ATSAM_I2C_0_BUS_PATH
+#define GRISP_I2C_REGISTER() atsam_register_i2c_0()
+#elif defined LIBBSP_ARM_IMX_BSP_H
+#define GRISP_I2C_BUS_PATH "/dev/i2c-1"
+#define GRISP_I2C_REGISTER() i2c_bus_register_imx(GRISP_I2C_BUS_PATH, "i2c0")
+#endif
+
 #include <dev/i2c/i2c.h>
 
 #include "erl_driver.h"
@@ -66,7 +74,7 @@ int grisp_i2c_init (void)
 {
   int rv;
 
-  rv = atsam_register_i2c_0();
+  rv = GRISP_I2C_REGISTER();
   assert(rv == 0);
 
   return 0;
@@ -80,7 +88,7 @@ ErlDrvData grisp_i2c_start (ErlDrvPort port, char *command)
     grisp_i2c_data.port = port;
     grisp_i2c_data.cnt = 1;
 
-    grisp_i2c_data.fd = open(ATSAM_I2C_0_BUS_PATH, O_RDWR);
+    grisp_i2c_data.fd = open(GRISP_I2C_BUS_PATH, O_RDWR);
     assert(grisp_i2c_data.fd != -1);
 
     return (ErlDrvData)&grisp_i2c_data;

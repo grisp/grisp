@@ -10,8 +10,19 @@
 #include <sys/ioctl.h>
 
 #include <bsp.h>
+#if defined LIBBSP_ARM_ATSAM_BSP_H
 #include <bsp/atsam-spi.h>
-#include <bsp/spi.h>
+static const atsam_spi_config spi_config = {
+  .spi_peripheral_id = ID_SPI0,
+  .spi_regs = SPI0
+};
+#define GRISP_SPI_BUS_PATH ATSAM_SPI_0_BUS_PATH
+#define GRISP_SPI_REGISTER() spi_bus_register_atsam(GRISP_SPI_BUS_PATH, &spi_config)
+#elif defined LIBBSP_ARM_IMX_BSP_H
+#define GRISP_SPI_BUS_PATH "/dev/spibus"
+#define GRISP_SPI_REGISTER() spi_bus_register_imx(GRISP_SPI_BUS_PATH, "spi0")
+#endif
+
 #include <dev/spi/spi.h>
 
 #include "erl_driver.h"
@@ -65,17 +76,12 @@ static struct grisp_spi_data grisp_spi_data = { NULL, 0, -1 };
 /* Make sure to keep this at sync with the -define(res_max_size.. in spi.erl */
 #define RES_MAX_SIZE 256
 
-static const atsam_spi_config spi_config = {
-  .spi_peripheral_id = ID_SPI0,
-  .spi_regs = SPI0
-};
-
 int grisp_spi_init (void)
 {
     int rv;
 
     /* bus registration */
-    rv = spi_bus_register_atsam(ATSAM_SPI_0_BUS_PATH, &spi_config);
+    rv = GRISP_SPI_REGISTER();
     assert(rv == 0);
     return 0;
 }
@@ -91,7 +97,7 @@ ErlDrvData grisp_spi_start (ErlDrvPort port, char *command)
     grisp_spi_data.port = port;
     grisp_spi_data.cnt = 1;
 
-    grisp_spi_data.fd = open(ATSAM_SPI_0_BUS_PATH, O_RDWR);
+    grisp_spi_data.fd = open(GRISP_SPI_BUS_PATH, O_RDWR);
     assert(grisp_spi_data.fd != -1);
 
     rv = ioctl(grisp_spi_data.fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
