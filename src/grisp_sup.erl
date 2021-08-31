@@ -15,7 +15,7 @@
 start_link() ->
     Children = [
         supervisor(grisp_board_sup, [
-            worker(grisp_spi, [driver(spi, grisp_spi_drv)]),
+            worker(grisp_spi, [driver(spi, grisp_nspi)]),
             worker(grisp_gpio, [driver(gpio, grisp_gpio_drv)]),
             worker(grisp_i2c, [driver(i2c, grisp_i2c_drv)])
         ]),

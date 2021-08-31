@@ -69,7 +69,7 @@ send_recv(Slot, Mode, Req) when byte_size(Req) < ?RES_MAX_SIZE ->
 
 % @private
 init(DriverMod) ->
-    Ref = DriverMod:open(),
+    Ref = DriverMod:open_nif(),
     {ok, #state{driver = {DriverMod, Ref}}}.
 
 % @private

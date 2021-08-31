@@ -12,6 +12,10 @@ and this project adheres to
 
 - `grisp_hw` module for hardware access functions.
 
+### Changed
+
+- Replace SPI port driver with NIF for `grisp_base`
+
 ## [1.2.1] - 2020-07-02
 
 ### Fixed
