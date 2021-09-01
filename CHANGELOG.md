@@ -8,6 +8,10 @@ and this project adheres to
 
 ## Unreleased
 
+### Added
+
+- `grisp_hw` module for hardware access functions.
+
 ## [1.2.1] - 2020-07-02
 
 ### Fixed
