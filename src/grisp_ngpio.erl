@@ -7,7 +7,10 @@
 -on_load(on_load/0).
 
 on_load() ->
-    ok  = erlang:load_nif(atom_to_list(?MODULE), 0).
+    case grisp_hw:platform() of
+        grisp2 -> erlang:load_nif(atom_to_list(?MODULE), 0);
+        _ -> ok
+    end.
 
 pin_init(_) ->
     erlang:nif_error("NIF library not loaded").
