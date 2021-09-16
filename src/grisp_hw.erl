@@ -17,4 +17,4 @@ platform() -> erlang:nif_error("NIF library not loaded").
 
 %--- Callbacks -----------------------------------------------------------------
 
-init() -> ok  = erlang:load_nif(atom_to_list(?MODULE), 0).
+init() -> ok = erlang:load_nif(atom_to_list(?MODULE), 0).

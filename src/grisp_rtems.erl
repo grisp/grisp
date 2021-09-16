@@ -40,7 +40,7 @@ clock_set({{{Year, Month, Day}, {Hour, Minute, Second}}, Ticks}) ->
 
 %--- Callbacks -----------------------------------------------------------------
 
-init() -> ok  = erlang:load_nif(atom_to_list(?MODULE), 0).
+init() -> ok = erlang:load_nif(atom_to_list(?MODULE), 0).
 
 %--- Internal ------------------------------------------------------------------
 
