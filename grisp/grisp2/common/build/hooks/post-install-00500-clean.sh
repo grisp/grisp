@@ -25,4 +25,4 @@ mkimage -A arm -O linux -T kernel -a 0x80200000 -e 0x80200000 -n RTEMS -d "${BEA
 rm -rf "${BEAM}" "${BEAM}.gz"
 
 # Copy device tree to bin folder (next to image)
-cp "${GRISP_TC_ROOT}/fdt/b-dtb/imx6ull-grisp2.dtb" "${OTP_ROOT}/erts-${ERTS_VERSION}/bin/"
+cp "${GRISP_TC_ROOT}/fdt/imx6ul-grisp2.dtb" "${OTP_ROOT}/erts-${ERTS_VERSION}/bin/"
