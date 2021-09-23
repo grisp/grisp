@@ -13,16 +13,28 @@
 %--- API -----------------------------------------------------------------------
 
 start_link() ->
+    {BoardWorkers, InternalWorkers} = case grisp_hw:platform() of
+        grisp2 ->
+            {[], []};
+        grisp_base ->
+            GenEventOpts = [{local, grisp_gpio_events}],
+            {
+                [
+                    worker(grisp_gpio, [driver(gpio, grisp_gpio_drv)]),
+                    worker(grisp_i2c, [driver(i2c, grisp_i2c_drv)])
+                ],
+                [
+                    worker(grisp_gpio_events, gen_event, GenEventOpts),
+                    worker(grisp_gpio_poller, [])
+                ]
+            }
+    end,
     Children = [
         supervisor(grisp_board_sup, [
-            worker(grisp_spi, [driver(spi, grisp_spi_drv)]),
-            worker(grisp_gpio, [driver(gpio, grisp_gpio_drv)]),
-            worker(grisp_i2c, [driver(i2c, grisp_i2c_drv)])
-        ]),
+            worker(grisp_spi, [driver(spi, grisp_spi_drv)])
+        ] ++ BoardWorkers),
         supervisor(grisp_devices_sup, grisp_devices_sup, []),
-        supervisor(grisp_internal_sup, [
-            worker(grisp_gpio_events, gen_event, [{local, grisp_gpio_events}]),
-            worker(grisp_gpio_poller, []),
+        supervisor(grisp_internal_sup, InternalWorkers ++ [
             worker(grisp_led, []),
             worker(grisp_devices, []),
             worker(grisp_onewire, [])
