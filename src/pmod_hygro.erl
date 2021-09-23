@@ -25,13 +25,19 @@
 -export([code_change/3]).
 -export([terminate/2]).
 
--define(DEVICE_ADR,    16#40).
--define(TEMP_REGISTER, 16#00).
+-define(DEVICE_ADR, 16#40).
+-define(REG_TEMPERATURE, 16#00).
+-define(REG_MANUFACTURER_ID, 16#FE).
+-define(REG_DEVICE_ID, 16#FF).
+
 -define(DELAY_TIME, 15).
-%
+
+-define(MANUFACTURER_ID, 16#5449).
+-define(DEVICE_ID, 16#1050).
+
 %--- Records -------------------------------------------------------------------
 %
--record(state, {}).
+-record(state, {bus}).
 
 %--- API -----------------------------------------------------------------------
 
@@ -75,21 +81,23 @@ measurements() ->
 %--- Callbacks -----------------------------------------------------------------
 
 % @private
-init(Slot) ->
+init(i2c = Slot) ->
+    Bus = grisp_ni2c:open(i2c1),
+    verify_device(Bus),
     grisp_devices:register(Slot, ?MODULE),
-    {ok, #state{}}.
+    {ok, #state{bus = Bus}}.
 
 % @private
-handle_call(temp, _From, State) ->
-    {ok, <<T:14/unsigned-big, _:2>>} = device_request(2),
+handle_call(temp, _From, #state{bus = Bus} = State) ->
+    {ok, <<T:14/unsigned-big, _:2>>} = device_request(Bus, ?REG_TEMPERATURE, ?DELAY_TIME, 2),
     Temp = evaluate_temp(T),
     {reply, [{temp, Temp}], State};
-handle_call(humid, _From, State) ->
-    {ok, <<_:14, _:2, H:14/unsigned-big, _:2>>} = device_request(4),
+handle_call(humid, _From, #state{bus = Bus} = State) ->
+    {ok, <<_:14, _:2, H:14/unsigned-big, _:2>>} = device_request(Bus, ?REG_TEMPERATURE, ?DELAY_TIME, 4),
     Humid = evaluate_humid(H),
     {reply, [{humid, Humid}], State};
-handle_call(measurements, _From, State) ->
-    {ok, <<T:14/unsigned-big, _:2, H:14/unsigned-big, _:2>>} = device_request(4),
+handle_call(measurements, _From, #state{bus = Bus} = State) ->
+    {ok, <<T:14/unsigned-big, _:2, H:14/unsigned-big, _:2>>} = device_request(Bus, ?REG_TEMPERATURE, ?DELAY_TIME, 4),
     Temp = evaluate_temp(T),
     Humid = evaluate_humid(H),
     {reply, [{temp, Temp}, {humid, Humid}], State}.
@@ -108,10 +116,18 @@ terminate(_Reason, _State) -> ok.
 
 %--- Internal ------------------------------------------------------------------
 
-device_request(BytesToRead) ->
-    Response = grisp_i2c:msgs([?DEVICE_ADR, {write, <<?TEMP_REGISTER>>},
-                               {sleep, ?DELAY_TIME},
-                               {read, BytesToRead}]),
+verify_device(Bus) ->
+    {ok, <<ManufacturerID:16>>} = device_request(Bus, ?REG_MANUFACTURER_ID, 0, 2),
+    {ok, <<DeviceID:16>>} = device_request(Bus, ?REG_DEVICE_ID, 0, 2),
+    case {ManufacturerID, DeviceID} of
+        {?MANUFACTURER_ID, ?DEVICE_ID} -> ok;
+        Other -> error({device_mismatch, Other})
+    end.
+
+device_request(Bus, Register, Delay, BytesToRead) ->
+    [ok] = grisp_ni2c:transfer(Bus, [{write, ?DEVICE_ADR, 0, <<Register:8>>}]),
+    timer:sleep(Delay),
+    [Response] = grisp_ni2c:transfer(Bus, [{read, ?DEVICE_ADR, 1, BytesToRead}]),
     {ok, Response}.
 
 evaluate_temp(T) ->
