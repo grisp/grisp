@@ -14,7 +14,7 @@ and this project adheres to
 
 ### Changed
 
-- Replace SPI port driver with NIF for `grisp_base`
+- Replace SPI port driver with NIF
 
 ## [1.2.1] - 2020-07-02
 

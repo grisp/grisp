@@ -30,8 +30,16 @@ command_nif(_Obj, _Slot, _Mode, _Command) -> ?nif_stub.
 nif_stub_error(Line) ->
     erlang:nif_error({nif_not_loaded, module, ?MODULE, line, Line}).
 
-slave_select(spi1) -> 2;
-slave_select(spi2) -> 3.
+slave_select(spi1) -> 
+    case grisp_hw:platform() of
+        grisp_base -> 2;
+        grisp2 -> 0
+    end;
+slave_select(spi2) ->
+    case grisp_hw:platform() of
+        grisp_base -> 3;
+        grisp2 -> 1
+    end.
 
 mode(#{cpol := low,  cpha := leading})  -> ?CPOL_LOW  bor ?CPHA_LEADING;
 mode(#{cpol := low,  cpha := trailing}) -> ?CPOL_LOW  bor ?CPHA_TRAILING;
