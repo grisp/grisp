@@ -31,7 +31,7 @@ start_link() ->
     end,
     Children = [
         supervisor(grisp_board_sup, [
-            worker(grisp_spi, [driver(spi, grisp_spi_drv)])
+            worker(grisp_spi, [driver(spi, grisp_nspi)])
         ] ++ BoardWorkers),
         supervisor(grisp_devices_sup, grisp_devices_sup, []),
         supervisor(grisp_internal_sup, InternalWorkers ++ [

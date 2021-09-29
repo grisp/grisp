@@ -95,7 +95,7 @@ percentage() ->
 %===================================================================
 
 % @private
-init([Slot = spi2, Opts]) ->
+init([Slot, Opts]) ->
     ok = grisp_devices:register(Slot, ?MODULE),
     {ok, #state{options = Opts}};
 init(Slot) ->
@@ -103,7 +103,7 @@ init(Slot) ->
 
 %--------------------------------------------------------------------
 % @private
-handle_call({read, Slot} , _From , State) when Slot =:= spi2 ->
+handle_call({read, Slot} , _From , State) ->
     Val = get_value(Slot),
     {reply, Val, State};
 
