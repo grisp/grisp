@@ -126,7 +126,12 @@ read(Comp, Registers, Opts) when is_list(Registers) ->
 %--- Callbacks -----------------------------------------------------------------
 
 % @private
-init([Slot = spi1, Opts]) ->
+init([Slot, Opts]) ->
+    case {grisp_hw:platform(), Slot} of
+        {grisp_base, spi1} -> ok;
+        {grisp2, spi2} -> ok;
+        {P, S} -> error({incompatible_slot, P, S})
+    end,
     process_flag(trap_exit, true),
     State = #{
         slot => Slot,
@@ -145,9 +150,7 @@ init([Slot = spi1, Opts]) ->
         ?EXCEPTION(Class, Reason, Stacktrace) ->
             restore_pins(),
             erlang:raise(Class, Reason, ?GET_STACK(Stacktrace))
-    end;
-init(Slot) ->
-    error({incompatible_slot, Slot}).
+    end.
 
 % @private
 handle_call(Call, _From, State) ->
@@ -193,14 +196,22 @@ execute_call(Request, _State) ->
 
 configure_pins(Slot) ->
     % Configure pin 9 and 10 for output pulled high
-    grisp_gpio:configure(spi1_pin9, output_1),
-    grisp_gpio:configure(spi1_pin10, output_1),
+    case grisp_hw:platform() of
+        grisp_base ->
+            grisp_gpio:configure(spi1_pin9, output_1),
+            grisp_gpio:configure(spi1_pin10, output_1);
+        _ -> ok
+    end,
     % Do an empty transfer without chip select to make sure clock is high
     grisp_spi:send_recv(Slot, ?SPI_MODE, <<16#FF>>).
 
 restore_pins() ->
-    grisp_gpio:configure(spi1_pin9, input),
-    grisp_gpio:configure(spi1_pin10, input).
+    case grisp_hw:platform() of
+        grisp_base ->
+            grisp_gpio:configure(spi1_pin9, input),
+            grisp_gpio:configure(spi1_pin10, input);
+        _ -> ok
+    end.
 
 initialize_device(State) ->
     configure_components(State, [
@@ -353,18 +364,14 @@ convert_reg(State, Comp, Opts, {Reg, Value}) ->
     end.
 
 write_bin(#{slot := Slot, debug := Debug}, Comp, Reg, Value) ->
-    select(Slot, Comp, fun() ->
-        [debug_write(Comp, Reg, Value) || Debug],
-        <<>> = request(Slot, write_request(Comp, Reg, Value), 0)
-    end),
+    [debug_write(Comp, Reg, Value) || Debug],
+    <<>> = request(pin(Slot, Comp), write_request(Comp, Reg, Value), 0),
     Value.
 
 read_bin(#{slot := Slot, debug := Debug} = State, Comp, Reg) ->
     case mapz:deep_find([Comp, regs, Reg], State) of
         {ok, {Addr, _RW, Size, _Conv}} ->
-            Result = select(Slot, Comp, fun() ->
-                request(Slot, read_request(Comp, Addr), Size)
-            end),
+            Result = request(pin(Slot, Comp), read_request(Comp, Addr), Size),
             [debug_read(Comp, Addr, Result) || Debug],
             Result;
         error ->
@@ -381,21 +388,6 @@ read_request(alt, Reg) -> <<?RW_READ:1, ?MS_INCR:1, Reg:6>>.
 
 request(Slot, Request, Pad) ->
     grisp_spi:send_recv(Slot, ?SPI_MODE, Request, byte_size(Request), Pad).
-
-select(_Slot, acc, Fun) ->
-    Fun();
-select(Slot, Component, Fun) ->
-    Pin = pin(Component),
-    try
-        % Disable chip select for SPI1
-        grisp_gpio:configure_slot(Slot, disable_cs),
-
-        grisp_gpio:clear(Pin),
-        Fun()
-    after
-        grisp_gpio:set(Pin),
-        grisp_gpio:configure_slot(Slot, enable_cs)
-    end.
 
 render_bits(Defs, Bin, Opts) ->
     render_bits(Defs, Bin, Opts, 0).
@@ -481,9 +473,12 @@ setting(Reg, Opt, {Comp, State}) ->
     end,
     {maps:get(Opt, hd(Parsed)), {Comp, NewState}}.
 
-pin(acc) -> ss1;
-pin(mag) -> spi1_pin9;
-pin(alt) -> spi1_pin10.
+pin(Slot, acc) -> atom_join(Slot, '_pin1');
+pin(Slot, mag) -> atom_join(Slot, '_pin9');
+pin(Slot, alt) -> atom_join(Slot, '_pin10').
+
+atom_join(Atom1, Atom2) ->
+    list_to_atom(atom_to_list(Atom1) ++ atom_to_list(Atom2)).
 
 % @doc Get the registers (with the possible entries) of all components.
 % @spec registers() -> Map

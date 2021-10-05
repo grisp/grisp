@@ -80,8 +80,8 @@ int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
   return 0;
 }
 
-static ERL_NIF_TERM open_nif(ErlNifEnv *env, int argc,
-                             const ERL_NIF_TERM argv[]) {
+static ERL_NIF_TERM spi_open_nif(ErlNifEnv *env, int argc,
+                                 const ERL_NIF_TERM argv[]) {
   ERL_NIF_TERM ret;
   uint32_t speed = 100000;
   int err_num;
@@ -107,8 +107,8 @@ static ERL_NIF_TERM open_nif(ErlNifEnv *env, int argc,
   return ret;
 }
 
-static ERL_NIF_TERM command_nif(ErlNifEnv *env, int argc,
-                                const ERL_NIF_TERM argv[]) {
+static ERL_NIF_TERM spi_ioctl_nif(ErlNifEnv *env, int argc,
+                                  const ERL_NIF_TERM argv[]) {
   int rv;
   int cs;
   int mode;
@@ -155,7 +155,7 @@ static ERL_NIF_TERM command_nif(ErlNifEnv *env, int argc,
   return res;
 }
 
-static ErlNifFunc nif_funcs[] = {{"open_nif", 0, open_nif},
-                                 {"command_nif", 4, command_nif}};
+static ErlNifFunc nif_funcs[] = {{"open_nif", 0, spi_open_nif},
+                                 {"ioctl_nif", 4, spi_ioctl_nif}};
 
 ERL_NIF_INIT(grisp_nspi, nif_funcs, &load, NULL, NULL, NULL)
