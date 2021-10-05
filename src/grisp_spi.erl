@@ -75,7 +75,7 @@ init(DriverMod) ->
 % @private
 handle_call({send_recv, Slot, Mode, Req}, _From, State) ->
     {DriverMod, Ref} = State#state.driver,
-    Resp = DriverMod:command(Ref, Slot, Mode, Req),
+    Resp = DriverMod:ioctl(Ref, Slot, Mode, Req),
     {reply, Resp, State}.
 
 % @private
