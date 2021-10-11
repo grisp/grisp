@@ -51,7 +51,6 @@
 
 -define(TRANSACTION_TIMEOUT, 12000).
 -define(TRANSACTION_KEY, '$onewire_transaction_token').
--define(TRANSACTION_TOKEN, 4435846174457203). % Random token
 
 %--- API -----------------------------------------------------------------------
 
@@ -90,10 +89,12 @@ transaction(Fun) when is_function(Fun) ->
 % | S | AD,0 ‖ A ‖ DRST ‖ A ‖ Sr | AD,1 ‖ A | <byte> ‖ A\ | P |
 -spec reset() -> 'ok'.
 reset() ->
-    assert_transaction(),
-    <<Status:8>> = grisp_i2c:msgs([?DS2482_I2C_ADR,
-                                   {write, <<?CMD_DRST>>},
-                                   {read, 1, ?I2C_M_NO_RD_ACK}]),
+    Bus = assert_transaction(),
+    Messages = [
+        {write, ?DS2482_I2C_ADR, 0, <<?CMD_DRST>>},
+        {read, ?DS2482_I2C_ADR, ?I2C_M_NO_RD_ACK, 1}
+    ],
+    [ok, <<Status:8>>] = grisp_ni2c:transfer(Bus, Messages),
     case Status band 16#f7 of
         16#10 -> ok;
         Any -> error({invalid_status, Any})
@@ -138,12 +139,14 @@ reset() ->
 write_config(Conf) when is_list(Conf) ->
     write_config(lists:foldl(fun(X, A) -> A bor map_config(X) end, 0, Conf));
 write_config(Conf) when is_integer(Conf) ->
-    assert_transaction(),
+    Bus = assert_transaction(),
     Val = (bnot(Conf) bsl 4) bor Conf,
-    case grisp_i2c:msgs([?DS2482_I2C_ADR,
-                         {write, <<?CMD_WCFG, Val>>},
-                         {read, 1, ?I2C_M_NO_RD_ACK}]) of
-        <<Conf:8>> ->
+    Messages = [
+        {write, ?DS2482_I2C_ADR, 0, <<?CMD_WCFG, Val>>},
+        {read, ?DS2482_I2C_ADR, ?I2C_M_NO_RD_ACK, 1}
+    ],
+    case grisp_ni2c:transfer(Bus, Messages) of
+        [ok, <<Conf:8>>] ->
             ok;
         Any -> error({read_back_config, Any, Val})
     end.
@@ -177,11 +180,13 @@ detect() ->
 % @end
 -spec bus_reset() -> 'nothing_present' | 'presence_detected' | 'short_detected'.
 bus_reset() ->
-    assert_transaction(),
-    grisp_i2c:msgs([?DS2482_I2C_ADR, {write, <<?CMD_1WRS>>}]),
+    Bus = assert_transaction(),
+    grisp_ni2c:transfer(Bus, [{write, ?DS2482_I2C_ADR, 0, <<?CMD_1WRS>>}]),
     timer:sleep(1),
-    check_status(grisp_i2c:msgs([?DS2482_I2C_ADR,
-                                 {read, 1, ?I2C_M_NO_RD_ACK}])).
+    [Result] = grisp_ni2c:transfer(Bus, [
+        {read, ?DS2482_I2C_ADR, ?I2C_M_NO_RD_ACK, 1}
+    ]),
+    check_status(Result).
 
 % @doc Write one data byte to the 1-Wire line.
 %
@@ -190,8 +195,8 @@ bus_reset() ->
 % <em>Command code: `a5h'</em>
 -spec write_byte(integer()) -> ok.
 write_byte(Byte) ->
-    assert_transaction(),
-    grisp_i2c:msgs([?DS2482_I2C_ADR, {write, <<?CMD_1WWB, Byte>>}]),
+    Bus = assert_transaction(),
+    grisp_ni2c:transfer(Bus, [{write, ?DS2482_I2C_ADR, 0, <<?CMD_1WWB, Byte>>}]),
     timer:sleep(1).
 
 % @doc Read one data byte from the 1-Wire line.
@@ -200,13 +205,14 @@ write_byte(Byte) ->
 %
 % <em>Command codes: `96h', `e1h'</em>
 read_byte() ->
-    assert_transaction(),
-    grisp_i2c:msgs([?DS2482_I2C_ADR,
-                    {write, <<?CMD_1WRB>>}]),
+    Bus = assert_transaction(),
+    grisp_ni2c:transfer(Bus, [{write, ?DS2482_I2C_ADR, 0, <<?CMD_1WRB>>}]),
     timer:sleep(1),
-    grisp_i2c:msgs([?DS2482_I2C_ADR,
-                    {write, <<?CMD_SRP, 16#e1>>},
-                    {read, 1, ?I2C_M_NO_RD_ACK}]).
+    [ok, Result] = grisp_ni2c:transfer(Bus, [
+        {write, ?DS2482_I2C_ADR, 0, <<?CMD_SRP, 16#e1>>},
+        {read, ?DS2482_I2C_ADR, ?I2C_M_NO_RD_ACK, 1}
+    ]),
+    Result.
 
 % @private
 %
@@ -215,12 +221,13 @@ read_byte() ->
 % <em>Command code:`78h'</em>
 -spec write_triplet(0 | 1) -> {0 | 1,0 | 1,0 | 1}.
 write_triplet(Dir) ->
-    assert_transaction(),
+    Bus = assert_transaction(),
     Db = case Dir of 1 -> 16#ff; 0 -> 0 end,
-    grisp_i2c:msgs([?DS2482_I2C_ADR, {write, <<?CMD_1WT, Db>>}]),
+    grisp_ni2c:transfer(Bus, [{write, ?DS2482_I2C_ADR, 0, <<?CMD_1WT, Db>>}]),
     timer:sleep(1),
-    <<D:1, T:1, S:1, _:5>> = grisp_i2c:msgs([?DS2482_I2C_ADR,
-                                             {read, 1, ?I2C_M_NO_RD_ACK}]),
+    [<<D:1, T:1, S:1, _:5>>] = grisp_ni2c:transfer(Bus, [
+        {read, ?DS2482_I2C_ADR, ?I2C_M_NO_RD_ACK, 1}
+    ]),
     {D, T, S}.
 
 % @doc Search the bus for devices.
@@ -255,7 +262,13 @@ search() ->
 
 % @private
 init([]) ->
-    put(?TRANSACTION_KEY, ?TRANSACTION_TOKEN),
+    Bus = grisp_ni2c:open(i2c0),
+    Detected = grisp_ni2c:detect(Bus),
+    case lists:member(?DS2482_I2C_ADR, Detected) of
+        true -> ok;
+        false -> error({bus_master_not_found, ?DS2482_I2C_ADR, Detected})
+    end,
+    put(?TRANSACTION_KEY, Bus),
     {ok, []}.
 
 % @private
@@ -277,9 +290,9 @@ handle_info(Info, _State) -> error({unknown_info, Info}).
 %--- Internal ------------------------------------------------------------------
 
 assert_transaction() ->
-    case get('$onewire_transaction_token') of
-        ?TRANSACTION_TOKEN -> ok;
-        _                  -> error(no_transaction)
+    case get(?TRANSACTION_KEY) of
+        undefined -> error(no_transaction);
+        Bus -> Bus
     end.
 
 map_config(apu)       -> 1;
