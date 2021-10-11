@@ -127,7 +127,7 @@ verify_device(Bus) ->
 device_request(Bus, Register, Delay, BytesToRead) ->
     [ok] = grisp_ni2c:transfer(Bus, [{write, ?DEVICE_ADR, 0, <<Register:8>>}]),
     timer:sleep(Delay),
-    [Response] = grisp_ni2c:transfer(Bus, [{read, ?DEVICE_ADR, 1, BytesToRead}]),
+    [Response] = grisp_ni2c:transfer(Bus, [{read, ?DEVICE_ADR, 0, BytesToRead}]),
     {ok, Response}.
 
 evaluate_temp(T) ->
