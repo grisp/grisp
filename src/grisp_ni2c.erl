@@ -102,11 +102,9 @@ transfer(Bus, Messages) -> i2c_transfer_nif(Bus, Messages).
 
 init() ->
     ok = erlang:load_nif(atom_to_list(?MODULE), 0),
-    case grisp_hw:platform() of
-        grisp2 ->
-            ok = register_bus(<<"/dev/i2c-0">>, <<"i2c0">>),
-            ok = register_bus(<<"/dev/i2c-1">>, <<"i2c1">>)
-    end.
+    maps:fold(fun(Bus, #{path := Path}, ok) ->
+        ok = register_bus(Path, atom_to_binary(Bus))
+    end, ok, buses()).
 
 %--- Internal ------------------------------------------------------------------
 
