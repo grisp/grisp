@@ -99,7 +99,7 @@ int i2c_upgrade(ErlNifEnv *env, void **priv_data, void **old_priv_data,
 static ERL_NIF_TERM i2c_register_bus_nif(ErlNifEnv *env, int argc,
                                          const ERL_NIF_TERM argv[]) {
   ErlNifBinary bus, alias;
-  int rv;
+  int rv = -1;
 
   if (!enif_inspect_iolist_as_binary(env, argv[0], &bus)) {
     return RAISE_TERM(am_invalid_device_name, argv[0]);
@@ -143,7 +143,7 @@ static ERL_NIF_TERM i2c_transfer_nif(ErlNifEnv *env, int argc,
                                      const ERL_NIF_TERM argv[]) {
   grisp_i2c_data *data;
   unsigned int nmsgs;
-  int rv;
+  int rv = -1;
   ERL_NIF_TERM head, tail, list, resps, rev_resps, resp;
   int arity = -1;
   const ERL_NIF_TERM *elems;
