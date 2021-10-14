@@ -174,10 +174,6 @@ static ERL_NIF_TERM i2c_transfer_nif(ErlNifEnv *env, int argc,
   list = argv[1];
   while (enif_get_list_cell(env, list, &head, &tail)) {
     if (!enif_get_tuple(env, head, &arity, &elems) || arity != 4) {
-      return RAISE_TERM("invalid_message", head);
-    }
-    if (!(enif_is_identical(elems[0], am_read) ||
-          enif_is_identical(elems[0], am_write))) {
       return RAISE_TERM(am_invalid_message, head);
     }
     if (!enif_get_uint(env, elems[1], &chip_addr) || chip_addr > UINT16_MAX) {
@@ -208,6 +204,8 @@ static ERL_NIF_TERM i2c_transfer_nif(ErlNifEnv *env, int argc,
       msgs[i].buf = buf.data;
 
       resp = am_ok;
+    } else {
+      return RAISE_TERM(am_invalid_message_type, head);
     }
 
     resps = enif_make_list_cell(env, resp, resps);
