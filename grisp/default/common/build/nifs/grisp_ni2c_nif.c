@@ -26,17 +26,30 @@ int i2c_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info);
 int i2c_upgrade(ErlNifEnv *env, void **priv_data, void **old_priv_data,
                 ERL_NIF_TERM load_info);
 
-static ERL_NIF_TERM am_ok;
+static ERL_NIF_TERM am_bus_open_failed;
 static ERL_NIF_TERM am_error;
+static ERL_NIF_TERM am_invalid_alias;
+static ERL_NIF_TERM am_invalid_bus;
+static ERL_NIF_TERM am_invalid_device_name;
+static ERL_NIF_TERM am_invalid_message;
+static ERL_NIF_TERM am_invalid_message_addr;
+static ERL_NIF_TERM am_invalid_message_buf;
+static ERL_NIF_TERM am_invalid_message_flags;
+static ERL_NIF_TERM am_invalid_message_len;
+static ERL_NIF_TERM am_invalid_message_list;
+static ERL_NIF_TERM am_invalid_message_type;
+static ERL_NIF_TERM am_ioctl_failed;
+static ERL_NIF_TERM am_ok;
 static ERL_NIF_TERM am_read;
+static ERL_NIF_TERM am_register_failed;
+static ERL_NIF_TERM am_reverse_failed;
 static ERL_NIF_TERM am_write;
 
 #define RAISE(msg)                                                             \
   enif_raise_exception(                                                        \
       env, enif_make_tuple2(env, am_error, enif_make_atom(env, msg)))
-#define RAISE_TERM(msg, term)                                                  \
-  enif_raise_exception(                                                        \
-      env, enif_make_tuple3(env, am_error, enif_make_atom(env, msg), term))
+#define RAISE_TERM(type, term)                                                 \
+  enif_raise_exception(env, enif_make_tuple3(env, am_error, type, term))
 #define RAISE_STRERROR(msg)                                                    \
   RAISE_TERM(msg, enif_make_string(env, strerror(errno), ERL_NIF_LATIN1))
 
@@ -56,9 +69,23 @@ int i2c_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
                                      ERL_NIF_RT_CREATE, NULL);
   assert(i2c_data != NULL);
 
-  am_ok = enif_make_atom(env, "ok");
+  am_bus_open_failed = enif_make_atom(env, "bus_open_failed");
   am_error = enif_make_atom(env, "error");
+  am_invalid_alias = enif_make_atom(env, "invalid_alias");
+  am_invalid_bus = enif_make_atom(env, "invalid_bus");
+  am_invalid_device_name = enif_make_atom(env, "invalid_device_name");
+  am_invalid_message = enif_make_atom(env, "invalid_message");
+  am_invalid_message_addr = enif_make_atom(env, "invalid_message_addr");
+  am_invalid_message_buf = enif_make_atom(env, "invalid_message_buf");
+  am_invalid_message_flags = enif_make_atom(env, "invalid_message_flags");
+  am_invalid_message_len = enif_make_atom(env, "invalid_message_len");
+  am_invalid_message_list = enif_make_atom(env, "invalid_message_list");
+  am_invalid_message_type = enif_make_atom(env, "invalid_message_type");
+  am_ioctl_failed = enif_make_atom(env, "ioctl_failed");
+  am_ok = enif_make_atom(env, "ok");
   am_read = enif_make_atom(env, "read");
+  am_register_failed = enif_make_atom(env, "register_failed");
+  am_reverse_failed = enif_make_atom(env, "reverse_failed");
   am_write = enif_make_atom(env, "write");
 
   return 0;
@@ -75,15 +102,15 @@ static ERL_NIF_TERM i2c_register_bus_nif(ErlNifEnv *env, int argc,
   int rv;
 
   if (!enif_inspect_iolist_as_binary(env, argv[0], &bus)) {
-    return RAISE_TERM("invalid_bus", argv[0]);
+    return RAISE_TERM(am_invalid_device_name, argv[0]);
   }
   if (!enif_inspect_iolist_as_binary(env, argv[1], &alias)) {
-    return RAISE_TERM("invalid_alias", argv[1]);
+    return RAISE_TERM(am_invalid_alias, argv[1]);
   }
 
   rv = i2c_bus_register_imx((char *)bus.data, (char *)alias.data);
   if (rv != 0) {
-    return RAISE_STRERROR("register_failed");
+    return RAISE_STRERROR(am_register_failed);
   }
 
   return am_ok;
@@ -96,7 +123,7 @@ static ERL_NIF_TERM i2c_open_nif(ErlNifEnv *env, int argc,
   grisp_i2c_data *data;
 
   if (!enif_inspect_iolist_as_binary(env, argv[0], &bus)) {
-    return RAISE_TERM("invalid_bus", argv[0]);
+    return RAISE_TERM(am_invalid_bus, argv[0]);
   }
 
   data = enif_alloc_resource(i2c_data, sizeof(grisp_i2c_data));
@@ -104,7 +131,7 @@ static ERL_NIF_TERM i2c_open_nif(ErlNifEnv *env, int argc,
   data->fd = open((char *)bus.data, O_RDWR);
 
   if (data->fd < 0) {
-    return RAISE_STRERROR("bus_open_failed");
+    return RAISE_STRERROR(am_bus_open_failed);
   }
 
   ret = enif_make_resource(env, data);
@@ -127,10 +154,10 @@ static ERL_NIF_TERM i2c_transfer_nif(ErlNifEnv *env, int argc,
   uint8_t *readbuf;
 
   if (!enif_get_resource(env, argv[0], i2c_data, (void **)&data)) {
-    return RAISE_TERM("invalid_fd", argv[0]);
+    return RAISE_TERM(am_invalid_bus, argv[0]);
   }
   if (!enif_get_list_length(env, argv[1], &nmsgs)) {
-    return RAISE_TERM("invalid_message_list", argv[1]);
+    return RAISE_TERM(am_invalid_message_list, argv[1]);
   }
   if (nmsgs <= 0) {
     return enif_make_list(env, 0);
@@ -151,30 +178,30 @@ static ERL_NIF_TERM i2c_transfer_nif(ErlNifEnv *env, int argc,
     }
     if (!(enif_is_identical(elems[0], am_read) ||
           enif_is_identical(elems[0], am_write))) {
-      return RAISE_TERM("invalid_message_type", head);
+      return RAISE_TERM(am_invalid_message, head);
     }
     if (!enif_get_uint(env, elems[1], &chip_addr) || chip_addr > UINT16_MAX) {
-      return RAISE_TERM("invalid_message_addr", head);
+      return RAISE_TERM(am_invalid_message_addr, head);
     }
     if (!enif_get_uint(env, elems[2], &flags) || flags > UINT16_MAX) {
-      return RAISE_TERM("invalid_message_flags", head);
+      return RAISE_TERM(am_invalid_message_flags, head);
     }
 
     msgs[i].addr = (uint16_t)chip_addr;
 
-    if (elems[0] == am_read) {
+    if (enif_is_identical(elems[0], am_read)) {
       // Read
       if (!enif_get_uint(env, elems[3], &len) || len > UINT16_MAX) {
-        return RAISE_TERM("invalid_message_len", head);
+        return RAISE_TERM(am_invalid_message_len, head);
       }
       readbuf = enif_make_new_binary(env, len, &resp);
       msgs[i].flags = (uint16_t)flags & I2C_M_RD;
       msgs[i].len = (uint16_t)len;
       msgs[i].buf = readbuf;
-    } else if (elems[0] == am_write) {
+    } else if (enif_is_identical(elems[0], am_write)) {
       // Write
       if (!enif_inspect_iolist_as_binary(env, elems[3], &buf) || buf.size < 0) {
-        return RAISE_TERM("invalid_message_buf", head);
+        return RAISE_TERM(am_invalid_message_buf, head);
       }
       msgs[i].flags = (uint16_t)flags & ~I2C_M_RD;
       msgs[i].len = (uint16_t)buf.size;
@@ -193,12 +220,12 @@ static ERL_NIF_TERM i2c_transfer_nif(ErlNifEnv *env, int argc,
   free(msgs);
   if (rv != 0) {
     return enif_make_tuple3(
-        env, am_error, enif_make_atom(env, "ioctl_failed"),
+        env, am_error, am_ioctl_failed,
         enif_make_string(env, strerror(errno), ERL_NIF_LATIN1));
   }
 
   if (!enif_make_reverse_list(env, resps, &rev_resps)) {
-    return RAISE_TERM("reverse_failed", resps);
+    return RAISE_TERM(am_reverse_failed, resps);
   }
   return rev_resps;
 }
