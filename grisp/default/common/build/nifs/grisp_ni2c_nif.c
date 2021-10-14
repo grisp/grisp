@@ -195,7 +195,7 @@ static ERL_NIF_TERM i2c_transfer_nif(ErlNifEnv *env, int argc,
         return RAISE_TERM(am_invalid_message_len, head);
       }
       readbuf = enif_make_new_binary(env, len, &resp);
-      msgs[i].flags = (uint16_t)flags & I2C_M_RD;
+      msgs[i].flags = (uint16_t)flags | I2C_M_RD;
       msgs[i].len = (uint16_t)len;
       msgs[i].buf = readbuf;
     } else if (enif_is_identical(elems[0], am_write)) {
