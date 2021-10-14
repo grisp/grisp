@@ -2,6 +2,10 @@
 
 #include <assert.h>
 #include <bsp.h>
+#if defined LIBBSP_ARM_ATSAM_BSP_H
+#include <bsp/i2c.h>
+#endif
+#include <dev/i2c/i2c.h>
 #include <erl_nif.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -12,14 +16,6 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
-
-#include <dev/i2c/i2c.h>
-#include <erl_nif.h>
-
-#include <bsp.h>
-#if defined LIBBSP_ARM_IMX_BSP_H
-#define GRISP_I2C_REGISTER(path, alias) i2c_bus_register_imx((path), (alias))
-#endif
 
 /* NIF interface declarations */
 int i2c_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info);
@@ -108,7 +104,20 @@ static ERL_NIF_TERM i2c_register_bus_nif(ErlNifEnv *env, int argc,
     return RAISE_TERM(am_invalid_alias, argv[1]);
   }
 
+#if defined LIBBSP_ARM_ATSAM_BSP_H
+  if (strcmp((char *)bus.data, ATSAM_I2C_0_BUS_PATH) == 0) {
+    rv = atsam_register_i2c_0();
+  } else if (strcmp((char *)bus.data, ATSAM_I2C_1_BUS_PATH) == 0) {
+    rv = atsam_register_i2c_1();
+  } else if (strcmp((char *)bus.data, ATSAM_I2C_2_BUS_PATH) == 0) {
+    rv = atsam_register_i2c_2();
+  } else {
+    return RAISE_TERM(am_unknown_bus, argv[0]);
+  }
+#endif
+#if defined LIBBSP_ARM_IMX_BSP_H
   rv = i2c_bus_register_imx((char *)bus.data, (char *)alias.data);
+#endif
   if (rv != 0) {
     return RAISE_STRERROR(am_register_failed);
   }

@@ -20,8 +20,7 @@ start_link() ->
             GenEventOpts = [{local, grisp_gpio_events}],
             {
                 [
-                    worker(grisp_gpio, [driver(gpio, grisp_gpio_drv)]),
-                    worker(grisp_i2c, [driver(i2c, grisp_i2c_drv)])
+                    worker(grisp_gpio, [driver(gpio, grisp_gpio_drv)])
                 ],
                 [
                     worker(grisp_gpio_events, gen_event, GenEventOpts),
