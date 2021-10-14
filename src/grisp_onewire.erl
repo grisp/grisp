@@ -37,7 +37,6 @@
     handle_info/2
 ]).
 
--include("grisp_i2c.hrl").
 -include("grisp.hrl").
 
 -define(DS2482_I2C_ADR, 16#18).
@@ -92,7 +91,7 @@ reset() ->
     Bus = assert_transaction(),
     Messages = [
         {write, ?DS2482_I2C_ADR, 0, <<?CMD_DRST>>},
-        {read, ?DS2482_I2C_ADR, ?I2C_M_NO_RD_ACK, 1}
+        {read, ?DS2482_I2C_ADR, 0, 1}
     ],
     [ok, <<Status:8>>] = grisp_ni2c:transfer(Bus, Messages),
     case Status band 16#f7 of
@@ -143,11 +142,10 @@ write_config(Conf) when is_integer(Conf) ->
     Val = (bnot(Conf) bsl 4) bor Conf,
     Messages = [
         {write, ?DS2482_I2C_ADR, 0, <<?CMD_WCFG, Val>>},
-        {read, ?DS2482_I2C_ADR, ?I2C_M_NO_RD_ACK, 1}
+        {read, ?DS2482_I2C_ADR, 0, 1}
     ],
     case grisp_ni2c:transfer(Bus, Messages) of
-        [ok, <<Conf:8>>] ->
-            ok;
+        [ok, <<Conf:8>>] -> ok;
         Any -> error({read_back_config, Any, Val})
     end.
 
@@ -184,7 +182,7 @@ bus_reset() ->
     grisp_ni2c:transfer(Bus, [{write, ?DS2482_I2C_ADR, 0, <<?CMD_1WRS>>}]),
     timer:sleep(1),
     [Result] = grisp_ni2c:transfer(Bus, [
-        {read, ?DS2482_I2C_ADR, ?I2C_M_NO_RD_ACK, 1}
+        {read, ?DS2482_I2C_ADR, 0, 1}
     ]),
     check_status(Result).
 
@@ -210,7 +208,7 @@ read_byte() ->
     timer:sleep(1),
     [ok, Result] = grisp_ni2c:transfer(Bus, [
         {write, ?DS2482_I2C_ADR, 0, <<?CMD_SRP, 16#e1>>},
-        {read, ?DS2482_I2C_ADR, ?I2C_M_NO_RD_ACK, 1}
+        {read, ?DS2482_I2C_ADR, 0, 1}
     ]),
     Result.
 
@@ -226,7 +224,7 @@ write_triplet(Dir) ->
     grisp_ni2c:transfer(Bus, [{write, ?DS2482_I2C_ADR, 0, <<?CMD_1WT, Db>>}]),
     timer:sleep(1),
     [<<D:1, T:1, S:1, _:5>>] = grisp_ni2c:transfer(Bus, [
-        {read, ?DS2482_I2C_ADR, ?I2C_M_NO_RD_ACK, 1}
+        {read, ?DS2482_I2C_ADR, 0, 1}
     ]),
     {D, T, S}.
 
