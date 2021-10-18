@@ -45,9 +45,6 @@ static ERL_NIF_TERM am_register_failed;
 static ERL_NIF_TERM am_reverse_failed;
 static ERL_NIF_TERM am_write;
 
-#define RAISE(msg)                                                             \
-  enif_raise_exception(                                                        \
-      env, enif_make_tuple2(env, am_error, enif_make_atom(env, msg)))
 #define RAISE_TERM(type, term)                                                 \
   enif_raise_exception(env, enif_make_tuple3(env, am_error, type, term))
 #define RAISE_STRERROR(msg)                                                    \
