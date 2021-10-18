@@ -48,10 +48,6 @@
 -type pattern() :: [{time(), color() | fun(() -> color()) }].
 % A list of intervals and colors to show during those intervals.
 
-%--- Records -------------------------------------------------------------------
-
--record(state, {driver, leds}).
-
 %--- Macros --------------------------------------------------------------------
 
 -define(is_component(C), C >= 0 andalso C =< 1).
@@ -137,26 +133,42 @@ pattern(Pos, Pattern) -> gen_server:cast(?MODULE, {pattern, Pos, Pattern}).
 
 % @private
 init(undefined) ->
-    {ok, #state{leds = [
-        {1, {[{infinity, off}], undefined}},
-        {2, {[{infinity, off}], undefined}}
-    ]}}.
+    {ok, #{
+        1 => #{
+            pattern => [{infinity, off}],
+            timer => undefined,
+            pins => #{
+                r => grisp_ngpio:open(<<"/leds/grisp-rgb1-red">>),
+                g => grisp_ngpio:open(<<"/leds/grisp-rgb1-green">>),
+                b => grisp_ngpio:open(<<"/leds/grisp-rgb1-blue">>)
+            }
+        },
+        2 => #{
+            pattern => [{infinity, off}],
+            timer => undefined,
+            pins => #{
+                r => grisp_ngpio:open(<<"/leds/grisp-rgb2-red">>),
+                g => grisp_ngpio:open(<<"/leds/grisp-rgb2-green">>),
+                b => grisp_ngpio:open(<<"/leds/grisp-rgb2-blue">>)
+            }
+        }
+    }}.
 
 % @private
 handle_call(Request, From, _State) -> error({unknown_call, Request, From}).
 
 % @private
 handle_cast({pattern, Pos, NewPattern}, State) ->
-    NewState = update_led(Pos, State, fun({_OldPattern, Timer}) ->
-        tick_pattern(Pos, {NewPattern, Timer})
-    end),
+    NewState = maps:update_with(Pos, fun(LED) ->
+        tick_pattern(Pos, LED#{pattern := NewPattern})
+    end, State),
     {noreply, NewState}.
 
 % @private
 handle_info({tick, Pos}, State) ->
-    NewState = update_led(Pos, State, fun(Led) ->
-        tick_pattern(Pos, Led)
-    end),
+    NewState = maps:update_with(Pos, fun(LED) ->
+        tick_pattern(Pos, LED)
+    end, State),
     {noreply, NewState}.
 
 % @private
@@ -167,41 +179,29 @@ terminate(_Reason, _State) -> ok.
 
 %--- Internal ------------------------------------------------------------------
 
-update_led(Pos, #state{leds = Leds} = State, Fun) ->
-    State#state{leds = mod(Pos, Fun, Leds)}.
-
-mod(Pos, Fun, [{Pos, Led}|Rest]) -> [{Pos, Fun(Led)}|Rest];
-mod(Pos, Fun, [Led|Rest])        -> [Led|mod(Pos, Fun, Rest)];
-mod(Pos, _Fun, [])               -> error({led_not_found, Pos}).
-
-tick_pattern(Pos, {[{infinity, Color} = Pattern|_Rest], Timer}) ->
+tick_pattern(_Pos, LED = #{pattern := [{infinity, Color} = Step|_], timer := Timer, pins := Pins}) ->
     cancel_timer(Timer),
-    write_color(Pos, Color),
-    {[Pattern], undefined};
-tick_pattern(Pos, {[{Time, Color} = Step|Rest], Timer}) when Time >= 1 ->
+    write(Color, Pins),
+    LED#{
+        pattern := [Step],
+        timer := undefined
+    };
+tick_pattern(Pos, LED = #{pattern := [{Time, Color} = Step|Rest], timer := Timer, pins := Pins}) ->
     cancel_timer(Timer),
-    write_color(Pos, Color),
-    NewTimer = erlang:send_after(Time, self(), {tick, Pos}),
-    {Rest ++ [Step], NewTimer}.
+    write(Color, Pins),
+    LED#{
+        pattern := Rest ++ [Step],
+        timer := erlang:send_after(Time, self(), {tick, Pos})
+    }.
 
 cancel_timer(undefined) -> ok;
-cancel_timer(Timer)     -> erlang:cancel_timer(Timer).
+cancel_timer(Timer) -> erlang:cancel_timer(Timer).
 
-write_color(Pos, Color) ->
+write(Color, #{r := RP, g := GP, b := BP}) ->
     {R, G, B} = translate(Color),
-    write_component(Pos, red, action(R)),
-    write_component(Pos, green, action(G)),
-    write_component(Pos, blue, action(B)).
-
-action(0) -> clear;
-action(1) -> set.
-
-write_component(1, red, Action)   -> grisp_gpio:Action(led1_r);
-write_component(1, green, Action) -> grisp_gpio:Action(led1_g);
-write_component(1, blue, Action)  -> grisp_gpio:Action(led1_b);
-write_component(2, red, Action)   -> grisp_gpio:Action(led2_r);
-write_component(2, green, Action) -> grisp_gpio:Action(led2_g);
-write_component(2, blue, Action)  -> grisp_gpio:Action(led2_b).
+    grisp_ngpio:set(RP, R),
+    grisp_ngpio:set(GP, G),
+    grisp_ngpio:set(BP, B).
 
 translate(Fun) when is_function(Fun) -> to_rgb(Fun());
 translate(Value)                     -> to_rgb(Value).
