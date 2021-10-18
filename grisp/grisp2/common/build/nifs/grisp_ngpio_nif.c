@@ -99,7 +99,36 @@ static ERL_NIF_TERM gpio_set_nif(ErlNifEnv *env, int argc,
   return am_ok;
 }
 
+static ERL_NIF_TERM gpio_get_nif(ErlNifEnv *env, int argc,
+                                 const ERL_NIF_TERM argv[]) {
+  gpio_pin *pin;
+  uint32_t in_value;
+
+  if (!enif_get_resource(env, argv[0], gpio_pin_rt, (void **)&pin)) {
+    return RAISE_TERM(am_invalid_pin, argv[0]);
+  }
+
+  in_value = imx_gpio_get_input(&(pin->imx));
+
+  return enif_make_uint(env, in_value);
+}
+
+static ERL_NIF_TERM gpio_toggle_nif(ErlNifEnv *env, int argc,
+                                    const ERL_NIF_TERM argv[]) {
+  gpio_pin *pin;
+
+  if (!enif_get_resource(env, argv[0], gpio_pin_rt, (void **)&pin)) {
+    return RAISE_TERM(am_invalid_pin, argv[0]);
+  }
+
+  imx_gpio_toggle_output(&(pin->imx));
+
+  return am_ok;
+}
+
 static ErlNifFunc nif_funcs[] = {{"gpio_open_nif", 1, &gpio_open_nif},
-                                 {"gpio_set_nif", 2, &gpio_set_nif}};
+                                 {"gpio_set_nif", 2, &gpio_set_nif},
+                                 {"gpio_get_nif", 1, &gpio_get_nif},
+                                 {"gpio_toggle_nif", 1, &gpio_toggle_nif}};
 
 ERL_NIF_INIT(grisp_ngpio, nif_funcs, &gpio_load, NULL, NULL, NULL)
