@@ -50,21 +50,21 @@ static ERL_NIF_TERM am_write;
 #define RAISE_STRERROR(msg)                                                    \
   RAISE_TERM(msg, enif_make_string(env, strerror(errno), ERL_NIF_LATIN1))
 
-static ErlNifResourceType *i2c_data;
+static ErlNifResourceType *i2c_data_rt;
 
-typedef struct {
+typedef struct i2c_data {
   int fd;
-} grisp_i2c_data;
+} i2c_data;
 
 static void i2c_data_dtor(ErlNifEnv *env, void *obj) {
-  close(((grisp_i2c_data *)obj)->fd);
+  close(((i2c_data *)obj)->fd);
 }
 
 int i2c_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
-  i2c_data = enif_open_resource_type(env, NULL, "i2c_data",
+  i2c_data_rt = enif_open_resource_type(env, NULL, "i2c_data",
                                      (ErlNifResourceDtor *)i2c_data_dtor,
                                      ERL_NIF_RT_CREATE, NULL);
-  assert(i2c_data != NULL);
+  assert(i2c_data_rt != NULL);
 
   am_bus_open_failed = enif_make_atom(env, "bus_open_failed");
   am_error = enif_make_atom(env, "error");
@@ -117,13 +117,13 @@ static ERL_NIF_TERM i2c_open_nif(ErlNifEnv *env, int argc,
                                  const ERL_NIF_TERM argv[]) {
   ERL_NIF_TERM ret;
   ErlNifBinary bus;
-  grisp_i2c_data *data;
+  i2c_data *data;
 
   if (!enif_inspect_iolist_as_binary(env, argv[0], &bus)) {
     return RAISE_TERM(am_invalid_bus, argv[0]);
   }
 
-  data = enif_alloc_resource(i2c_data, sizeof(grisp_i2c_data));
+  data = enif_alloc_resource(i2c_data_rt, sizeof(i2c_data));
 
   data->fd = open((char *)bus.data, O_RDWR);
 
@@ -138,7 +138,7 @@ static ERL_NIF_TERM i2c_open_nif(ErlNifEnv *env, int argc,
 
 static ERL_NIF_TERM i2c_transfer_nif(ErlNifEnv *env, int argc,
                                      const ERL_NIF_TERM argv[]) {
-  grisp_i2c_data *data;
+  i2c_data *data;
   unsigned int nmsgs;
   int rv = -1;
   ERL_NIF_TERM head, tail, list, resps, rev_resps, resp;
@@ -150,7 +150,7 @@ static ERL_NIF_TERM i2c_transfer_nif(ErlNifEnv *env, int argc,
   ErlNifBinary buf;
   uint8_t *readbuf;
 
-  if (!enif_get_resource(env, argv[0], i2c_data, (void **)&data)) {
+  if (!enif_get_resource(env, argv[0], i2c_data_rt, (void **)&data)) {
     return RAISE_TERM(am_invalid_bus, argv[0]);
   }
   if (!enif_get_list_length(env, argv[1], &nmsgs)) {
