@@ -1,19 +1,35 @@
 -module(grisp_ngpio).
 
--export([on_load/0]).
--export([pin_init/1]).
--export([set_output/2]).
+% API
+-export([open/1]).
+-export([set/2]).
 
--on_load(on_load/0).
+% Callbacks
+-export([init/0]).
 
-on_load() ->
+% Attributes
+-on_load(init/0).
+
+-include("grisp_nif.hrl").
+
+%--- API -----------------------------------------------------------------------
+
+open(Path) -> gpio_open_nif(null(Path)).
+
+set(Pin, Value) when is_integer(Value) -> gpio_set_nif(Pin, Value).
+
+%--- Callbacks -----------------------------------------------------------------
+
+init() ->
     case grisp_hw:platform() of
         grisp2 -> ok = erlang:load_nif(atom_to_list(?MODULE), 0);
         _Other -> ok
     end.
 
-pin_init(_) ->
-    erlang:nif_error("NIF library not loaded").
+%--- Internal ------------------------------------------------------------------
 
-set_output(_, _) ->
-    erlang:nif_error("NIF library not loaded").
+gpio_open_nif(_Path) -> ?NIF_STUB.
+
+gpio_set_nif(_Pin, _Value) -> ?NIF_STUB.
+
+null(Bin) -> [Bin, 0].
