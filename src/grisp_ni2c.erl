@@ -43,16 +43,30 @@
 % @doc List I2C buses.
 -spec buses() -> #{bus_name() => #{name => bus_name(), path => bus_path()}}.
 buses() ->
-    #{
-        i2c0 => #{
-            name => i2c0,
-            path => <<"/dev/i2c-0">>
-        },
-        i2c1 => #{
-            name => i2c1,
-            path => <<"/dev/i2c-1">>
-        }
-    }.
+    case grisp_hw:platform() of
+        grisp2 ->
+            #{
+                i2c0 => #{
+                    name => i2c0,
+                    path => <<"/dev/i2c-0">>
+                },
+                i2c1 => #{
+                    name => i2c1,
+                    path => <<"/dev/i2c-1">>
+                }
+            };
+        grisp_base -> #{}
+            #{
+                i2c1 => #{
+                    name => i2c1,
+                    path => <<"/dev/i2c-1">>
+                },
+                i2c2 => #{
+                    name => i2c2,
+                    path => <<"/dev/i2c-2">>
+                }
+            }
+    end.
 
 % @doc Open an I2C bus device by name.
 %
