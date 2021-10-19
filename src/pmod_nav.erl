@@ -147,9 +147,9 @@ init([Slot, Opts]) ->
         grisp_devices:register(Slot, ?MODULE),
         {ok, State2}
     catch
-        ?EXCEPTION(Class, Reason, Stacktrace) ->
+        Class:Reason:Stacktrace ->
             restore_pins(),
-            erlang:raise(Class, Reason, ?GET_STACK(Stacktrace))
+            erlang:raise(Class, Reason, Stacktrace)
     end.
 
 % @private

@@ -274,8 +274,8 @@ handle_call({transaction, Fun}, _From, State) ->
     Reply = try
         {result, Fun()} % TODO: Implement timeout for transactions
     catch
-	?EXCEPTION(Class, Reason, Stacktrace) ->
-            {exception, Class, Reason, ?GET_STACK(Stacktrace)}
+	    Class:Reason:Stacktrace ->
+            {exception, Class, Reason, Stacktrace}
     end,
     {reply, Reply, State}.
 
