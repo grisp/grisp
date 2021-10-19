@@ -8,6 +8,7 @@
 -export([off/1]).
 -export([flash/3]).
 -export([pattern/2]).
+-export([read/1]).
 
 % Callbacks
 -export([init/1]).
@@ -129,33 +130,37 @@ flash(Pos, Color, Interval) ->
 -spec pattern(position(), pattern()) -> ok.
 pattern(Pos, Pattern) -> gen_server:cast(?MODULE, {pattern, Pos, Pattern}).
 
+read(Pos) -> gen_server:call(?MODULE, {read, Pos}).
+
 %--- Callbacks -----------------------------------------------------------------
 
 % @private
 init(undefined) ->
-    {ok, #{
-        1 => #{
-            pattern => [{infinity, off}],
-            timer => undefined,
-            pins => #{
-                r => grisp_ngpio:open(<<"/leds/grisp-rgb1-red">>),
-                g => grisp_ngpio:open(<<"/leds/grisp-rgb1-green">>),
-                b => grisp_ngpio:open(<<"/leds/grisp-rgb1-blue">>)
-            }
-        },
-        2 => #{
-            pattern => [{infinity, off}],
-            timer => undefined,
-            pins => #{
-                r => grisp_ngpio:open(<<"/leds/grisp-rgb2-red">>),
-                g => grisp_ngpio:open(<<"/leds/grisp-rgb2-green">>),
-                b => grisp_ngpio:open(<<"/leds/grisp-rgb2-blue">>)
-            }
+    LED1 = #{
+        timer => undefined,
+        pins => #{
+            r => grisp_ngpio:open(<<"/leds/grisp-rgb1-red">>),
+            g => grisp_ngpio:open(<<"/leds/grisp-rgb1-green">>),
+            b => grisp_ngpio:open(<<"/leds/grisp-rgb1-blue">>)
         }
+    },
+    LED2 = #{
+        timer => undefined,
+        pins => #{
+            r => grisp_ngpio:open(<<"/leds/grisp-rgb2-red">>),
+            g => grisp_ngpio:open(<<"/leds/grisp-rgb2-green">>),
+            b => grisp_ngpio:open(<<"/leds/grisp-rgb2-blue">>)
+        }
+    },
+    {ok, #{
+        1 => LED1#{pattern => [{infinity, color_get(LED1)}]},
+        2 => LED2#{pattern => [{infinity, color_get(LED2)}]}
     }}.
 
 % @private
-handle_call(Request, From, _State) -> error({unknown_call, Request, From}).
+handle_call({read, Pos}, _From, State) ->
+    LED = maps:get(Pos, State),
+    {reply, color_get(LED), State}.
 
 % @private
 handle_cast({pattern, Pos, NewPattern}, State) ->
@@ -181,14 +186,14 @@ terminate(_Reason, _State) -> ok.
 
 tick_pattern(_Pos, LED = #{pattern := [{infinity, Color} = Step|_], timer := Timer, pins := Pins}) ->
     cancel_timer(Timer),
-    write(Color, Pins),
+    color_set(Color, Pins),
     LED#{
         pattern := [Step],
         timer := undefined
     };
 tick_pattern(Pos, LED = #{pattern := [{Time, Color} = Step|Rest], timer := Timer, pins := Pins}) ->
     cancel_timer(Timer),
-    write(Color, Pins),
+    color_set(Color, Pins),
     LED#{
         pattern := Rest ++ [Step],
         timer := erlang:send_after(Time, self(), {tick, Pos})
@@ -197,11 +202,14 @@ tick_pattern(Pos, LED = #{pattern := [{Time, Color} = Step|Rest], timer := Timer
 cancel_timer(undefined) -> ok;
 cancel_timer(Timer) -> erlang:cancel_timer(Timer).
 
-write(Color, #{r := RP, g := GP, b := BP}) ->
+color_set(Color, #{r := RP, g := GP, b := BP}) ->
     {R, G, B} = translate(Color),
     grisp_ngpio:set(RP, R),
     grisp_ngpio:set(GP, G),
     grisp_ngpio:set(BP, B).
+
+color_get(#{pins := #{r := RP, g := GP, b := BP}}) ->
+    {grisp_ngpio:get(RP), grisp_ngpio:get(GP), grisp_ngpio:get(BP)}.
 
 translate(Fun) when is_function(Fun) -> to_rgb(Fun());
 translate(Value)                     -> to_rgb(Value).

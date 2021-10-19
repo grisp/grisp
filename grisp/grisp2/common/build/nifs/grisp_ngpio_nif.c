@@ -73,7 +73,6 @@ static ERL_NIF_TERM gpio_open_nif(ErlNifEnv *env, int argc,
                                       0) != RTEMS_SUCCESSFUL) {
     return RAISE_STRERROR(am_gpio_init_failed);
   }
-  imx_gpio_set_output(&(pin->imx), 0); // TODO: Remove?
 
   resource = enif_make_resource(env, pin);
   enif_release_resource(pin);
