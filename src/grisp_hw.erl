@@ -1,6 +1,7 @@
 % @doc GRiSP hardware access.
 -module(grisp_hw).
 
+-include("grisp_nif.hrl").
 -include("grisp_hw.hrl").
 
 % API
@@ -21,8 +22,7 @@
 
 % @doc Return the platform name as an atom.
 -spec platform() -> atom().
-platform() -> erlang:nif_error("NIF library not loaded").
-
+platform() -> hw_platform_nif().
 
 % @doc Read GRiSP meta data from EEPROM
 %
@@ -85,6 +85,9 @@ eeprom_reset_crc() ->
 
 load_nif() -> ok = erlang:load_nif(atom_to_list(?MODULE), 0).
 
+%--- Internal ------------------------------------------------------------------
+
+hw_platform_nif() -> ?NIF_STUB.
 
 % @private
 crc16(Cp) ->
