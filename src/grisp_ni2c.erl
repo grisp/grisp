@@ -1,6 +1,8 @@
 % @doc GRiSP I2C API.
 -module(grisp_ni2c).
 
+-include("grisp_nif.hrl").
+
 % API
 -export([register_bus/2]). % FIXME: REMOVE
 -export([buses/0]).
@@ -11,13 +13,8 @@
 -export([transfer/2]).
 
 % Callbacks
--export([init/0]).
-
-% Attributes
-
--on_load(init/0).
-
--include("grisp_nif.hrl").
+-export([on_load/0]).
+-on_load(on_load/0).
 
 %--- Types ---------------------------------------------------------------------
 
@@ -114,7 +111,7 @@ transfer(Bus, Messages) -> i2c_transfer_nif(Bus, Messages).
 
 %--- Callbacks -----------------------------------------------------------------
 
-init() ->
+on_load() ->
     ok = erlang:load_nif(atom_to_list(?MODULE), 0),
     maps:fold(fun(Bus, #{path := Path}, ok) ->
         ok = register_bus(Path, atom_to_binary(Bus))

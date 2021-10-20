@@ -15,8 +15,8 @@
 -export([crc16/1]).
 
 % Callbacks
--export([load_nif/0]).
--on_load(load_nif/0).
+-export([on_load/0]).
+-on_load(on_load/0).
 
 %--- API -----------------------------------------------------------------------
 
@@ -83,7 +83,7 @@ eeprom_reset_crc() ->
 
 %--- Callbacks -----------------------------------------------------------------
 
-load_nif() -> ok = erlang:load_nif(atom_to_list(?MODULE), 0).
+on_load() -> ok = erlang:load_nif(atom_to_list(?MODULE), 0).
 
 %--- Internal ------------------------------------------------------------------
 

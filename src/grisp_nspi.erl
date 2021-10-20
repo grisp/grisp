@@ -1,24 +1,24 @@
 % @private
 -module(grisp_nspi).
 
+-include("grisp_nif.hrl").
+
 % API
--export([init/0]).
 -export([open_nif/0]).
 -export([ioctl/4]).
+
+% Callbacks
+-export([on_load/0]).
+-on_load(on_load/0).
 
 -define(CPOL_LOW, 0).
 -define(CPOL_HIGH, 1).
 -define(CPHA_LEADING, 0).
 -define(CPHA_TRAILING, 2).
--define(nif_stub, nif_stub_error(?LINE)).
-
--on_load(init/0).
 
 %--- API -----------------------------------------------------------------------
 
-init() -> erlang:load_nif(atom_to_list(?MODULE), 0).
-
-open_nif() -> ?nif_stub.
+open_nif() -> ?NIF_STUB.
 
 ioctl(Obj, CS, Mode, Msg) when CS =:= spi1_pin9; CS =:= spi1_pin10 ->
     try
@@ -32,12 +32,13 @@ ioctl(Obj, CS, Mode, Msg) when CS =:= spi1_pin9; CS =:= spi1_pin10 ->
 ioctl(Obj, CS, Mode, Msg) ->
     ioctl_nif(Obj, chip_select(grisp_hw:platform(), CS), mode(Mode), Msg).
 
+%--- Callbacks -----------------------------------------------------------------
+
+on_load() -> erlang:load_nif(atom_to_list(?MODULE), 0).
+
 %--- Internal ------------------------------------------------------------------
 
-ioctl_nif(_Obj, _CS, _Mode, _Msg) -> ?nif_stub.
-
-nif_stub_error(Line) ->
-    erlang:nif_error({nif_not_loaded, module, ?MODULE, line, Line}).
+ioctl_nif(_Obj, _CS, _Mode, _Msg) -> ?NIF_STUB.
 
 chip_select(grisp_base, spi1) -> 2;
 chip_select(grisp_base, spi2) -> 3;

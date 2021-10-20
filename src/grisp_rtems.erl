@@ -1,6 +1,8 @@
 % @doc GRiSP RTEMS functions.
 -module(grisp_rtems).
 
+-include("grisp_nif.hrl").
+
 % API
 -export([clock_get_ticks_per_second/0]).
 -export([clock_get_ticks_since_boot/0]).
@@ -8,9 +10,8 @@
 -export([clock_set/1]).
 
 % Callbacks
--export([init/0]).
-
--on_load(init/0).
+-export([on_load/0]).
+-on_load(on_load/0).
 
 %--- Types ---------------------------------------------------------------------
 
@@ -40,10 +41,10 @@ clock_set({{{Year, Month, Day}, {Hour, Minute, Second}}, Ticks}) ->
 
 %--- Callbacks -----------------------------------------------------------------
 
-init() -> ok = erlang:load_nif(atom_to_list(?MODULE), 0).
+on_load() -> ok = erlang:load_nif(atom_to_list(?MODULE), 0).
 
 %--- Internal ------------------------------------------------------------------
 
-clock_set_nif(_TimeOfDay) -> erlang:nif_error("NIF library not loaded").
+clock_set_nif(_TimeOfDay) -> ?NIF_STUB.
 
-clock_get_tod_nif() -> erlang:nif_error("NIF library not loaded").
+clock_get_tod_nif() -> ?NIF_STUB.

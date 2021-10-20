@@ -1,5 +1,7 @@
 -module(grisp_ngpio).
 
+-include("grisp_nif.hrl").
+
 % API
 -export([open/1]).
 -export([set/2]).
@@ -8,12 +10,8 @@
 -export([clear/1]).
 
 % Callbacks
--export([init/0]).
-
-% Attributes
--on_load(init/0).
-
--include("grisp_nif.hrl").
+-export([on_load/0]).
+-on_load(on_load/0).
 
 %--- API -----------------------------------------------------------------------
 
@@ -29,7 +27,7 @@ clear(Pin) -> set(Pin, 0).
 
 %--- Callbacks -----------------------------------------------------------------
 
-init() ->
+on_load() ->
     case grisp_hw:platform() of
         grisp2 -> ok = erlang:load_nif(atom_to_list(?MODULE), 0);
         _Other -> ok
