@@ -11,6 +11,7 @@
 -export([pp/2]).
 
 %--- Types ---------------------------------------------------------------------
+
 -type coding() :: bin | binary | dec | decimal | hex | hexadecimal
                   | nib | nibble.
 
@@ -61,7 +62,7 @@ get_bytes(Bin, Start, Len) when byte_size(Bin) >= Start + Len ->
 %  ok
 % '''
 -spec pp(binary()) -> 'ok'.
-pp(Bin) -> pp(Bin, #{display => hex}).
+pp(Bin) -> pp(Bin, #{}).
 
 % @doc Print binary as numbers.
 %
@@ -77,23 +78,47 @@ pp(Bin) -> pp(Bin, #{display => hex}).
 -spec pp(binary(), coding() | #{display := coding()}) -> 'ok'.
 pp(Bin, Display) when is_atom(Display) ->
     pp(Bin, #{display => Display});
-pp(<<B:8/bitstring, Rest/bitstring>>, Opts) ->
-    print_byte(B, Opts),
-    pp(Rest, Opts);
-pp(<<>>, _Opts) ->
-    io:format("~n").
+pp(Bin, Opts) ->
+    print_bitstring(Bin, normalize_opts(maps:merge(#{display => hex}, Opts))).
 
 %--- Internal ------------------------------------------------------------------
-print_byte(<<Byte>>, #{display := D}) when D == hex; D == hexadecimal ->
-    io:format("~2.16.0B ", [Byte]);
-print_byte(<<Byte>>, #{display := D}) when D == bin; D == binary ->
-    io:format("~8.2.0B ", [Byte]);
-print_byte(<<N1:4, N2:4>>, #{display := D}) when D == nib; D == nibble ->
-    io:format("~4.2.0B ~4.2.0B  ", [N1, N2]);
-print_byte(<<Byte>>, #{display := D}) when D == dec; D == decimal->
-    io:format("~3.10.0B ", [Byte]);
-print_byte(_Byte, Opts) ->
-    case maps:find(display, Opts) of
-        {ok, Value} -> error({invalid_option, display, Value});
-        error       -> error({missing_option, display})
-    end.
+
+normalize_opts(Opts) -> maps:map(fun normalize_opt/2, Opts).
+
+normalize_opt(display, hexadecimal) -> hex;
+normalize_opt(display, binary) -> bin;
+normalize_opt(display, nibble) -> nib;
+normalize_opt(display, decimal) -> dec;
+normalize_opt(display, hex) -> hex;
+normalize_opt(display, bin) -> bin;
+normalize_opt(display, nib) -> nib;
+normalize_opt(display, dec) -> dec;
+normalize_opt(display, Other) -> error({invalid_option, display, Other});
+normalize_opt(_Opt, Value) -> Value.
+
+print_bitstring(<<B:8/bitstring, Rest/bitstring>>, Opts) ->
+    print_bits(B, Opts),
+    io:format(" "),
+    print_bitstring(Rest, Opts);
+print_bitstring(<<Rest/bitstring>>, Opts) ->
+    print_bits(Rest, Opts),
+    io:format("~n").
+
+print_bits(Bits, Opts) ->
+    Size = bit_size(Bits),
+    print_bits(Size, Bits, Opts).
+
+print_bits(Size, Bits, #{display := hex}) ->
+    <<Int:Size>> = Bits,
+    io:format("~*.16.0B", [Size div 4, Int]);
+print_bits(Size, Bits, #{display := bin}) ->
+    <<Int:Size>> = Bits,
+    io:format("~*.2.0B", [Size, Int]);
+print_bits(_Size, <<N1:4, N2:4>>, #{display := nib}) ->
+    io:format("~4.2.0B ~4.2.0B ", [N1, N2]);
+print_bits(_Size, <<Byte>>, #{display := dec}) ->
+    io:format("~3.10.0B", [Byte]);
+print_bits(0, <<>>, _Opts) ->
+    ok;
+print_bits(_Size, _Byte, _Opts) ->
+    io:format("foo").
