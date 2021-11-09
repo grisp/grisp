@@ -14,6 +14,9 @@
 
 -behaviour(gen_server).
 
+
+%--- Exports -------------------------------------------------------------------
+
 % API
 -export([start_link/2]).
 -export([get/1]).
@@ -26,11 +29,21 @@
 -export([code_change/3]).
 -export([terminate/2]).
 
+
+%--- Includes ------------------------------------------------------------------
+
 -include("grisp.hrl").
+
+
+%--- Macros --------------------------------------------------------------------
+
+-define(MAX_CONSECUTIVE_ERRORS, 10).
+
 
 %--- Records -------------------------------------------------------------------
 
--record(state, {port, last_gga, last_gsa, last_gsv, last_rmc, last_vtg}).
+-record(state, {port, last_sentences, error_count = 0}).
+
 
 %--- API -----------------------------------------------------------------------
 
@@ -40,28 +53,33 @@ start_link(Slot, _Opts) ->
 
 % @doc Get the GPS data.
 %
-% The input parameter specifies which sentence to get. For a description of
-% the sentences see the
+% The input parameter specifies which type of sentence to get.
+% For a description of the sentences see the
 % <a href="https://reference.digilentinc.com/_media/reference/pmod/pmodgps/pmodgps_rm.pdf">
 % PmodGPS Reference Manual
+% The sentence CRC is checked for all the sentence types, but for now only the
+% GGA values are parsed. If other sentences are needed, grisp_nmea needs to be
+% extended to support more types.
 % </a>.
 %
 % === Example ===
 % ```
 %  2> pmod_gps:get(gga).
-%  <<"$GPGGA,145832.000,5207.3597,N,01135.6957,E,1,5,2.50,61.9,M,46.7,M,,*6F\n">>
+%  {gps,gga,#{alt => 61.9,fixed => true,lat => 52.122661666666666,long => 11.594928333333334,time => 53912000}}}
 %  3> pmod_gps:get(gsa).
-%  <<"$GPGSA,A,3,17,06,19,02,24,,,,,,,,2.69,2.51,0.97*0B\n">>
+%  {gps,gsa,<<"A,3,17,06,19,02,24,,,,,,,,2.69,2.51,0.97">>}
 %  4> pmod_gps:get(gsv).
-%  <<"$GPGSV,3,3,12,14,22,317,17,17,10,040,35,29,09,203,,22,02,351,*7F\n">>
+%  {gps,gsv,<<"3,3,12,14,22,317,17,17,10,040,35,29,09,203,,22,02,351">>}
 %  5> pmod_gps:get(rmc).
-%  <<"$GPRMC,150007.000,A,5207.3592,N,01135.6895,E,0.46,255.74,120220,,,A*64\n">>
+%  {gps,rmc,<<"150007.000,A,5207.3592,N,01135.6895,E,0.46,255.74,120220,,,A">>}
 %  6> pmod_gps:get(vtg).
-%  <<"$GPVTG,297.56,T,,M,0.65,N,1.21,K,A*33\n">>
+%  {gps,vtg,<<"297.56,T,,M,0.65,N,1.21,K,A">>}
 % '''
--spec get('gga' | 'gsa' | 'gsv' | 'rmc' | 'vtg') -> binary().
-get(Sentence) ->
-    call({get, Sentence}).
+-spec get(grisp_nmea:message_id()) ->
+    {grisp_nmea:talker_id(), grisp_nmea:message_id(), map() | binary()} | undefined.
+get(MessageId) ->
+    call({get, MessageId}).
+
 
 %--- Callbacks -----------------------------------------------------------------
 
@@ -69,7 +87,11 @@ get(Sentence) ->
 init(Slot = uart) ->
     Port = open_port({spawn_driver, "grisp_termios_drv"}, [binary]),
     grisp_devices:register(Slot, ?MODULE),
-    {ok, #state{port = Port}}.
+    Sentences = maps:from_list([{T, undefined} || T <- [
+        dtm, gbq, gbs, gga, gll, glq, gnq, gns, gpq,
+        grs, gsa, gst, gsv, rmc, txt, vlw, vtg, zda
+    ]]),
+    {ok, #state{port = Port, last_sentences = Sentences}}.
 
 % @private
 handle_call(Call, _From, State) ->
@@ -81,30 +103,26 @@ handle_call(Call, _From, State) ->
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
 % @private
-handle_info({Port, {data, Data}}, #state{port = Port} = State) ->
-    case Data of
-        % "$GPGGA...\n"
-        <<$$,$G,$P,$G,$G,$A,_/binary>> ->
-            {noreply, State#state{last_gga = Data}};
-        % "$GPGSA...\n"
-        <<$$,$G,$P,$G,$S,$A,_/binary>> ->
-            {noreply, State#state{last_gsa = Data}};
-        % "$GPGSV...\n"
-        <<$$,$G,$P,$G,$S,$V,_/binary>> ->
-            {noreply, State#state{last_gsv = Data}};
-        % "$GPRMC...\n"
-        <<$$,$G,$P,$R,$M,$C,_/binary>> ->
-            {noreply, State#state{last_rmc = Data}};
-        % "$GPVTG...\n"
-        <<$$,$G,$P,$V,$T,$G,_/binary>> ->
-            {noreply, State#state{last_vtg = Data}};
-        <<$\n>> ->
-            {noreply, State};
-        _ ->
-            {noreply, State}
-    end.
-
-
+% We need to support at least one message failing parsing, because
+% when starting to read randomly in the stream of sentences, the first
+% one may be truncated. For now, we fail after a maximum number of
+% consecutive errors.
+handle_info({Port, {data, Data}},
+            #state{port = Port, last_sentences = LastSentences,
+                   error_count = ErrorCount} = State)
+   when is_binary(Data) ->
+    case {ErrorCount, grisp_nmea:parse(Data)} of
+        {Count, {error, Reason}} when Count > ?MAX_CONSECUTIVE_ERRORS ->
+            erlang:error({gps_nmea_parsing_error, Reason});
+        {Count, {error, _Reason}} ->
+            {noreply, State#state{error_count = Count + 1}};
+        {_, {ok, {_TalkerId, MessageType, _Values} = Sentence}} ->
+            LastSentences2 = LastSentences#{MessageType => Sentence},
+            {noreply, State#state{last_sentences = LastSentences2,
+                                  error_count = 0}}
+    end;
+handle_info(_Any, State) ->
+    {noreply, State}.
 
 % @private
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
@@ -112,26 +130,22 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 % @private
 terminate(_Reason, _State) -> ok.
 
+
 %--- Internal -----------------------------------------------------------------
 
 call(Call) ->
     Dev = grisp_devices:default(?MODULE),
     case gen_server:call(Dev#device.pid, Call) of
         {error, Reason} -> error(Reason);
-        Result          -> Result
+        {ok, Result} -> Result
     end.
 
-execute_call({get, gga}, #state{last_gga = Gga} = State) ->
-    {reply, Gga, State};
-execute_call({get, gsa}, #state{last_gsa = Gsa} = State) ->
-    {reply, Gsa, State};
-execute_call({get, gsv}, #state{last_gsv = Gsv} = State) ->
-    {reply, Gsv, State};
-execute_call({get, rmc}, #state{last_rmc = Rmc} = State) ->
-    {reply, Rmc, State};
-execute_call({get, vtg}, #state{last_vtg = Vtc} = State) ->
-    {reply, Vtc, State};
-execute_call({get, Sentence}, State) ->
-    error({unknown_sentence, Sentence}, State);
-execute_call(Request, State) ->
-    error({unknown_call, Request}, State).
+execute_call({get, MessageId}, #state{last_sentences = Sentences} = State) ->
+    case maps:find(MessageId, Sentences) of
+        error ->
+            {reply, {error, {unknown_sentence, MessageId}}, State};
+        {ok, Sentence} ->
+            {reply, {ok, Sentence}, State}
+    end;
+execute_call(Request, _State) ->
+    error({unknown_call, Request}).
