@@ -55,9 +55,10 @@ handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
 send_request(Chip, Type, Op, Reg, Value) ->
     Addr = Chip - 1,
-    Request = request(Type, Op, Addr, Reg, Value),
+    Encoded = encode_request(Reg, Value),
+    Request = request(Type, Op, Addr, Reg, Encoded),
     Response = grisp_spi:send_recv(spi2, ?SPI_MODE, Request),
-    decode_response(Addr, Reg, bit_size(Value), Response).
+    decode_response(Op, Addr, Reg, bit_size(Encoded), Response).
 
 request(Type, Op, Addr, Reg, Value) ->
     Req =
@@ -85,7 +86,12 @@ crc5(<<Bit:1, Bin/bitstring>>, R) ->
 crc5(<<>>, R) ->
     R.
 
-decode_response(Addr, Reg, Len, Response) ->
+encode_request(_Reg, Value) when is_binary(Value) ->
+    Value;
+encode_request(Reg, Value) ->
+    reg(encode, Reg, Value).
+
+decode_response(Op, Addr, Reg, Len, Response) ->
     <<_:2, Data:(Len + 9)/bitstring, CRC:5>> = Response,
     ?assertEqual(crc5(Data), CRC),
     <<
@@ -95,28 +101,49 @@ decode_response(Addr, Reg, Len, Response) ->
         OvrCurr:1,
         OvlDf:1,
         GLOBLF:1,
-        RegResp:Len/bitstring,
+        Result:Len/bitstring,
         Addr:2,
         ThrErr:1
     >> = Data,
+    maps:merge(
+        #{
+            'SHTVDD' => boolean(SHTVDD),
+            'AbvVDD' => boolean(AbvVDD),
+            'OWOffF' => boolean(OWOffF),
+            'OvrCurr' => boolean(OvrCurr),
+            'OvlDf' => boolean(OvlDf),
+            'GLOBLF' => boolean(GLOBLF),
+            'ThrErr' => boolean(ThrErr)
+        },
+        decode_result(Op, Reg, Result)
+    ).
+
+decode_result(read, Reg, Result) ->
     #{
-        % faults => #{
-        %     short_to_vdd => boolean(SHTVDD),
-        %     above_vdd => boolean(AbvVDD),
-        %     open_wire => boolean(OWOffF),
-        %     current_limit => boolean(OvrCurr),
-        %     overload => boolean(OvlDf),
-        %     global => boolean(GLOBLF)
-        % },
-        % termal_shutdown => boolean(ThrErr),
-        'SHTVDD' => boolean(SHTVDD),
-        'AbvVDD' => boolean(AbvVDD),
-        'OWOffF' => boolean(OWOffF),
-        'OvrCurr' => boolean(OvrCurr),
-        'OvlDf' => boolean(OvlDf),
-        'GLOBLF' => boolean(GLOBLF),
-        'ThrErr' => boolean(ThrErr),
-        resp => decode_registers(Reg, RegResp)
+        result => decode_registers(Reg, Result)
+    };
+decode_result(write, _Reg, Result) ->
+    <<
+        DiLvl4:1,
+        DiLvl3:1,
+        DiLvl2:1,
+        DiLvl1:1,
+        F4:1,
+        F3:1,
+        F2:1,
+        F1:1
+    >> = Result,
+    #{
+        result => #{
+            'DiLvl4' => boolean(DiLvl4),
+            'DiLvl3' => boolean(DiLvl3),
+            'DiLvl2' => boolean(DiLvl2),
+            'DiLvl1' => boolean(DiLvl1),
+            'F4' => boolean(F4),
+            'F3' => boolean(F3),
+            'F2' => boolean(F2),
+            'F1' => boolean(F1)
+        }
     }.
 
 decode_registers(StartReg, Response) ->
