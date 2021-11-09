@@ -18,7 +18,7 @@ rm "${OTP_ROOT}/bin/epmd"
 # Create barebox Linux image
 rm -rf "${BEAM}.gz"
 gzip -k -9 "${BEAM}"
-mkimage -A arm -O linux -T kernel -a 0x80200000 -e 0x80200000 -n RTEMS -d "${BEAM}.gz" "${BEAM}.zImage"
+mkimage.py -A arm -O linux -T kernel -a 0x80200000 -e 0x80200000 -n RTEMS -d "${BEAM}.gz" "${BEAM}.zImage"
 
 # Remove unused artifacts
 rm -rf "${BEAM}" "${BEAM}.gz"
