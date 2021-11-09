@@ -59,7 +59,7 @@ ErlDrvData grisp_tio_start (ErlDrvPort port, char *command)
 
   data->port = port;
 
-  data->fd = open("/dev/ttyUSART0", O_RDWR);
+  data->fd = open("/dev/ttyS3", O_RDWR);
   if (data->fd < 0)
     return ERL_DRV_ERROR_ERRNO;
 
