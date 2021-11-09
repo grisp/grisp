@@ -1,8 +1,6 @@
 -module(pmod_dio).
 -behaviour(gen_server).
 
--include_lib("stdlib/include/assert.hrl").
-
 % FIXME: remove!
 -export([crc5/1]).
 -export([read/2]).
@@ -91,9 +89,8 @@ encode_request(_Reg, Value) when is_binary(Value) ->
 encode_request(Reg, Value) ->
     reg(encode, Reg, Value).
 
-decode_response(Op, Addr, Reg, Len, Response) ->
-    <<_:2, Data:(Len + 9)/bitstring, CRC:5>> = Response,
-    ?assertEqual(crc5(Data), CRC),
+decode_response(Op, Addr, Reg, Len, <<_:2, Response/bitstring>>) ->
+    0 = crc5(Response),
     <<
         SHTVDD:1,
         AbvVDD:1,
@@ -103,8 +100,9 @@ decode_response(Op, Addr, Reg, Len, Response) ->
         GLOBLF:1,
         Result:Len/bitstring,
         Addr:2,
-        ThrErr:1
-    >> = Data,
+        ThrErr:1,
+        _CRC:5
+    >> = Response,
     maps:merge(
         #{
             'SHTVDD' => boolean(SHTVDD),
