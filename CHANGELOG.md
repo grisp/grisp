@@ -8,6 +8,11 @@ and this project adheres to
 
 ## Unreleased
 
+### Changed
+
+- `pmod_gps` now validate the NMEA sentences and parse the GGA ones.
+- `pmod_gps` API changed, it now return a pre-parsed tuple, and for the GGA a parsed map of the sentence fields.
+
 ### Added
 
 - `grisp_hw` module for hardware access functions.
