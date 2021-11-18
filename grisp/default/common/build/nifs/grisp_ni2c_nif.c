@@ -17,9 +17,6 @@
 #include <erl_nif.h>
 
 #include <bsp.h>
-#if defined LIBBSP_ARM_IMX_BSP_H
-#define GRISP_I2C_REGISTER(path, alias) i2c_bus_register_imx((path), (alias))
-#endif
 
 /* NIF interface declarations */
 int i2c_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info);
@@ -28,9 +25,7 @@ int i2c_upgrade(ErlNifEnv *env, void **priv_data, void **old_priv_data,
 
 static ERL_NIF_TERM am_bus_open_failed;
 static ERL_NIF_TERM am_error;
-static ERL_NIF_TERM am_invalid_alias;
 static ERL_NIF_TERM am_invalid_bus;
-static ERL_NIF_TERM am_invalid_device_name;
 static ERL_NIF_TERM am_invalid_message;
 static ERL_NIF_TERM am_invalid_message_addr;
 static ERL_NIF_TERM am_invalid_message_buf;
@@ -41,7 +36,6 @@ static ERL_NIF_TERM am_invalid_message_type;
 static ERL_NIF_TERM am_ioctl_failed;
 static ERL_NIF_TERM am_ok;
 static ERL_NIF_TERM am_read;
-static ERL_NIF_TERM am_register_failed;
 static ERL_NIF_TERM am_reverse_failed;
 static ERL_NIF_TERM am_write;
 
@@ -68,9 +62,7 @@ int i2c_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
 
   am_bus_open_failed = enif_make_atom(env, "bus_open_failed");
   am_error = enif_make_atom(env, "error");
-  am_invalid_alias = enif_make_atom(env, "invalid_alias");
   am_invalid_bus = enif_make_atom(env, "invalid_bus");
-  am_invalid_device_name = enif_make_atom(env, "invalid_device_name");
   am_invalid_message = enif_make_atom(env, "invalid_message");
   am_invalid_message_addr = enif_make_atom(env, "invalid_message_addr");
   am_invalid_message_buf = enif_make_atom(env, "invalid_message_buf");
@@ -81,7 +73,6 @@ int i2c_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
   am_ioctl_failed = enif_make_atom(env, "ioctl_failed");
   am_ok = enif_make_atom(env, "ok");
   am_read = enif_make_atom(env, "read");
-  am_register_failed = enif_make_atom(env, "register_failed");
   am_reverse_failed = enif_make_atom(env, "reverse_failed");
   am_write = enif_make_atom(env, "write");
 
@@ -91,26 +82,6 @@ int i2c_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
 int i2c_upgrade(ErlNifEnv *env, void **priv_data, void **old_priv_data,
                 ERL_NIF_TERM load_info) {
   return 0;
-}
-
-static ERL_NIF_TERM i2c_register_bus_nif(ErlNifEnv *env, int argc,
-                                         const ERL_NIF_TERM argv[]) {
-  ErlNifBinary bus, alias;
-  int rv = -1;
-
-  if (!enif_inspect_iolist_as_binary(env, argv[0], &bus)) {
-    return RAISE_TERM(am_invalid_device_name, argv[0]);
-  }
-  if (!enif_inspect_iolist_as_binary(env, argv[1], &alias)) {
-    return RAISE_TERM(am_invalid_alias, argv[1]);
-  }
-
-  rv = i2c_bus_register_imx((char *)bus.data, (char *)alias.data);
-  if (rv != 0) {
-    return RAISE_STRERROR(am_register_failed);
-  }
-
-  return am_ok;
 }
 
 static ERL_NIF_TERM i2c_open_nif(ErlNifEnv *env, int argc,
@@ -226,7 +197,6 @@ static ERL_NIF_TERM i2c_transfer_nif(ErlNifEnv *env, int argc,
 }
 
 static ErlNifFunc nif_funcs[] = {
-    {"i2c_register_bus_nif", 2, i2c_register_bus_nif},
     {"i2c_open_nif", 1, i2c_open_nif},
     {"i2c_transfer_nif", 2, i2c_transfer_nif}};
 

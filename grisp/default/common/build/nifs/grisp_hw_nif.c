@@ -1,11 +1,7 @@
 #define STATIC_ERLANG_NIF 1
 
 #include <erl_nif.h>
-
-#define QUOTE(name) #name
-#define STR(macro) QUOTE(macro)
-
-#define GRISP_PLATFORM_STR STR(GRISP_PLATFORM)
+#include <grisp.h>
 
 /* NIF interface declarations */
 int hw_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info);
@@ -13,7 +9,7 @@ int hw_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info);
 static ERL_NIF_TERM am_platform;
 
 int hw_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
-  am_platform = enif_make_atom(env, GRISP_PLATFORM_STR);
+  am_platform = enif_make_atom(env, GRISP_PLATFORM);
   return 0;
 }
 

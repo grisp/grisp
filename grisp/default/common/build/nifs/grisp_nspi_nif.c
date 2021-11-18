@@ -2,10 +2,6 @@
 
 #include <assert.h>
 #include <bsp.h>
-#ifdef LIBBSP_ARM_ATSAM_BSP_H
-#include <bsp/atsam-spi.h>
-#include <bsp/spi.h>
-#endif
 #include <dev/spi/spi.h>
 #include <erl_nif.h>
 #include <errno.h>
@@ -16,16 +12,9 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include <grisp/init.h>
 
 #include "sys.h"
-
-#if defined LIBBSP_ARM_ATSAM_BSP_H
-#define SPI_BUS ATSAM_SPI_0_BUS_PATH
-#define SPI_BUS_REGISTER(config) spi_bus_register_atsam(SPI_BUS, config);
-#elif defined LIBBSP_ARM_IMX_BSP_H
-#define SPI_BUS "/dev/spibus"
-#define SPI_BUS_REGISTER(config) spi_bus_register_imx(SPI_BUS, config)
-#endif
 
 #define CPOL_LOW 0
 #define CPOL_HIGH 1
@@ -34,13 +23,6 @@
 
 /* Make sure to keep this at sync with the -define(res_max_size.. in spi.erl */
 #define RES_MAX_SIZE 256
-
-#ifdef LIBBSP_ARM_ATSAM_BSP_H
-static const atsam_spi_config spi_config = {.spi_peripheral_id = ID_SPI0,
-                                            .spi_regs = SPI0};
-#elif defined LIBBSP_ARM_IMX_BSP_H
-const char spi_config[] = "spi0";
-#endif
 
 static ErlNifResourceType *grisp_spi;
 
@@ -70,13 +52,6 @@ int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
 
   assert(grisp_spi != NULL);
 
-  /* bus registration */
-  rv = SPI_BUS_REGISTER(&spi_config);
-
-  if (rv != 0)
-    perror("SPI bus registration failed");
-  assert(rv == 0);
-
   return 0;
 }
 
@@ -89,7 +64,7 @@ static ERL_NIF_TERM spi_open_nif(ErlNifEnv *env, int argc,
   grisp_spi_state *state =
       enif_alloc_resource(grisp_spi, sizeof(grisp_spi_state));
 
-  state->fd = open(SPI_BUS, O_RDWR);
+  state->fd = open(GRISP_SPI_DEVICE, O_RDWR);
 
   if (state->fd == -1) {
     err_num = errno;

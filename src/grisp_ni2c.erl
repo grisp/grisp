@@ -4,7 +4,6 @@
 -include("grisp_nif.hrl").
 
 % API
--export([register_bus/2]). % FIXME: REMOVE
 -export([buses/0]).
 -export([open/1]).
 -export([detect/1]).
@@ -111,17 +110,9 @@ transfer(Bus, Messages) -> i2c_transfer_nif(Bus, Messages).
 
 %--- Callbacks -----------------------------------------------------------------
 
-on_load() ->
-    ok = erlang:load_nif(atom_to_list(?MODULE), 0),
-    maps:fold(fun(Bus, #{path := Path}, ok) ->
-        ok = register_bus(Path, atom_to_binary(Bus))
-    end, ok, buses()).
+on_load() -> ok = erlang:load_nif(atom_to_list(?MODULE), 0).
 
 %--- Internal ------------------------------------------------------------------
-
-register_bus(Path, Alias) -> i2c_register_bus_nif(null(Path), null(Alias)).
-
-i2c_register_bus_nif(_Bus, _Alias) -> ?NIF_STUB.
 
 i2c_open_nif(_Bus) -> ?NIF_STUB.
 
