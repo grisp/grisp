@@ -49,9 +49,9 @@
 
 #include <inih/ini.h>
 
-/* #include <grisp/pin-config.h> */
 #include <grisp/init.h>
 #include <grisp/led.h>
+#include <grisp/eeprom.h>
 
 #define MNT "/media/mmcsd-0-0/"
 #define INI_FILE (MNT "grisp.ini")
@@ -146,7 +146,7 @@ static char *wlan_channel = "6";
 
 static char *wlan_adhocname = "adhocnetwork";
 
-static char *hostname = "defaulthostname";
+static char *hostname = "grisp";
 
 static char *wpa_supplicant_conf = NULL;
 
@@ -183,7 +183,7 @@ int munmap(void *addr, size_t len) {
 }
 
 void fatal_extension(uint32_t source, uint32_t is_internal, uint32_t error) {
-  printk("fatal extension: source=%ld, is_internal=%ld, error=%ld\n", source,
+  printk("\n\nfatal extension: source=%ld, is_internal=%ld, error=%ld\n", source,
          is_internal, error);
   if (source == RTEMS_FATAL_SOURCE_EXCEPTION)
     rtems_exception_frame_print((const rtems_exception_frame *)error);
@@ -340,17 +340,50 @@ void parse_args(char *args) {
   }
 }
 
+void set_grisp_hostname(struct grisp_eeprom *eeprom) {
+  static char *dynhostname;
+  int dynhostname_len = 0;
+  int rv = 0;
+
+  dynhostname_len = snprintf(NULL, 0, "%s-%06u", hostname, eeprom->serial);
+  assert(dynhostname_len > 0);
+  dynhostname = malloc(dynhostname_len + 1);
+  assert(dynhostname != NULL);
+  rv = snprintf(dynhostname, dynhostname_len + 1, "%s-%06u", hostname, eeprom->serial);
+  assert(rv > 0);
+  hostname = dynhostname;
+}
+
 static void Init(rtems_task_argument arg) {
   printf("[ERL] Initializing\n");
   rtems_status_code sc = RTEMS_SUCCESSFUL;
   int rv = 0;
   static char pwd[1024];
   char *p;
+  struct grisp_eeprom eeprom = {0};
 
   atexit(fatal_atexit);
 
   grisp_led_set1(false, false, false);
   grisp_led_set2(true, true, true);
+
+  printf("[ERL] Initializing buses\n");
+  grisp_init_buses();
+
+  printf("[ERL] Initializing EEPROM\n");
+  grisp_eeprom_init();
+  rv = grisp_eeprom_get(&eeprom);
+#ifndef GRISP_PLATFORM_GRISP_BASE /* GRiSP1 checksum isn't correct, skip */
+  if (rv == 0) {
+#endif
+  grisp_eeprom_dump(&eeprom);
+  set_grisp_hostname(&eeprom);
+#ifndef GRISP_PLATFORM_GRISP_BASE
+  } else {
+    printf("[ERL] ERROR: Invalid EEPROM\n");
+  }
+#endif
+
   printf("[ERL] Mounting SD card asynchronously\n");
   grisp_init_sd_card();
   printf("[ERL] Lowering self priority\n");
@@ -375,6 +408,9 @@ static void Init(rtems_task_argument arg) {
   evaluate_ini_file(INI_FILE);
   printf("[ERL] Booting with arg: %s\n", erl_args);
   parse_args(erl_args);
+
+  sethostname(hostname, strlen(hostname));
+  printf("[ERL] hostname: %s\n", hostname);
 
   if (start_dhcp) {
     printf("[ERL] Starting DHCP\n");
@@ -433,9 +469,6 @@ static void Init(rtems_task_argument arg) {
     printf("[ERL] getcwd error\n");
   else
     printf("[ERL] getcwd: %s\n", p);
-
-  sethostname(hostname, strlen(hostname));
-  printf("[ERL] hostname: %s\n", hostname);
 
   printf("[ERL] Starting BEAM\n");
   erl_start(argc, argv);
