@@ -67,8 +67,11 @@ void parse_args(char *args);
 static int start_dhcp = 0;
 static int wlan_adhocmode = 0;
 static int wlan_enable = 0;
+static int lan_ip_static = 0;
 
 static char *ip_self = "";
+static char *lan_ip = "";
+static char *lan_ip_netmask = "";
 static char *wlan_ip_netmask = "";
 
 /*
@@ -83,6 +86,8 @@ static char *wlan_ip_netmask = "";
  *     [network]
  *     wlan=enable
  *     ip_self=169.254.16.1
+ *     lan_ip=192.168.0.1
+ *     lan_ip_netmask=255.255.255.0
  *     wlan_ip_netmask=255.255.0.0
  *     wlan_mode=adhoc
  *     wlan_adhocname=edge
@@ -220,6 +225,13 @@ static int ini_file_handler(void *arg, const char *section, const char *name,
         printf("=== Ip is %s ===\n", ip_self);
         ok = 1;
       }
+    } else if (strcmp(name, "lan_ip") == 0) {
+      lan_ip = strdup(value);   // Set LAN IP from ini file
+      lan_ip_static = 1;        // Trigger static IP setting, no DHCP
+      ok = 1;
+    } else if (strcmp(name, "lan_ip_netmask") == 0) {
+      lan_ip_netmask = strdup(value); // Set LAN netmask from ini file
+      ok = 1;
     } else if (strcmp(name, "wlan_ip_netmask") == 0) {
       wlan_ip_netmask = strdup(value); // Set netmask from ini file
       ok = 1;
@@ -289,6 +301,15 @@ static void default_network_ifconfig_lo0(void) {
   assert(exit_code == EX_OK);
 
   exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(lo0_inet6), lo0_inet6);
+  assert(exit_code == EX_OK);
+}
+
+static void create_landev(void) {
+  int exit_code;
+  char *ifcfg[] = {"ifconfig", "ffec0", "inet", lan_ip,
+                   "netmask", lan_ip_netmask, NULL};
+
+  exit_code = rtems_bsd_command_ifconfig(RTEMS_BSD_ARGC(ifcfg), ifcfg);
   assert(exit_code == EX_OK);
 }
 
@@ -380,6 +401,9 @@ static void Init(rtems_task_argument arg) {
     printf("[ERL] Starting DHCP\n");
     grisp_led_set2(false, true, true);
     grisp_init_dhcpcd_with_config(PRIO_DHCP, DHCP_CONF_FILE);
+  } else if (lan_ip_static) {
+    printf("[ERL] Initializing ethernet with static IP\n");
+    create_landev();
   }
 
   if (wlan_enable) {
