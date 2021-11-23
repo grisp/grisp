@@ -1,7 +1,10 @@
 #define STATIC_ERLANG_NIF 1
 #include <erl_nif.h>
 
+#include <errno.h>
+#include <rtems/libio.h>
 #include <rtems/rtems/clock.h>
+#include <string.h>
 
 static ERL_NIF_TERM clock_get_ticks_per_second(ErlNifEnv *env, int argc,
                                                const ERL_NIF_TERM argv[]) {
@@ -95,10 +98,30 @@ static ERL_NIF_TERM clock_set(ErlNifEnv *env, int argc,
   }
 }
 
+static ERL_NIF_TERM unmount_nif(ErlNifEnv *env, int argc,
+                                const ERL_NIF_TERM argv[]) {
+  int status;
+  ErlNifBinary path;
+
+  if (!enif_inspect_iolist_as_binary(env, argv[0], &path))
+    return enif_make_badarg(env);
+
+  status = unmount((char *)path.data);
+
+  if (status < 0)
+    return enif_make_tuple2(
+        env, enif_make_atom(env, "error"),
+        enif_make_string(env, strerror(errno), ERL_NIF_LATIN1));
+
+  return enif_make_atom(env, "ok");
+}
+
 static ErlNifFunc nif_funcs[] = {
     {"clock_get_ticks_per_second", 0, clock_get_ticks_per_second},
     {"clock_get_ticks_since_boot", 0, clock_get_ticks_since_boot},
     {"clock_get_tod_nif", 0, clock_get_tod},
-    {"clock_set_nif", 1, clock_set}};
+    {"clock_set_nif", 1, clock_set},
+    {"unmount_nif", 1, unmount_nif},
+};
 
 ERL_NIF_INIT(grisp_rtems, nif_funcs, NULL, NULL, NULL, NULL)

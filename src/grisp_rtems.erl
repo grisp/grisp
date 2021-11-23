@@ -8,6 +8,7 @@
 -export([clock_get_ticks_since_boot/0]).
 -export([clock_get_tod/0]).
 -export([clock_set/1]).
+-export([unmount/1]).
 
 % Callbacks
 -export([on_load/0]).
@@ -39,6 +40,11 @@ clock_get_tod() ->
 clock_set({{{Year, Month, Day}, {Hour, Minute, Second}}, Ticks}) ->
     clock_set_nif({Year, Month, Day, Hour, Minute, Second, Ticks}).
 
+% @doc <a href="https://docs.rtems.org/doxygen/branches/master/group__FileSystemTypesAndMount.html#ga4c8f87fc991f94992e0da1f87243f9e0">rtems_unmount</a>
+-spec unmount(iolist()) -> ok | {error, list()}.
+unmount(Path) ->
+    unmount_nif([Path, 0]).
+
 %--- Callbacks -----------------------------------------------------------------
 
 on_load() -> ok = erlang:load_nif(atom_to_list(?MODULE), 0).
@@ -48,3 +54,5 @@ on_load() -> ok = erlang:load_nif(atom_to_list(?MODULE), 0).
 clock_set_nif(_TimeOfDay) -> ?NIF_STUB.
 
 clock_get_tod_nif() -> ?NIF_STUB.
+
+unmount_nif(_Path) -> ?NIF_STUB.
