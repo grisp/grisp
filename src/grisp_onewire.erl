@@ -37,8 +37,6 @@
     handle_info/2
 ]).
 
--include("grisp.hrl").
-
 -define(DS2482_I2C_ADR, 16#18).
 -define(CMD_DRST, 16#f0).
 -define(CMD_WCFG, 16#d2).
