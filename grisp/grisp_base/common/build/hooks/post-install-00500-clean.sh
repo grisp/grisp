@@ -11,7 +11,6 @@ rm -rf "${LIB}.old"
 export BEAM="${OTP_ROOT}/erts-${ERTS_VERSION}/bin/beam"
 rm -f "${BEAM}"
 arm-rtems5-objcopy -O binary "${BEAM}.smp" "${BEAM}"
-rm -f "${BEAM}.smp"
 
 # Remove unused files
 rm "${OTP_ROOT}/bin/epmd"
