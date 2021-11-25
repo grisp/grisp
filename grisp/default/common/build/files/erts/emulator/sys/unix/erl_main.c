@@ -44,15 +44,15 @@
 
 #include <assert.h>
 #include <bsp.h>
-#include <unistd.h>
 #include <sys/mman.h>
 #include <sysexits.h>
+#include <unistd.h>
 
 #include <inih/ini.h>
 
+#include <grisp/eeprom.h>
 #include <grisp/init.h>
 #include <grisp/led.h>
-#include <grisp/eeprom.h>
 
 #define MNT "/media/mmcsd-0-0/"
 #define INI_FILE (MNT "grisp.ini")
@@ -184,8 +184,8 @@ int munmap(void *addr, size_t len) {
 }
 
 void fatal_extension(uint32_t source, uint32_t is_internal, uint32_t error) {
-  printk("\n\nfatal extension: source=%ld, is_internal=%ld, error=%ld\n", source,
-         is_internal, error);
+  printk("\n\nfatal extension: source=%ld, is_internal=%ld, error=%ld\n",
+         source, is_internal, error);
   if (source == RTEMS_FATAL_SOURCE_EXCEPTION)
     rtems_exception_frame_print((const rtems_exception_frame *)error);
 
@@ -350,7 +350,8 @@ void set_grisp_hostname(struct grisp_eeprom *eeprom) {
   assert(dynhostname_len > 0);
   dynhostname = malloc(dynhostname_len + 1);
   assert(dynhostname != NULL);
-  rv = snprintf(dynhostname, dynhostname_len + 1, "%s-%06u", hostname, eeprom->serial);
+  rv = snprintf(dynhostname, dynhostname_len + 1, "%s-%06u", hostname,
+                eeprom->serial);
   assert(rv > 0);
   hostname = dynhostname;
 }
@@ -377,8 +378,8 @@ static void Init(rtems_task_argument arg) {
 #ifndef GRISP_PLATFORM_GRISP_BASE /* GRiSP1 checksum isn't correct, skip */
   if (rv == 0) {
 #endif
-  grisp_eeprom_dump(&eeprom);
-  set_grisp_hostname(&eeprom);
+    grisp_eeprom_dump(&eeprom);
+    set_grisp_hostname(&eeprom);
 #ifndef GRISP_PLATFORM_GRISP_BASE
   } else {
     printf("[ERL] ERROR: Invalid EEPROM\n");
@@ -430,7 +431,8 @@ static void Init(rtems_task_argument arg) {
       if (wpa_supplicant_conf != NULL) {
         printf("[ERL] WLAN mode: WPA\n");
         grisp_led_set2(true, false, true);
-        grisp_init_wpa_supplicant(wpa_supplicant_conf, PRIO_WPA, create_wlandev);
+        grisp_init_wpa_supplicant(wpa_supplicant_conf, PRIO_WPA,
+                                  create_wlandev);
       } else {
         printf("[ERL] WLAN mode: unsecured (!)\n");
         create_wlandev();
