@@ -23,13 +23,12 @@
 /* Make sure to keep this at sync with the -define(msgs_max_count.. in i2c.erl */
 #define MSGS_MAX_COUNT 32
 
-int grisp_i2c_init (void);
 ErlDrvData grisp_i2c_start (ErlDrvPort port, char *command);
 void grisp_i2c_stop (ErlDrvData drv_data);
 void grisp_i2c_output (ErlDrvData drv_data, char *buf, ErlDrvSizeT len);
 
 ErlDrvEntry grisp_i2c_driver_entry = {
-    grisp_i2c_init,
+    NULL,
     grisp_i2c_start,
     grisp_i2c_stop,
     grisp_i2c_output,
@@ -63,16 +62,6 @@ struct grisp_i2c_data {
 
 /* FIXME: consider making this more dynamic, especially if generalized */
 static struct grisp_i2c_data grisp_i2c_data = { NULL, 0, -1 };
-
-int grisp_i2c_init (void)
-{
-  int rv;
-
-  rv = atsam_register_i2c_0();
-  assert(rv == 0);
-
-  return 0;
-}
 
 ErlDrvData grisp_i2c_start (ErlDrvPort port, char *command)
 {
