@@ -44,6 +44,7 @@
 
 #include <assert.h>
 #include <bsp.h>
+#include <unistd.h>
 #include <sys/mman.h>
 #include <sysexits.h>
 
@@ -415,7 +416,10 @@ static void Init(rtems_task_argument arg) {
   if (start_dhcp) {
     printf("[ERL] Starting DHCP\n");
     grisp_led_set2(false, true, true);
-    grisp_init_dhcpcd_with_config(PRIO_DHCP, DHCP_CONF_FILE);
+    if (!access(DHCP_CONF_FILE, F_OK))
+      grisp_init_dhcpcd_with_config(PRIO_DHCP, DHCP_CONF_FILE);
+    else
+      grisp_init_dhcpcd(PRIO_DHCP);
   }
 
   if (wlan_enable) {
