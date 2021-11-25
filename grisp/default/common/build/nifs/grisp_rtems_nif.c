@@ -2,9 +2,11 @@
 #include <erl_nif.h>
 
 #include <errno.h>
+#include <fcntl.h>
 #include <rtems/libio.h>
 #include <rtems/rtems/clock.h>
 #include <string.h>
+#include <unistd.h>
 
 static ERL_NIF_TERM clock_get_ticks_per_second(ErlNifEnv *env, int argc,
                                                const ERL_NIF_TERM argv[]) {
@@ -116,12 +118,59 @@ static ERL_NIF_TERM unmount_nif(ErlNifEnv *env, int argc,
   return enif_make_atom(env, "ok");
 }
 
+static ERL_NIF_TERM pwrite_nif(ErlNifEnv *env, int argc,
+                               const ERL_NIF_TERM argv[]) {
+  int fd;
+  int size, offset;
+  int bytes_written;
+  int close_status;
+  int err;
+  ErlNifBinary device_path, buffer;
+
+  if (!enif_inspect_iolist_as_binary(env, argv[0], &device_path))
+    return enif_make_badarg(env);
+
+  if (!enif_inspect_iolist_as_binary(env, argv[1], &buffer))
+    return enif_make_badarg(env);
+
+  if (!enif_get_int(env, argv[2], &offset))
+    return enif_make_badarg(env);
+
+  fd = open(device_path.data, O_RDWR);
+  if (fd < 0) {
+    err = errno;
+    return enif_make_tuple3(
+        env, enif_make_atom(env, "error"), enif_make_atom(env, "open"),
+        enif_make_string(env, strerror(err), ERL_NIF_LATIN1));
+  }
+
+  bytes_written = pwrite(fd, buffer.data, buffer.size, offset);
+  if (bytes_written < 0) {
+    err = errno;
+    return enif_make_tuple3(
+        env, enif_make_atom(env, "error"), enif_make_atom(env, "pwrite"),
+        enif_make_string(env, strerror(err), ERL_NIF_LATIN1));
+  }
+
+  close_status = close(fd);
+  if (close_status < 0) {
+    err = errno;
+    return enif_make_tuple3(
+        env, enif_make_atom(env, "error"), enif_make_atom(env, "close"),
+        enif_make_string(env, strerror(err), ERL_NIF_LATIN1));
+  }
+
+  return enif_make_tuple2(env, enif_make_atom(env, "ok"),
+                          enif_make_int(env, bytes_written));
+}
+
 static ErlNifFunc nif_funcs[] = {
     {"clock_get_ticks_per_second", 0, clock_get_ticks_per_second},
     {"clock_get_ticks_since_boot", 0, clock_get_ticks_since_boot},
     {"clock_get_tod_nif", 0, clock_get_tod},
     {"clock_set_nif", 1, clock_set},
     {"unmount_nif", 1, unmount_nif},
+    {"pwrite_nif", 3, pwrite_nif},
 };
 
 ERL_NIF_INIT(grisp_rtems, nif_funcs, NULL, NULL, NULL, NULL)
