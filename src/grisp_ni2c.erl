@@ -62,13 +62,7 @@ open(Name) ->
 % ["0x18","0x36","0x37","0x52","0x57","0x5A","0x5F"]
 % '''
 -spec detect(bus()) -> [addr()].
-detect(Bus) ->
-    lists:reverse(lists:foldl(fun(ChipAddr, Detected) ->
-        case grisp_ni2c:transfer(Bus, [{write, ChipAddr, 0, <<>>}]) of
-            {error, ioctl_failed, _} -> Detected;
-            [ok] -> [ChipAddr|Detected]
-        end
-    end, [], lists:seq(1, 127))).
+detect(Bus) -> [Addr || Addr <- lists:seq(1, 127), present(Bus, Addr)].
 
 % @doc Read from a register on an I2C chip.
 -spec read(bus(), addr(), non_neg_integer(), length()) -> binary().
@@ -99,3 +93,9 @@ i2c_open_nif(_Bus) -> ?NIF_STUB.
 i2c_transfer_nif(_Bus, _Messages) -> ?NIF_STUB.
 
 null(Bin) -> [Bin, 0].
+
+present(Bus, Addr) ->
+    case grisp_ni2c:transfer(Bus, [{write, Addr, 0, <<>>}]) of
+        {error, ioctl_failed, _} -> false;
+        [ok] -> true
+    end.
