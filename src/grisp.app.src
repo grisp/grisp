@@ -8,7 +8,12 @@
         stdlib,
         mapz
     ]},
-    {env,[]},
+    {env, [
+        {leds, #{
+            1 => {pattern, [{200, blue}, {200, off}, {infinity, blue}]},
+            2 => {pattern, [{200, blue}, {200, off}, {200, blue}, {infinity, off}]}
+        }}
+    ]},
     {modules, []},
 
     {licenses, [

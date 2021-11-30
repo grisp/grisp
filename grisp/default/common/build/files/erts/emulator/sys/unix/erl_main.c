@@ -366,8 +366,8 @@ static void Init(rtems_task_argument arg) {
 
   atexit(fatal_atexit);
 
-  grisp_led_set1(false, false, false);
-  grisp_led_set2(true, true, true);
+  grisp_led_set1(true, true, true);
+  grisp_led_set2(false, false, false);
 
   printf("[ERL] Initializing buses\n");
   grisp_init_buses();
@@ -396,13 +396,13 @@ static void Init(rtems_task_argument arg) {
   default_network_ifconfig_lo0();
 
   /* Wait for the SD card */
-  grisp_led_set2(true, false, true);
+  grisp_led_set1(true, false, true);
   sc = grisp_init_wait_for_sd();
   if (sc == RTEMS_SUCCESSFUL) {
     printf("[ERL] SD card mounted\n");
   } else {
     printf("[ERL] ERROR: SD card could not be mounted after timeout\n");
-    grisp_led_set2(true, false, false);
+    grisp_led_set1(true, false, false);
   }
 
   printf("[ERL] Reading %s", INI_FILE);
@@ -416,7 +416,7 @@ static void Init(rtems_task_argument arg) {
 
   if (start_dhcp) {
     printf("[ERL] Starting DHCP\n");
-    grisp_led_set2(false, true, true);
+    grisp_led_set1(false, true, true);
     if (!access(DHCP_CONF_FILE, F_OK))
       grisp_init_dhcpcd_with_config(PRIO_DHCP, DHCP_CONF_FILE);
     else
@@ -425,12 +425,12 @@ static void Init(rtems_task_argument arg) {
 
   if (wlan_enable) {
     printf("[ERL] Initializing WLAN\n");
-    grisp_led_set2(false, false, true);
+    grisp_led_set1(true, true, false);
     rtems_task_wake_after(RTEMS_MILLISECONDS_TO_TICKS(4000));
     if (start_dhcp) {
       if (wpa_supplicant_conf != NULL) {
         printf("[ERL] WLAN mode: WPA\n");
-        grisp_led_set2(true, false, true);
+        grisp_led_set1(true, false, true);
         grisp_init_wpa_supplicant(wpa_supplicant_conf, PRIO_WPA,
                                   create_wlandev);
       } else {
@@ -442,7 +442,7 @@ static void Init(rtems_task_argument arg) {
       create_wlandev_adhoc();
     }
   }
-  grisp_led_set2(false, true, false);
+  grisp_led_set1(false, true, false);
 
   printf("[ERL] mkdir /tmp\n");
   rv = mkdir("/tmp", 0755);
