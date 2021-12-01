@@ -54,9 +54,17 @@
 #include <grisp/init.h>
 #include <grisp/led.h>
 
-#define MNT "/media/mmcsd-0-0/"
-#define INI_FILE (MNT "grisp.ini")
-#define DHCP_CONF_FILE (MNT "dhcpcd.conf")
+#ifdef GRISP_PLATFORM_GRISP2
+#include <bsp/fdt.h>
+#include <libfdt.h>
+#define FDT_MOUNTPOINT_NODE "/chosen"
+#define FDT_MOUNTPOINT_PROPERTY "grisp-mountpoint"
+#define DEFAULT_MNT "/media/mmcsd-1-0/"
+#else
+#define DEFAULT_MNT "/media/mmcsd-0-0/"
+#endif
+#define INI_FILENAME "grisp.ini"
+#define DHCP_CONF_FILENAME "dhcpcd.conf"
 
 #define STACK_SIZE_INIT_TASK (64 * 1024)
 
@@ -163,12 +171,14 @@ static const char *default_erl_args = "erl.rtems -- "
 static char *argv[MAX_ARGC];
 static int argc;
 
-static char *strdupcat(char *s1, char *s2) {
+static char *strdupcat(const char *s1, const char *s2) {
   char *res;
+  int len;
 
-  res = malloc(strlen(s1) + strlen(s2) + 1);
-  strcpy(res, s1);
-  strcat(res, s2);
+  len = strlen(s1) + strlen(s2) + 1;
+  res = malloc(len);
+  strlcpy(res, s1, len);
+  strlcat(res, s2, len);
 
   return res;
 }
@@ -204,6 +214,7 @@ void fatal_atexit(void) {
 static int ini_file_handler(void *arg, const char *section, const char *name,
                             const char *value) {
   int ok = 0;
+  const char *rootdir = (const char*)arg;
 
   printf("grisp.ini: "
          "section \"%s\", name \"%s\", value \"%s\"\n",
@@ -246,7 +257,7 @@ static int ini_file_handler(void *arg, const char *section, const char *name,
         ok = 1;
       }
     } else if (strcmp(name, "wpa") == 0) {
-      wpa_supplicant_conf = strdupcat(MNT, value);
+      wpa_supplicant_conf = strdupcat(rootdir, value);
       ok = 1;
     }
   } else if (strcmp(section, "erlang") == 0) {
@@ -270,10 +281,10 @@ static int ini_file_handler(void *arg, const char *section, const char *name,
   return ok;
 }
 
-static void evaluate_ini_file(const char *ini_file) {
+static void evaluate_ini_file(const char *rootdir, const char *ini_file) {
   int rv;
 
-  rv = ini_parse(ini_file, ini_file_handler, NULL);
+  rv = ini_parse(ini_file, ini_file_handler, (void*)rootdir);
   if (rv == -1) {
     printf("[ERL] WARNING: %s not found, using defaults\n", ini_file);
   }
@@ -361,6 +372,9 @@ static void Init(rtems_task_argument arg) {
   rtems_status_code sc = RTEMS_SUCCESSFUL;
   int rv = 0;
   static char pwd[1024];
+  const char *rootdir;
+  static char inifile[192];
+  static char dhcpfile[192];
   char *p;
   struct grisp_eeprom eeprom = {0};
 
@@ -405,9 +419,36 @@ static void Init(rtems_task_argument arg) {
     grisp_led_set1(true, false, false);
   }
 
-  printf("[ERL] Reading %s", INI_FILE);
+#ifdef GRISP_PLATFORM_GRISP2
+
+  const void *fdt;
+  int node_offset;
+  int len;
+
+  fdt = bsp_fdt_get();
+  node_offset = fdt_path_offset(fdt, FDT_MOUNTPOINT_NODE);
+  rootdir = fdt_getprop(fdt, node_offset, FDT_MOUNTPOINT_PROPERTY, &len);
+  if (rootdir == NULL) {
+    printf("[ERL] No GRiSP mountpoint in the FDT\n");
+    rootdir = DEFAULT_MNT;
+  } else {
+    printf("[ERL] GRiSP mountpoint from the FDT: %s\n", rootdir);
+  }
+
+#else
+
+  rootdir = DEFAULT_MNT;
+
+#endif
+
+  strlcpy(inifile, rootdir, 192);
+  strlcat(inifile, INI_FILENAME, 192);
+  strlcpy(dhcpfile, rootdir, 192);
+  strlcat(dhcpfile, DHCP_CONF_FILENAME, 192);
+
+  printf("[ERL] Reading %s", inifile);
   erl_args = strdup(default_erl_args);
-  evaluate_ini_file(INI_FILE);
+  evaluate_ini_file(rootdir, inifile);
   printf("[ERL] Booting with arg: %s\n", erl_args);
   parse_args(erl_args);
 
@@ -417,8 +458,8 @@ static void Init(rtems_task_argument arg) {
   if (start_dhcp) {
     printf("[ERL] Starting DHCP\n");
     grisp_led_set1(false, true, true);
-    if (!access(DHCP_CONF_FILE, F_OK))
-      grisp_init_dhcpcd_with_config(PRIO_DHCP, DHCP_CONF_FILE);
+    if (!access(dhcpfile, F_OK))
+      grisp_init_dhcpcd_with_config(PRIO_DHCP, dhcpfile);
     else
       grisp_init_dhcpcd(PRIO_DHCP);
   }
@@ -465,8 +506,8 @@ static void Init(rtems_task_argument arg) {
   /* Need to change the directory here because some dunderheaded
      library changes it back to root otherwise */
 
-  printf("[ERL] chdir(%s)\n", MNT);
-  rv = chdir(MNT);
+  printf("[ERL] chdir(%s)\n", rootdir);
+  rv = chdir(rootdir);
   if (rv < 0)
     perror("can't chdir");
 
