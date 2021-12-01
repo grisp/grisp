@@ -13,31 +13,18 @@
 %--- API -----------------------------------------------------------------------
 
 start_link() ->
-    {BoardWorkers, InternalWorkers} = case grisp_hw:platform() of
-        grisp2 ->
-            {[], []};
-        grisp_base ->
-            GenEventOpts = [{local, grisp_gpio_events}],
-            {
-                [
-                    worker(grisp_gpio, [driver(gpio, grisp_gpio_drv)]),
-                    worker(grisp_i2c, [driver(i2c, grisp_i2c_drv)])
-                ],
-                [
-                    worker(grisp_gpio_events, gen_event, GenEventOpts),
-                    worker(grisp_gpio_poller, [])
-                ]
-            }
-    end,
+    OneWire = [worker(grisp_onewire, []) || grisp_hw:platform() =/= grisp_base],
     Children = [
         supervisor(grisp_board_sup, [
             worker(grisp_spi, [driver(spi, grisp_nspi)])
-        ] ++ BoardWorkers),
+        ]),
         supervisor(grisp_devices_sup, grisp_devices_sup, []),
-        supervisor(grisp_internal_sup, InternalWorkers ++ [
+        supervisor(grisp_internal_sup, [
+            worker(grisp_gpio_events, gen_event, [{local, grisp_gpio_events}]),
+            worker(grisp_gpio_poller, []),
             worker(grisp_led, []),
-            worker(grisp_devices, []),
-            worker(grisp_onewire, [])
+            worker(grisp_devices, [])
+            | OneWire
         ])
     ],
     start_link(?MODULE, Children).
@@ -53,7 +40,7 @@ init(Children) ->
 
 %--- Internal ------------------------------------------------------------------
 
-worker(ID, A)    -> worker(ID, ID, A).
+worker(ID, A) -> worker(ID, ID, A).
 worker(ID, M, A) -> #{id => ID, start => {M, start_link, A}}.
 
 supervisor(ID, Children) when is_list(Children) ->

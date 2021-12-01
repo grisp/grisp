@@ -1,29 +1,38 @@
 -module(pmod_hb5).
 
--export([config/1, stop/1, forward/1, backward/1]).
+% API
+-export([open/1]).
+-export([stop/1]).
+-export([forward/1]).
+-export([backward/1]).
 
-config(Slot) ->
-    grisp_gpio:configure_slot(Slot, {output_0, output_0, input, input}).
+%--- API -----------------------------------------------------------------------
 
-start(gpio1) -> grisp_gpio:set(gpio1_2);
-start(gpio2) -> grisp_gpio:set(gpio2_2).
+open(Slot) ->
+    Mode = #{mode => {output, 0}},
+    {
+        grisp_ngpio:open(pin(Slot, 1), Mode),
+        grisp_ngpio:open(pin(Slot, 2), Mode)
+    }.
 
-stop(gpio1) -> grisp_gpio:clear(gpio1_2);
-stop(gpio2) -> grisp_gpio:clear(gpio2_2).
+stop({_Pin1, Pin2}) -> grisp_ngpio:set(Pin2, 0).
 
+forward(State) ->
+    stop(State),    % Never change direction on a active H-bridge
+    direction(State, forward),
+    start(State).
 
-forward(Slot) ->
-    stop(Slot),    % Never change direction on a active H-bridge
-    direction(Slot, forward),
-    start(Slot).
+backward(State) ->
+    stop(State),	  % Never change direction on a active H-bridge
+    direction(State, backward),
+    start(State).
 
+%--- Internal ------------------------------------------------------------------
 
-backward(Slot) ->
-    stop(Slot),	  % Never change direction on a active H-bridge
-    direction(Slot, backward),
-    start(Slot).
+start({_Pin1, Pin2}) -> grisp_ngpio:set(Pin2, 1).
 
-direction(gpio1, forward)  -> grisp_gpio:clear(gpio1_1);
-direction(gpio1, backward) -> grisp_gpio:set(gpio1_1);
-direction(gpio2, forward)  -> grisp_gpio:clear(gpio2_1);
-direction(gpio2, backward) -> grisp_gpio:set(gpio2_1).
+direction({Pin1, _Pin2}, forward)  -> grisp_ngpio:set(Pin1, 0);
+direction({Pin1, _Pin2}, backward)  -> grisp_ngpio:set(Pin1, 1).
+
+pin(Slot, Pin) ->
+    list_to_atom(atom_to_list(Slot) ++ "_" ++ integer_to_list(Pin)).

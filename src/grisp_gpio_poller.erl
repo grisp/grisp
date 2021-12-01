@@ -34,7 +34,13 @@ start_link() -> gen_server:start_link({local, ?MODULE}, ?MODULE, undefined, []).
 
 init(undefined) ->
     erlang:send_after(0, self(), trigger),
-    {ok, refresh_state([{P, undefined} || P <- ?MONITORED_PINS])}.
+    Pins = lists:map(
+        fun(P) ->
+            {P, grisp_ngpio:open(P, #{mode => input}), undefined}
+        end,
+        ?MONITORED_PINS
+    ),
+    {ok, refresh_state(Pins)}.
 
 handle_call(Request, From, _State) -> error({unknown_request, Request, From}).
 
@@ -52,10 +58,10 @@ terminate(_Reason, _State) -> ok.
 %--- Internal ------------------------------------------------------------------
 
 refresh_state(Pins) ->
-    [maybe_notify(P, S, grisp_gpio:get(P)) || {P, S} <- Pins].
+    [maybe_notify(P, R, S, grisp_ngpio:get(R)) || {P, R, S} <- Pins].
 
-maybe_notify(Pin, OldState, OldState) ->
-    {Pin, OldState};
-maybe_notify(Pin, _OldState, NewState) ->
+maybe_notify(Pin, Ref, OldState, OldState) ->
+    {Pin, Ref, OldState};
+maybe_notify(Pin, Ref, _OldState, NewState) ->
     gen_event:notify(grisp_gpio_events, {Pin, NewState}),
-    {Pin, NewState}.
+    {Pin, Ref, NewState}.

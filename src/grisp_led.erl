@@ -139,17 +139,17 @@ init(undefined) ->
     LED1 = #{
         timer => undefined,
         pins => #{
-            r => grisp_ngpio:open(<<"/leds/grisp-rgb1-red">>),
-            g => grisp_ngpio:open(<<"/leds/grisp-rgb1-green">>),
-            b => grisp_ngpio:open(<<"/leds/grisp-rgb1-blue">>)
+            r => grisp_ngpio:open(led1_r),
+            g => grisp_ngpio:open(led1_g),
+            b => grisp_ngpio:open(led1_b)
         }
     },
     LED2 = #{
         timer => undefined,
         pins => #{
-            r => grisp_ngpio:open(<<"/leds/grisp-rgb2-red">>),
-            g => grisp_ngpio:open(<<"/leds/grisp-rgb2-green">>),
-            b => grisp_ngpio:open(<<"/leds/grisp-rgb2-blue">>)
+            r => grisp_ngpio:open(led2_r),
+            g => grisp_ngpio:open(led2_g),
+            b => grisp_ngpio:open(led2_b)
         }
     },
     {ok, #{
