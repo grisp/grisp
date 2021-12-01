@@ -15,9 +15,6 @@
 start_link() ->
     OneWire = [worker(grisp_onewire, []) || grisp_hw:platform() =/= grisp_base],
     Children = [
-        supervisor(grisp_board_sup, [
-            worker(grisp_spi, [driver(spi, grisp_nspi)])
-        ]),
         supervisor(grisp_devices_sup, grisp_devices_sup, []),
         supervisor(grisp_internal_sup, [
             worker(grisp_gpio_events, gen_event, [{local, grisp_gpio_events}]),
@@ -52,7 +49,3 @@ supervisor(ID, Module, Args) ->
         start => {Module, start_link, [ID] ++ Args},
         type => supervisor
     }.
-
-driver(Driver, DefaultMod) ->
-    Drivers = application:get_env(grisp, drivers, []),
-    proplists:get_value(Driver, Drivers, DefaultMod).

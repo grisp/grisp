@@ -23,7 +23,7 @@
 %--- Records -------------------------------------------------------------------
 
 -record(state, {
-    slot,
+    bus,
     mode = '2g'
 }).
 
@@ -44,15 +44,16 @@ g() ->
 
 % @private
 init(Slot) ->
-    verify_device(Slot),
+    Bus = grisp_nspi:open(Slot),
+    verify_device(Bus),
     grisp_devices:register(Slot, ?MODULE),
     Req = <<?WRITE_REGISTER, ?POWER_CTL, 0:6, ?MEASUREMENT_MODE:2>>,
-    grisp_spi:send_recv(Slot, ?SPI_MODE, Req),
-    {ok, #state{slot = Slot}}.
+    _ = grisp_nspi:transfer(Bus, [{?SPI_MODE, Req}]),
+    {ok, #state{bus = Bus}}.
 
 % @private
 handle_call(raw, _From, State) ->
-    Raw = xyz(State#state.slot),
+    Raw = xyz(State#state.bus),
     {reply, {State#state.mode, Raw}, State}.
 
 % @private
@@ -73,15 +74,15 @@ call(Call) ->
     Dev = grisp_devices:default(?MODULE),
     gen_server:call(Dev#device.pid, Call).
 
-xyz(Slot) ->
+xyz(Bus) ->
+    [Result] = grisp_nspi:transfer(Bus, [
+        {?SPI_MODE, <<?READ_REGISTER, ?XDATA_L>>, 2, 6}
+    ]),
     <<
-        XDATA_L,
-        _:4, XDATA_H:4,
-        YDATA_L,
-        _:4, YDATA_H:4,
-        ZDATA_L,
-        _:4, ZDATA_H:4
-    >> = grisp_spi:send_recv(Slot, ?SPI_MODE, <<?READ_REGISTER, ?XDATA_L>>, 2, 6),
+        XDATA_L, _:4, XDATA_H:4,
+        YDATA_L, _:4, YDATA_H:4,
+        ZDATA_L, _:4, ZDATA_H:4
+    >> = Result,
     <<X:12/signed>> = <<XDATA_H:4, XDATA_L>>,
     <<Y:12/signed>> = <<YDATA_H:4, YDATA_L>>,
     <<Z:12/signed>> = <<ZDATA_H:4, ZDATA_L>>,
@@ -89,15 +90,15 @@ xyz(Slot) ->
 
 scale('2g', {X, Y, Z}) -> {X / 1000, Y / 1000, Z / 1000}.
 
-verify_device(Slot) ->
-    [verify_device_reg(Slot, Msg, Reg, Val) || {Msg, Reg, Val} <- [
+verify_device(Bus) ->
+    [verify_device_reg(Bus, Msg, Reg, Val) || {Msg, Reg, Val} <- [
         {analog_devices_device_id,      ?DEVID_AD,  ?AD_DEVID},
         {analog_devices_mems_device_id, ?DEVID_MST, ?AD_MEMS_DEVID},
         {device_id,                     ?PARTID,    ?DEVID}
     ]].
 
-verify_device_reg(Slot, Message, Reg, Val) ->
-    case grisp_spi:send_recv(Slot, ?SPI_MODE, <<?READ_REGISTER, Reg>>, 2, 1) of
-        <<Val>> -> ok;
-        Other   -> error({device_mismatch, {Message, Other}})
+verify_device_reg(Bus, Message, Reg, Val) ->
+    case grisp_nspi:transfer(Bus, [{?SPI_MODE, <<?READ_REGISTER, Reg>>, 2, 1}]) of
+        [<<Val>>] -> ok;
+        [Other] -> error({device_mismatch, {Message, Other}})
     end.
