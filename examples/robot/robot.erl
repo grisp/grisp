@@ -2,32 +2,38 @@
 
 % API
 -export([start/0]).
--export([forward/1]).
--export([backward/1]).
--export([left/1]).
--export([right/1]).
+-export([forward/2]).
+-export([backward/2]).
+-export([left/2]).
+-export([right/2]).
 
 %--- API -----------------------------------------------------------------------
 
-start() -> commands([{left, config}, {right, config}], 0).
+start() ->
+    State = {pmob_hb5:open(gpio1), pmob_hb5:open(gpio2)},
+    commands(State, [{left, config}, {right, config}], 0).
 
-forward(Time) -> commands([{left, forward}, {right, forward}], Time).
+forward(State, Time) ->
+    commands(State, [{left, forward}, {right, forward}], Time).
 
-backward(Time) -> commands([{left, backward}, {right, backward}], Time).
+backward(State, Time) ->
+    commands(State, [{left, backward}, {right, backward}], Time).
 
-left(Time) -> commands([{left, backward}, {right, forward}], Time).
+left(State, Time) ->
+    commands(State, [{left, backward}, {right, forward}], Time).
 
-right(Time) -> commands([{left, forward}, {right, backward}], Time).
+right(State, Time) ->
+    commands(State, [{left, forward}, {right, backward}], Time).
 
 %--- Internal ------------------------------------------------------------------
 
-commands(Commands, Time) ->
-    [command(Side, Command) || {Side, Command} <- Commands],
+commands(State, Commands, Time) ->
+    [command(State, Side, Command) || {Side, Command} <- Commands],
     timer:sleep(Time),
-    [command(Side, stop) || {Side, _} <- Commands].
+    [command(State, Side, stop) || {Side, _} <- Commands].
 
-command(right, Command) -> pmod_hb5:Command(gpio2);
-% Left motor is mounted backwards, revers directions:
-command(left, forward) -> pmod_hb5:backward(gpio1);
-command(left, backward) -> pmod_hb5:forward(gpio1);
-command(left, Command) -> pmod_hb5:Command(gpio1).
+command({_Left, Right}, right, Command) -> pmod_hb5:Command(Right);
+% Left motor is mounted backwards, reverse directions:
+command({Left, _Right}, left, forward) -> pmod_hb5:backward(Left);
+command({Left, _Right}, left, backward) -> pmod_hb5:forward(Left);
+command({Left, _Right}, left, Command) -> pmod_hb5:Command(Left).
