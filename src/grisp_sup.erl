@@ -13,7 +13,15 @@
 %--- API -----------------------------------------------------------------------
 
 start_link() ->
-    OneWire = [worker(grisp_onewire, []) || grisp_hw:platform() =/= grisp_base],
+    ExtraInternalWorkers = case grisp_hw:platform() of
+        grisp2 -> [
+            worker(grisp_onewire, []),
+            worker(grisp_eeprom_som, grisp_eeprom, [som]),
+            worker(grisp_eeprom_board, grisp_eeprom, [board])
+        ];
+        grisp_base -> [
+        ]
+    end,
     Children = [
         supervisor(grisp_devices_sup, grisp_devices_sup, []),
         supervisor(grisp_internal_sup, [
@@ -21,7 +29,7 @@ start_link() ->
             worker(grisp_gpio_poller, []),
             worker(grisp_led, []),
             worker(grisp_devices, [])
-            | OneWire
+            | ExtraInternalWorkers
         ])
     ],
     start_link(?MODULE, Children).
