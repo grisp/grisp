@@ -134,23 +134,19 @@ init([Slot, Opts]) ->
     end,
     process_flag(trap_exit, true),
     State = #{
-        slot => Slot,
-        acc => init_comp(acc),
-        mag => init_comp(mag),
-        alt => init_comp(alt),
+        acc => init_comp(Slot, acc),
+        mag => init_comp(Slot, mag),
+        alt => init_comp(Slot, alt),
         debug => maps:get(debug, Opts, false)
     },
-    configure_pins(Slot),
-    try
-        State1 = verify_device(State),
-        State2 = initialize_device(State1),
-        grisp_devices:register(Slot, ?MODULE),
-        {ok, State2}
-    catch
-        Class:Reason:Stacktrace ->
-            restore_pins(),
-            erlang:raise(Class, Reason, Stacktrace)
-    end.
+    #{acc := #{bus := Bus}} = State,
+    % Do an empty transfer with default chip select to make sure clock is high
+    _ = grisp_nspi:transfer(Bus, [{?SPI_MODE, <<16#FF>>}]),
+
+    State1 = verify_device(State),
+    State2 = initialize_device(State1),
+    grisp_devices:register(Slot, ?MODULE),
+    {ok, State2}.
 
 % @private
 handle_call(Call, _From, State) ->
@@ -168,9 +164,7 @@ handle_info(Info, _State) -> error({unknown_info, Info}).
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 % @private
-terminate(_Reason, State) ->
-    deinitialize_device(State),
-    restore_pins().
+terminate(_Reason, State) -> deinitialize_device(State).
 
 %--- Internal ------------------------------------------------------------------
 
@@ -181,9 +175,14 @@ call(Call) ->
         Result          -> Result
     end.
 
-init_comp(Comp) ->
+init_comp(Slot, Comp) ->
     Regs = registers(Comp),
-    #{regs => Regs, rev => reverse_opts(Regs), cache => #{}}.
+    #{
+        bus => grisp_nspi:open(Slot, pin(Slot, Comp)),
+        regs => Regs,
+        rev => reverse_opts(Regs),
+        cache => #{}
+    }.
 
 execute_call({config, Comp, Options}, State) ->
     {Result, NewState} = write_config(State, Comp, Options),
@@ -193,25 +192,6 @@ execute_call({read, Comp, Registers, Opts}, State) ->
     {reply, Result, NewState};
 execute_call(Request, _State) ->
     error({unknown_call, Request}).
-
-configure_pins(Slot) ->
-    % Configure pin 9 and 10 for output pulled high
-    case grisp_hw:platform() of
-        grisp_base ->
-            grisp_gpio:configure(spi1_pin9, output_1),
-            grisp_gpio:configure(spi1_pin10, output_1);
-        _ -> ok
-    end,
-    % Do an empty transfer without chip select to make sure clock is high
-    grisp_spi:send_recv(Slot, ?SPI_MODE, <<16#FF>>).
-
-restore_pins() ->
-    case grisp_hw:platform() of
-        grisp_base ->
-            grisp_gpio:configure(spi1_pin9, input),
-            grisp_gpio:configure(spi1_pin10, input);
-        _ -> ok
-    end.
 
 initialize_device(State) ->
     configure_components(State, [
@@ -293,13 +273,14 @@ verify_reg({Comp, Reg, Expected}, State) ->
     end.
 
 write_config(State, Comp, Options) ->
-    Partitions = partition(Options, mapz:deep_get([Comp, rev], State)),
+    #{Comp := #{rev := Rev, cache := Cache, regs := Regs}} = State,
+    Partitions = partition(Options, Rev),
     NewCache = maps:map(fun(Reg, Opts) ->
-        Bin = case maps:find(Reg, mapz:deep_get([Comp, cache], State)) of
+        Bin = case maps:find(Reg, Cache) of
             {ok, Value} -> Value;
             error       -> read_bin(State, Comp, Reg)
         end,
-        {Addr, read_write, _Size, Conv} = mapz:deep_get([Comp, regs, Reg], State),
+        {Addr, read_write, _Size, Conv} = maps:get(Reg, Regs),
         NewBin = render_bits(Conv, Bin, Opts),
         write_bin(State, Comp, Addr, NewBin)
     end, Partitions),
@@ -363,15 +344,17 @@ convert_reg(State, Comp, Opts, {Reg, Value}) ->
             {decode(Type, Value), State}
     end.
 
-write_bin(#{slot := Slot, debug := Debug}, Comp, Reg, Value) ->
+write_bin(#{debug := Debug} = State, Comp, Reg, Value) ->
+    #{Comp := #{bus := Bus}} = State,
     [debug_write(Comp, Reg, Value) || Debug],
-    <<>> = request(pin(Slot, Comp), write_request(Comp, Reg, Value), 0),
+    <<>> = request(Bus, write_request(Comp, Reg, Value), 0),
     Value.
 
-read_bin(#{slot := Slot, debug := Debug} = State, Comp, Reg) ->
+read_bin(#{debug := Debug} = State, Comp, Reg) ->
+    #{Comp := #{bus := Bus}} = State,
     case mapz:deep_find([Comp, regs, Reg], State) of
         {ok, {Addr, _RW, Size, _Conv}} ->
-            Result = request(pin(Slot, Comp), read_request(Comp, Addr), Size),
+            Result = request(Bus, read_request(Comp, Addr), Size),
             [debug_read(Comp, Addr, Result) || Debug],
             Result;
         error ->
@@ -386,8 +369,11 @@ read_request(acc, Reg) -> <<?RW_READ:1, Reg:7>>;
 read_request(mag, Reg) -> <<?RW_READ:1, ?MS_INCR:1, Reg:6>>;
 read_request(alt, Reg) -> <<?RW_READ:1, ?MS_INCR:1, Reg:6>>.
 
-request(Slot, Request, Pad) ->
-    grisp_spi:send_recv(Slot, ?SPI_MODE, Request, byte_size(Request), Pad).
+request(Bus, Request, Pad) ->
+    [Response] = grisp_nspi:transfer(Bus, [
+        {?SPI_MODE, Request, byte_size(Request), Pad}
+    ]),
+    Response.
 
 render_bits(Defs, Bin, Opts) ->
     render_bits(Defs, Bin, Opts, 0).

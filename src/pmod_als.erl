@@ -17,7 +17,6 @@
 %  1> grisp:add_device(spi2, pmod_als).
 % '''
 % @end
-% Created : 06. Nov 2018 21:47
 -module(pmod_als).
 
 -behaviour(gen_server).
@@ -37,27 +36,21 @@
 -export([terminate/2]).
 -export([code_change/3]).
 
- %===================================================================
- % Macros
- %===================================================================
+%--- Macros --------------------------------------------------------------------
 
 -define(SPI_MODE, #{cpol => high, cpha => trailing}).
 
-%===================================================================
-% Records
-%===================================================================
+%--- Records -------------------------------------------------------------------
 
 -record(state , {
-    options = []
+    options = [],
+    bus
 }).
 
-%===================================================================
-% API
-%===================================================================
+%--- API -----------------------------------------------------------------------
 
 % @private
-start_link(Slot, Opts) ->
-    gen_server:start_link(?MODULE, [Slot, Opts], []).
+start_link(Slot, _Opts) -> gen_server:start_link(?MODULE, Slot, []).
 
 % @doc Returns the ambient light value that is currently sensed
 % by the ALS module. On success, the return value is a number
@@ -77,7 +70,7 @@ start_link(Slot, Opts) ->
 -spec read() -> 0..255 | no_return().
 read() ->
     Dev = grisp_devices:default(?MODULE),
-    case gen_server:call(Dev#device.pid, {read, Dev#device.slot}) of
+    case gen_server:call(Dev#device.pid, read) of
         {error, Reason} -> error(Reason);
         Result          -> Result
     end.
@@ -90,47 +83,36 @@ percentage() ->
     Raw = read(),
     round((Raw / 255) * 100).
 
-%===================================================================
-% gen_server callbacks
-%===================================================================
+%--- Callbacks -----------------------------------------------------------------
 
 % @private
-init([Slot, Opts]) ->
-    ok = grisp_devices:register(Slot, ?MODULE),
-    {ok, #state{options = Opts}};
 init(Slot) ->
-    error({incompatible_slot, Slot}).
+    ok = grisp_devices:register(Slot, ?MODULE),
+    {ok, #state{bus = grisp_nspi:open(Slot)}}.
 
-%--------------------------------------------------------------------
 % @private
-handle_call({read, Slot} , _From , State) ->
-    Val = get_value(Slot),
+handle_call(read, _From, #state{bus = Bus} = State) ->
+    Val = get_value(Bus),
     {reply, Val, State};
 
-handle_call(Request , _From , _State) ->
-    error({unknown_call, Request}).
+handle_call(Request, _From, _State) -> error({unknown_call, Request}).
 
 % @private
-handle_cast(Request , _State) ->
-    error({unknown_cast, Request}).
+handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
 % @private
-handle_info(Info , _State) ->
-    error({unknown_info, Info}).
+handle_info(Info, _State) -> error({unknown_info, Info}).
 
 % @private
-terminate(_Reason , _State) ->
-    ok.
+terminate(_Reason, _State) -> ok.
 
 % @private
-code_change(_OldVsn , State , _Extra) ->
-    {ok , State}.
+code_change(_OldVsn, State, _Extra) -> {ok , State}.
 
-%===================================================================
-% Internal functions
-%===================================================================
+%--- Internal ------------------------------------------------------------------
 
-% @private
-get_value(Slot) ->
-    <<_:3,Resp:8,_Pad:5>> = grisp_spi:send_recv(Slot, ?SPI_MODE, <<0:8>>, 0, 1),
+get_value(Bus) ->
+    [<<_:3, Resp:8, _Pad:5>>] = grisp_nspi:transfer(Bus, [
+        {?SPI_MODE, <<0:8>>, 0, 1}
+    ]),
     Resp.

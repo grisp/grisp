@@ -16,10 +16,9 @@
 
 #include "sys.h"
 
-#define CPOL_LOW 0
 #define CPOL_HIGH 1
-#define CPHA_LEADING 0
 #define CPHA_TRAILING 2
+#define CS_DISABLE 4
 
 /* Make sure to keep this at sync with the -define(res_max_size.. in spi.erl */
 #define RES_MAX_SIZE 256
@@ -117,7 +116,8 @@ static ERL_NIF_TERM spi_ioctl_nif(ErlNifEnv *env, int argc,
 
   msg.cs = cs;
   msg.mode = ((mode & CPOL_HIGH) ? SPI_CPOL : 0) |
-             ((mode & CPHA_TRAILING) ? SPI_CPHA : 0);
+             ((mode & CPHA_TRAILING) ? SPI_CPHA : 0) |
+             ((mode & CS_DISABLE) ? SPI_NO_CS : 0);
 
   msg.tx_buf = buf.data;
   msg.len = buf.size;

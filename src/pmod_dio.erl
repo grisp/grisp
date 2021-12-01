@@ -21,6 +21,8 @@
 -define(CRC5_START, 16#1F).
 -define(CRC5_POLY, 16#15).
 
+-include("grisp.hrl").
+
 %--- API -----------------------------------------------------------------------
 
 start_link(Connector, _Opts) ->
@@ -28,34 +30,42 @@ start_link(Connector, _Opts) ->
 
 read(Chip, Reg) ->
     Value = <<0>>,
-    send_request(Chip, single, read, Reg, Value).
+    call({request, {Chip, single, read, Reg, Value}}).
 
 read_burst(Chip, 'DoiLevel') ->
     Value = <<0, 0, 0, 0, 0, 0>>,
-    send_request(Chip, burst, read, 'DoiLevel', Value);
+    call({request, {Chip, burst, read, 'DoiLevel', Value}});
 read_burst(_Chip, Reg) ->
     error({invalid_burst_register, Reg}).
 
 write(Chip, Reg, Value) ->
-    send_request(Chip, single, write, Reg, Value).
+    call({request, {Chip, single, write, Reg, Value}}).
 
 %--- Callbacks -----------------------------------------------------------------
 
 init(Slot) ->
     grisp_devices:register(Slot, ?MODULE),
-    {ok, #{}}.
+    Bus = grisp_nspi:open(Slot),
+    {ok, #{bus => Bus}}.
 
-handle_call(Request, From, _State) -> error({unknown_call, Request, From}).
+handle_call({request, Request}, _From, #{bus := Bus} = State) ->
+    {reply, send_request(Bus, Request), State};
+handle_call(Request, From, _State) ->
+    error({unknown_call, Request, From}).
 
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
 %--- Internal ------------------------------------------------------------------
 
-send_request(Chip, Type, Op, Reg, Value) ->
+call(Call) ->
+    Dev = grisp_devices:default(?MODULE),
+    gen_server:call(Dev#device.pid, Call).
+
+send_request(Bus, {Chip, Type, Op, Reg, Value}) ->
     Addr = Chip - 1,
     Encoded = encode_request(Reg, Value),
     Request = request(Type, Op, Addr, Reg, Encoded),
-    Response = grisp_spi:send_recv(spi2, ?SPI_MODE, Request),
+    [Response] = grisp_nspi:transfer(Bus, [{?SPI_MODE, Request}]),
     decode_response(Op, Addr, Reg, bit_size(Encoded), Response).
 
 request(Type, Op, Addr, Reg, Value) ->
