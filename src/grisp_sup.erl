@@ -17,7 +17,8 @@ start_link() ->
         grisp2 -> [
             worker(grisp_onewire, []),
             worker(grisp_eeprom_som, grisp_eeprom, [som]),
-            worker(grisp_eeprom_board, grisp_eeprom, [board])
+            worker(grisp_eeprom_board, grisp_eeprom, [board]),
+            worker(grisp_barebox, [som])
         ];
         grisp_base -> [
         ]
