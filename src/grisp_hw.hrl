@@ -1,6 +1,4 @@
--define(GRISP_EEPROM_ADR, 16#57).
 -define(GRISP_EEPROM_DATA_SIZE, 28).
--define(GRISP_EEPROM_BUS, i2c0).
 
 %% From libgrisp/src/eeprom_crc.c
 -define(misc_crc16_tab, {
