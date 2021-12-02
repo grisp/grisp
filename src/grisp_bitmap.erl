@@ -61,7 +61,7 @@ get_bytes(Bin, Start, Len) when byte_size(Bin) >= Start + Len ->
 %  F2 11
 %  ok
 % '''
--spec pp(binary()) -> 'ok'.
+-spec pp(bitstring()) -> ok.
 pp(Bin) -> pp(Bin, #{}).
 
 % @doc Print binary as numbers.
@@ -75,7 +75,7 @@ pp(Bin) -> pp(Bin, #{}).
 %  1111 0010  0001 0001
 %  ok
 % '''
--spec pp(binary(), coding() | #{display := coding()}) -> 'ok'.
+-spec pp(bitstring(), coding() | #{display => coding()}) -> ok.
 pp(Bin, Display) when is_atom(Display) ->
     pp(Bin, #{display => Display});
 pp(Bin, Opts) ->

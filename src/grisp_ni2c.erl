@@ -18,7 +18,7 @@
 %--- Types ---------------------------------------------------------------------
 
 -type bus_name() :: atom().
--type bus_path() :: iolist().
+-type bus_path() :: iodata().
 -opaque bus() :: reference().
 -type addr() :: 1..127.
 -type length() :: non_neg_integer().
@@ -26,9 +26,11 @@
     Type :: read | write,
     ChipAddr :: addr(),
     Flags :: non_neg_integer(),
-    Payload :: iolist() | length()
+    Payload :: iodata() | length()
 }.
+-type error() :: {error, term(), term()}.
 
+-export_type([bus_name/0]).
 -export_type([bus/0]).
 -export_type([addr/0]).
 -export_type([length/0]).
@@ -37,7 +39,7 @@
 %--- API -----------------------------------------------------------------------
 
 % @doc List I2C buses.
--spec buses() -> #{bus_name() => #{name => bus_name(), path => bus_path()}}.
+-spec buses() -> #{bus_name() := #{name := bus_name(), path := bus_path()}}.
 buses() ->
     #{
         i2c0 => #{name => i2c0, path => <<"/dev/i2c-0">>},
@@ -79,7 +81,7 @@ write(Bus, ChipAddr, RegAddr, Data) ->
     ok.
 
 % @doc Transfer I2C messages on a bus.
--spec transfer(bus(), [message()]) -> [ok | binary()].
+-spec transfer(bus(), [message()]) -> [ok | binary()] | error().
 transfer(Bus, Messages) -> i2c_transfer_nif(Bus, Messages).
 
 %--- Callbacks -----------------------------------------------------------------

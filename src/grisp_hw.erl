@@ -36,7 +36,6 @@ platform() -> hw_platform_nif().
 %   grisp_serial => 1002,
 %   grisp_version => "2"}
 % '''
--spec eeprom_read() -> [].
 eeprom_read() ->
     Bus = grisp_ni2c:open(?GRISP_EEPROM_BUS),
     <<_SigVersion:8,
