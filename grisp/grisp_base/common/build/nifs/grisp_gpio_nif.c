@@ -209,4 +209,4 @@ static ErlNifFunc nif_funcs[] = {{"gpio_open_nif", 2, &gpio_open_nif},
                                  {"gpio_set_nif", 2, &gpio_set_nif},
                                  {"gpio_get_nif", 1, &gpio_get_nif}};
 
-ERL_NIF_INIT(grisp_ngpio, nif_funcs, &gpio_load, NULL, NULL, NULL)
+ERL_NIF_INIT(grisp_gpio, nif_funcs, &gpio_load, NULL, NULL, NULL)

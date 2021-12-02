@@ -139,17 +139,17 @@ init(undefined) ->
     LED1 = #{
         timer => undefined,
         pins => #{
-            r => grisp_ngpio:open(led1_r),
-            g => grisp_ngpio:open(led1_g),
-            b => grisp_ngpio:open(led1_b)
+            r => grisp_gpio:open(led1_r),
+            g => grisp_gpio:open(led1_g),
+            b => grisp_gpio:open(led1_b)
         }
     },
     LED2 = #{
         timer => undefined,
         pins => #{
-            r => grisp_ngpio:open(led2_r),
-            g => grisp_ngpio:open(led2_g),
-            b => grisp_ngpio:open(led2_b)
+            r => grisp_gpio:open(led2_r),
+            g => grisp_gpio:open(led2_g),
+            b => grisp_gpio:open(led2_b)
         }
     },
     {ok, #{
@@ -204,12 +204,12 @@ cancel_timer(Timer) -> erlang:cancel_timer(Timer).
 
 color_set(Color, #{r := RP, g := GP, b := BP}) ->
     {R, G, B} = translate(Color),
-    grisp_ngpio:set(RP, R),
-    grisp_ngpio:set(GP, G),
-    grisp_ngpio:set(BP, B).
+    grisp_gpio:set(RP, R),
+    grisp_gpio:set(GP, G),
+    grisp_gpio:set(BP, B).
 
 color_get(#{pins := #{r := RP, g := GP, b := BP}}) ->
-    {grisp_ngpio:get(RP), grisp_ngpio:get(GP), grisp_ngpio:get(BP)}.
+    {grisp_gpio:get(RP), grisp_gpio:get(GP), grisp_gpio:get(BP)}.
 
 translate(Fun) when is_function(Fun) -> to_rgb(Fun());
 translate(Value)                     -> to_rgb(Value).
