@@ -36,7 +36,7 @@ init(undefined) ->
     erlang:send_after(0, self(), trigger),
     Pins = lists:map(
         fun(P) ->
-            {P, grisp_ngpio:open(P, #{mode => input}), undefined}
+            {P, grisp_gpio:open(P, #{mode => input}), undefined}
         end,
         ?MONITORED_PINS
     ),
@@ -58,7 +58,7 @@ terminate(_Reason, _State) -> ok.
 %--- Internal ------------------------------------------------------------------
 
 refresh_state(Pins) ->
-    [maybe_notify(P, R, S, grisp_ngpio:get(R)) || {P, R, S} <- Pins].
+    [maybe_notify(P, R, S, grisp_gpio:get(R)) || {P, R, S} <- Pins].
 
 maybe_notify(Pin, Ref, OldState, OldState) ->
     {Pin, Ref, OldState};

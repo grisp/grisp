@@ -37,7 +37,7 @@ pin(grisp2, spi1_pin1) -> {cs, 0};
 pin(grisp2, spi2_pin1) -> {cs, 1};
 pin(grisp2, spi2_pin9) -> {cs, 2};
 pin(grisp2, spi2_pin10) -> {cs, 3};
-pin(_Platform, Pin) -> {gpio, grisp_ngpio:open(Pin, #{mode => {output, 1}})}.
+pin(_Platform, Pin) -> {gpio, grisp_gpio:open(Pin, #{mode => {output, 1}})}.
 
 message({Bus, Pin}, {Mode, Message}) ->
     chip_select(Pin, mode(Mode), fun(CS, M) ->
@@ -55,14 +55,14 @@ message({Bus, Pin}, {Mode, Message, Skip, Pad}) ->
 chip_select({cs, Pin}, Mode, Fun) ->
     Fun(Pin, Mode);
 chip_select({gpio, Pin}, Mode, Fun) ->
-    grisp_ngpio:set(Pin, 0),
+    grisp_gpio:set(Pin, 0),
     try
         case grisp_hw:platform() of
             grisp_base -> Fun(0, Mode);
             grisp2 -> Fun(0, Mode bor ?CS_DISABLE)
         end
     after
-        grisp_ngpio:set(Pin, 1)
+        grisp_gpio:set(Pin, 1)
     end.
 
 mode(#{cpol := low, cpha := leading}) -> 0;
