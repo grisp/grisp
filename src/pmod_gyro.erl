@@ -28,7 +28,7 @@
 -export([code_change/3]).
 -export([terminate/2]).
 
--define(SPI_MODE, #{cpol => low, cpha => leading}).
+-define(SPI_MODE, #{clock => {low, leading}}).
 
 %--- API -----------------------------------------------------------------------
 
@@ -55,7 +55,7 @@ read() ->
 
 % @private
 init([Slot, Opts]) ->
-    Bus = grisp_nspi:open(Slot),
+    Bus = grisp_spi:open(Slot),
     verify_device(Bus),
     Res = maps:get(resolution, Opts, 250),
     ResOpt = case Res of
@@ -64,23 +64,17 @@ init([Slot, Opts]) ->
                  2000  -> 2#00100000;
                  _     -> error({invalid_option, Res})
              end,
-    % set the resolution
-    [<<>>] = grisp_nspi:transfer(Bus, [
-        {?SPI_MODE, <<?RW_WRITE:1, ?MS_SAME:1, ?CTRL_REG4:6, ResOpt:8>>, 2, 0}
-    ]),
-    % enable the device and axis sensors
-    [<<>>] = grisp_nspi:transfer(Bus, [
-        {?SPI_MODE, <<?RW_WRITE:1, ?MS_SAME:1, ?CTRL_REG1:6, 2#00001111:8>>, 2, 0}
-    ]),
+    % Set the resolution
+    <<>> = write(Bus, ?CTRL_REG4, ResOpt),
+    % Enable the device and axis sensors
+    <<>> = write(Bus, ?CTRL_REG1, 2#00001111),
     grisp_devices:register(Slot, ?MODULE),
     {ok, #{bus => Bus, unit_degree => (32766 / Res)}}.
 
 % @private
 handle_call(read, _From, #{bus := Bus, unit_degree := UnitDeg} = State) ->
-    [Result] = grisp_nspi:transfer(Bus, [
-        {?SPI_MODE, <<?RW_READ:1, ?MS_INCR:1, ?OUT_X_L:6>>, 1, 6}
-    ]),
-    <<X:16/signed-little, Y:16/signed-little, Z:16/signed-little>> = Result,
+    <<X:16/signed-little, Y:16/signed-little, Z:16/signed-little>>
+        = read(Bus, ?OUT_X_L, 6),
     {reply, {X / UnitDeg, Y / UnitDeg, Z / UnitDeg}, State};
 handle_call(Request, From, _State) ->
     error({unknown_request, Request, From}).
@@ -100,7 +94,17 @@ terminate(_Reason, _State) -> ok.
 %--- Internal ------------------------------------------------------------------
 
 verify_device(Bus) ->
-    case grisp_nspi:transfer(Bus, [{?SPI_MODE, <<?RW_READ:1, ?MS_SAME:1, ?WHO_AM_I:6>>, 1, 1}]) of
-        [<<?DEVID>>] -> ok;
-        [Other] -> error({device_mismatch, {who_am_i, Other}})
+    case read(Bus, ?WHO_AM_I, 1) of
+        <<?DEVID>> -> ok;
+        Other -> error({device_mismatch, {who_am_i, Other}})
     end.
+
+read(Bus, Reg, Pad) ->
+    transfer(Bus, {?SPI_MODE, <<?RW_READ:1, ?MS_INCR:1, Reg:6>>, 1, Pad}).
+
+write(Bus, Reg, Value) ->
+    transfer(Bus, {?SPI_MODE, <<?RW_WRITE:1, ?MS_SAME:1, Reg:6, Value:8>>, 2, 0}).
+
+transfer(Bus, Message) ->
+    [Response] = grisp_spi:transfer(Bus, [Message]),
+    Response.
