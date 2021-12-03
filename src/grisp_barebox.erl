@@ -82,18 +82,15 @@ commit() ->
 init([Store]) ->
     %TODO: This should be read from the FDT
     Spec = #spec{
-        magic = <<166,134,59,136>>,
+        magic = <<129,72,215,175>>, % 0xafd74881
         start = 0,
-        size = 256,
+        size = 192,
         stride = 64,
         vars = [
-            #var{name = [last_chosen], type = uint32, value = 0},
-            #var{name = [system0, remaining_attempts], type = uint32, value = 3},
-            #var{name = [system0, priority], type = uint32, value = 21},
-            #var{name = [system0, ok], type = uint32, value = 0},
-            #var{name = [system1, remaining_attempts], type = uint32, value = 3},
-            #var{name = [system1, priority], type = uint32, value = 20},
-            #var{name = [system1, ok], type = uint32, value = 0}
+            #var{name = [bootstate, booted_system], type = uint32, value = 0},
+            #var{name = [bootstate, update_system], type = uint32, value = 0},
+            #var{name = [bootstate, update_boot_count], type = uint32, value = 0},
+            #var{name = [bootstate, active_system], type = uint32, value = 0}
         ]
     },
     State = #state{store = Store, spec = Spec, vars = []},
@@ -169,44 +166,139 @@ add_var(Map, [N], V) ->
 add_var(Map, [N | R], V) ->
     Map#{N => add_var(maps:get(N, Map, #{}), R, V)}.
 
-set_var(_State, _Name, _Value) ->
-    {error, not_implemented}.
+set_var(#state{vars = Vars} = State, Name, Value) ->
+    case lists:keyfind(Name, #var.name, Vars) of
+        false -> {error, unknown_variable};
+        #var{type = Type} = Var ->
+            case update_value(Type, Value) of
+                {error, _Reason} = Error -> Error;
+                {ok, Value2} ->
+                    Var2 = Var#var{value = Value2},
+                    Vars2 = lists:keyreplace(Name, #var.name, Vars, Var2),
+                    {ok, State#state{vars = Vars2}}
+            end
+    end.
 
-store_vars(_State) ->
-    {error, not_implemented}.
+update_value(uint32, Value) when Value >= 0, Value =< 16#FFFFFFFF ->
+    {ok, Value};
+update_value(uint32, Value) ->
+    {error, {invalid_value, uint32, Value}};
+update_value(Type, Value) ->
+    {error, {unsupported_type, Type, Value}}.
+
+store_vars(#state{store = Store, spec = Spec, vars = Vars} = State) ->
+    #spec{start = Start, size = Size} = Spec,
+    Block = format_block(Spec, Vars),
+    case store_blocks(Store, Spec, Start, Start + Size, 0, Block) of
+        {error, _Reason} = Error -> Error;
+        ok -> {ok, State}
+    end.
+
+store_blocks(_Store, _Spec, _Start, _EndAddr, 3, _Block) ->
+    ok;
+store_blocks(Store, Spec, Start, EndAddr, Count, Block) ->
+    BlockSize = byte_size(Block),
+    DataSize = min(BlockSize, EndAddr - Start),
+    <<Data:DataSize/binary, _/binary>> = Block,
+    logger:info("Writing barebox variable block ~w at ~w", [Count + 1, Start]),
+    try {DataSize, grisp_eeprom:write(Store, Start, Data)} of
+        {BlockSize, ok} ->
+            store_blocks(Store, Spec, Start + Spec#spec.stride, EndAddr,
+                         Count + 1, Block);
+        {_TrucatedSize, ok} ->
+            ok
+    catch
+        error:Reason -> {error, Reason}
+    end.
+
+format_block(#spec{magic = BlockMagic}, Vars) ->
+    Data = format_vars(Vars),
+    DataSize = byte_size(Data),
+    DataCrc = erlang:crc32(Data),
+    Header = <<BlockMagic:4/binary, 0:16, DataSize:16/little-integer,
+               DataCrc:32/little-integer>>,
+    HeaderSize = byte_size(Header),
+    HeaderCrc = erlang:crc32(Header),
+    BlockSize = HeaderSize + 4 + DataSize,
+    <<?DIRECT_STORAGE_MAGIC/binary, BlockSize:32/little-integer,
+      Header/binary, HeaderCrc:32/little-integer, Data/binary>>.
+
+format_vars(Vars) ->
+    format_vars(Vars, []).
+
+format_vars([], Acc) ->
+    iolist_to_binary(lists:reverse(Acc));
+format_vars([#var{type = uint32, value = Value} | Rest], Acc) ->
+    format_vars(Rest, [<<Value:32/little-integer>> | Acc]).
 
 load_var_block(_Store, Spec, _Addr, _EndAddr, 3) ->
     load_var_block_not_found(Spec);
-load_var_block(Store, Spec, Addr, EndAddr, Count)
+load_var_block(Store, Spec, Addr, EndAddr, Count) ->
+    case read_var_block(Store, Spec, Addr, EndAddr, Count) of
+        {error, _Reason} = Error -> Error;
+        not_found ->
+            load_var_block(Store, Spec, Addr + Spec#spec.stride,
+                           EndAddr, Count + 1);
+        Vars ->
+            logger:info("Barebox variables from block ~w: ~s",
+                        [Count + 1, vars_to_str(Vars)]),
+            check_var_block(Store, Spec, Addr + Spec#spec.stride,
+                            EndAddr, Vars, Count + 1),
+            Vars
+    end.
+
+check_var_block(_Store, _Spec, _Addr, _EndAddr, _ExpVars, 3) ->
+    ok;
+check_var_block(Store, Spec, Addr, EndAddr, ExpVars, Count) ->
+    case read_var_block(Store, Spec, Addr, EndAddr, Count) of
+        {error, _Reason} = Error -> Error;
+        not_found ->
+            check_var_block(Store, Spec, Addr + Spec#spec.stride,
+                            EndAddr, ExpVars, Count + 1);
+        ExpVars ->
+            check_var_block(Store, Spec, Addr + Spec#spec.stride,
+                            EndAddr, ExpVars, Count + 1);
+        OtherVars ->
+            logger:warning("Barebox variable block ~w mismatched: ~s",
+                           [Count + 1, vars_to_str(OtherVars)]),
+            check_var_block(Store, Spec, Addr + Spec#spec.stride,
+                            EndAddr, ExpVars, Count + 1)
+    end.
+
+read_var_block(Store, Spec, Addr, EndAddr, Count)
   when (Addr + 8) =< EndAddr ->
-    case grisp_eeprom:read(Store, Addr, 8) of
+    try grisp_eeprom:read(Store, Addr, 8) of
         <<Magic:4/binary, _BlockSize:32/little-integer>>
           when Magic =/= ?DIRECT_STORAGE_MAGIC ->
             logger:warning("Barebox variable block ~w with unsupported magic: ~w",
                            [Count + 1, Magic]),
-            load_var_block(Store, Spec, Addr + Spec#spec.stride,
-                           EndAddr, Count + 1);
+            not_found;
         <<_:4/binary, BlockSize:32/little-integer>>
           when (Addr + 8 + BlockSize) > EndAddr ->
             logger:warning("Barebox variable block ~w is outside of the partition",
                            [Count + 1]),
-            load_var_block_not_found(Spec);
+            not_found;
         <<_:4/binary, BlockSize:32/little-integer>> ->
-            Block = grisp_eeprom:read(Store, Addr + 8, BlockSize),
-            case parse_var_block(Spec, Block) of
-                {error, Msg} ->
-                    logger:warning("Barebox variable block ~w is invalid: ~s",
-                                   [Count + 1, Msg]),
-                    load_var_block(Store, Spec, Addr + Spec#spec.stride,
-                                   EndAddr, Count + 1);
-                {ok, Vars2} ->
-                    logger:info("Barebox variables from block ~w: ~s",
-                                [Count + 1, vars_to_str(Vars2)]),
-                    Vars2
+            try grisp_eeprom:read(Store, Addr + 8, BlockSize) of
+                Block ->
+                    case parse_var_block(Spec, Block) of
+                        {error, Msg} ->
+                            logger:warning("Barebox variable block ~w is invalid: ~s",
+                                           [Count + 1, Msg]),
+                            not_found;
+                        {ok, Vars2} ->
+                            Vars2
+                    end
+            catch
+                error:Reason -> {error, Reason}
             end
+    catch
+        error:Reason -> {error, Reason}
     end;
-load_var_block(_Store, Spec, _Addr, _EndAddr, _Count) ->
-    load_var_block_not_found(Spec).
+read_var_block(_Store, _Spec, _Addr, _EndAddr, Count) ->
+    logger:warning("Barebox variable block ~w is outside of the partition",
+                   [Count + 1]),
+    not_found.
 
 load_var_block_not_found(#spec{vars = Vars}) ->
     logger:warning("Couldn't find any valid barebox variable set, using default values: ~s",
