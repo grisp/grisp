@@ -18,7 +18,7 @@
 -export([code_change/3]).
 -export([terminate/2]).
 
--define(SPI_MODE, #{cpol => low, cpha => leading}).
+-define(SPI_MODE, #{clock => {low, leading}}).
 
 %--- Records -------------------------------------------------------------------
 
@@ -44,11 +44,12 @@ g() ->
 
 % @private
 init(Slot) ->
-    Bus = grisp_nspi:open(Slot),
+    Bus = grisp_spi:open(Slot),
     verify_device(Bus),
     grisp_devices:register(Slot, ?MODULE),
-    Req = <<?WRITE_REGISTER, ?POWER_CTL, 0:6, ?MEASUREMENT_MODE:2>>,
-    _ = grisp_nspi:transfer(Bus, [{?SPI_MODE, Req}]),
+    transfer(Bus,
+        {?SPI_MODE, <<?WRITE_REGISTER, ?POWER_CTL, 0:6, ?MEASUREMENT_MODE:2>>}
+    ),
     {ok, #state{bus = Bus}}.
 
 % @private
@@ -75,14 +76,11 @@ call(Call) ->
     gen_server:call(Dev#device.pid, Call).
 
 xyz(Bus) ->
-    [Result] = grisp_nspi:transfer(Bus, [
-        {?SPI_MODE, <<?READ_REGISTER, ?XDATA_L>>, 2, 6}
-    ]),
     <<
         XDATA_L, _:4, XDATA_H:4,
         YDATA_L, _:4, YDATA_H:4,
         ZDATA_L, _:4, ZDATA_H:4
-    >> = Result,
+    >> = transfer(Bus, {?SPI_MODE, <<?READ_REGISTER, ?XDATA_L>>, 2, 6}),
     <<X:12/signed>> = <<XDATA_H:4, XDATA_L>>,
     <<Y:12/signed>> = <<YDATA_H:4, YDATA_L>>,
     <<Z:12/signed>> = <<ZDATA_H:4, ZDATA_L>>,
@@ -91,14 +89,18 @@ xyz(Bus) ->
 scale('2g', {X, Y, Z}) -> {X / 1000, Y / 1000, Z / 1000}.
 
 verify_device(Bus) ->
-    [verify_device_reg(Bus, Msg, Reg, Val) || {Msg, Reg, Val} <- [
+    [verify_device_reg(Bus, Name, Reg, Val) || {Name, Reg, Val} <- [
         {analog_devices_device_id,      ?DEVID_AD,  ?AD_DEVID},
         {analog_devices_mems_device_id, ?DEVID_MST, ?AD_MEMS_DEVID},
         {device_id,                     ?PARTID,    ?DEVID}
     ]].
 
-verify_device_reg(Bus, Message, Reg, Val) ->
-    case grisp_nspi:transfer(Bus, [{?SPI_MODE, <<?READ_REGISTER, Reg>>, 2, 1}]) of
-        [<<Val>>] -> ok;
-        [Other] -> error({device_mismatch, {Message, Other}})
+verify_device_reg(Bus, Name, Reg, Val) ->
+    case transfer(Bus, {?SPI_MODE, <<?READ_REGISTER, Reg>>, 2, 1}) of
+        <<Val>> -> ok;
+        Other -> error({device_mismatch, {Name, Other}})
     end.
+
+transfer(Bus, Message) ->
+    [Response] = grisp_spi:transfer(Bus, [Message]),
+    Response.

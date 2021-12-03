@@ -36,7 +36,7 @@
 -include("grisp.hrl").
 -include("pmod_nav.hrl").
 
--define(SPI_MODE, #{cpol => high, cpha => trailing}).
+-define(SPI_MODE, #{clock => {high, trailing}}).
 
 %--- API -----------------------------------------------------------------------
 
@@ -141,7 +141,7 @@ init([Slot, Opts]) ->
     },
     #{acc := #{bus := Bus}} = State,
     % Do an empty transfer with default chip select to make sure clock is high
-    _ = grisp_nspi:transfer(Bus, [{?SPI_MODE, <<16#FF>>}]),
+    _ = grisp_spi:transfer(Bus, [{?SPI_MODE, <<16#FF>>}]),
 
     State1 = verify_device(State),
     State2 = initialize_device(State1),
@@ -178,7 +178,7 @@ call(Call) ->
 init_comp(Slot, Comp) ->
     Regs = registers(Comp),
     #{
-        bus => grisp_nspi:open(Slot, pin(Slot, Comp)),
+        bus => grisp_spi:open(Slot, pin(Slot, Comp)),
         regs => Regs,
         rev => reverse_opts(Regs),
         cache => #{}
@@ -370,7 +370,7 @@ read_request(mag, Reg) -> <<?RW_READ:1, ?MS_INCR:1, Reg:6>>;
 read_request(alt, Reg) -> <<?RW_READ:1, ?MS_INCR:1, Reg:6>>.
 
 request(Bus, Request, Pad) ->
-    [Response] = grisp_nspi:transfer(Bus, [
+    [Response] = grisp_spi:transfer(Bus, [
         {?SPI_MODE, Request, byte_size(Request), Pad}
     ]),
     Response.

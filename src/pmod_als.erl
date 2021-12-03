@@ -38,7 +38,7 @@
 
 %--- Macros --------------------------------------------------------------------
 
--define(SPI_MODE, #{cpol => high, cpha => trailing}).
+-define(SPI_MODE, #{clock => {high, trailing}}).
 
 %--- Records -------------------------------------------------------------------
 
@@ -88,7 +88,7 @@ percentage() ->
 % @private
 init(Slot) ->
     ok = grisp_devices:register(Slot, ?MODULE),
-    {ok, #state{bus = grisp_nspi:open(Slot)}}.
+    {ok, #state{bus = grisp_spi:open(Slot)}}.
 
 % @private
 handle_call(read, _From, #state{bus = Bus} = State) ->
@@ -112,7 +112,7 @@ code_change(_OldVsn, State, _Extra) -> {ok , State}.
 %--- Internal ------------------------------------------------------------------
 
 get_value(Bus) ->
-    [<<_:3, Resp:8, _Pad:5>>] = grisp_nspi:transfer(Bus, [
+    [<<_:3, Resp:8, _Pad:5>>] = grisp_spi:transfer(Bus, [
         {?SPI_MODE, <<0:8>>, 0, 1}
     ]),
     Resp.

@@ -16,7 +16,7 @@
 -export([handle_cast/2]).
 
 % TODO: Verify!
--define(SPI_MODE, #{cpol => low, cpha => leading}).
+-define(SPI_MODE, #{clock => {low, leading}}).
 
 -define(CRC5_START, 16#1F).
 -define(CRC5_POLY, 16#15).
@@ -45,7 +45,7 @@ write(Chip, Reg, Value) ->
 
 init(Slot) ->
     grisp_devices:register(Slot, ?MODULE),
-    Bus = grisp_nspi:open(Slot),
+    Bus = grisp_spi:open(Slot),
     {ok, #{bus => Bus}}.
 
 handle_call({request, Request}, _From, #{bus := Bus} = State) ->
@@ -65,7 +65,7 @@ send_request(Bus, {Chip, Type, Op, Reg, Value}) ->
     Addr = Chip - 1,
     Encoded = encode_request(Reg, Value),
     Request = request(Type, Op, Addr, Reg, Encoded),
-    [Response] = grisp_nspi:transfer(Bus, [{?SPI_MODE, Request}]),
+    [Response] = grisp_spi:transfer(Bus, [{?SPI_MODE, Request}]),
     decode_response(Op, Addr, Reg, bit_size(Encoded), Response).
 
 request(Type, Op, Addr, Reg, Value) ->

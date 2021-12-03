@@ -133,4 +133,4 @@ static ERL_NIF_TERM spi_ioctl_nif(ErlNifEnv *env, int argc,
 static ErlNifFunc nif_funcs[] = {{"open_nif", 0, spi_open_nif},
                                  {"ioctl_nif", 4, spi_ioctl_nif}};
 
-ERL_NIF_INIT(grisp_nspi, nif_funcs, &load, NULL, NULL, NULL)
+ERL_NIF_INIT(grisp_spi, nif_funcs, &load, NULL, NULL, NULL)

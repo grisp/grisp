@@ -14,14 +14,15 @@ and this project adheres to
 
 ### Changed
 
-- Replace SPI port driver with NIF
 - `grisp_gpio` interface has been updated and simplified
+- `grisp_spi` interface has been updated and simplified
 - `pmod_gps` now validate the NMEA sentences and parse the GGA ones
 - `pmod_gps` API changed, it now return a pre-parsed tuple, and for the GGA a parsed map of the sentence fields
 
 ### Removed
 
 - **Breaking change!** The old GPIO API has been removed in favor of a new API
+- **Breaking change!** The old SPI API has been removed in favor of a new API
 
 ## [1.2.1] - 2020-07-02
 
