@@ -30,7 +30,7 @@
 </p><br/>
 
 <p align="center">
-  <img alt="GRiSP 2 board on wood" src="doc/images/code@0.5x.png"/ style="width: 80%;" align="center">
+  <img alt="GRiSP 2 board on wood" src="doc/images/code.png"/ style="width: 80%;" align="center">
 </p>
 
 Create amazing Internet of Things designs without soldering or dropping down to
@@ -160,4 +160,3 @@ $ rebar3 as test shell
 [rebar3_plugin]: https://github.com/grisp/rebar3_grisp
 [mix_plugin]: https://github.com/grisp/mix_grisp
 [grisp_emulaton]: https://github.com/grisp/grisp_emulation
-
