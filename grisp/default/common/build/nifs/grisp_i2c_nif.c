@@ -200,4 +200,4 @@ static ErlNifFunc nif_funcs[] = {
     {"i2c_open_nif", 1, i2c_open_nif},
     {"i2c_transfer_nif", 2, i2c_transfer_nif}};
 
-ERL_NIF_INIT(grisp_ni2c, nif_funcs, &i2c_load, NULL, &i2c_upgrade, NULL)
+ERL_NIF_INIT(grisp_i2c, nif_funcs, &i2c_load, NULL, &i2c_upgrade, NULL)
