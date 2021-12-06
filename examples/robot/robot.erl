@@ -10,7 +10,7 @@
 %--- API -----------------------------------------------------------------------
 
 start() ->
-    State = {pmob_hb5:open(gpio1), pmob_hb5:open(gpio2)},
+    State = {pmod_hb5:open(gpio1), pmod_hb5:open(gpio2)},
     commands(State, [{left, config}, {right, config}], 0).
 
 forward(State, Time) ->
