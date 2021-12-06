@@ -38,6 +38,10 @@
 
 -define(SPI_MODE, #{clock => {high, trailing}}).
 
+-type component() :: acc | mag | alt.
+-type register() :: atom().
+-type opts() :: #{}.
+
 %--- API -----------------------------------------------------------------------
 
 % @private
@@ -64,13 +68,11 @@ start_link(Slot, Opts) -> gen_server:start_link(?MODULE, [Slot, Opts], []).
 % Use {@link registers/0} and {@link registers/1} to see the mapping between
 % Erlang expressions and the bits on the hardware.
 
-% @spec config(Comp, Options) -> Result
-%      Comp = acc | mag | alt
-%      Options = Map
+-spec config(component(), #{}) -> ok.
 config(Comp, Options) when is_map(Options) -> call({config, Comp, Options}).
 
 % @equiv read(Comp, Registers, #{})
-% @spec read(Comp, Registers) -> {error, Reason} | Result
+-spec read(component(), [register()]) -> any() | {error, any()}.
 read(Comp, Registers) -> read(Comp, Registers, #{}).
 
 % @doc Read registers of a component.
@@ -116,10 +118,7 @@ read(Comp, Registers) -> read(Comp, Registers, #{}).
 % <a href="http://www.st.com/web/en/resource/technical/document/datasheet/DM00141379.pdf">LPS25HB</a>
 % for a complete description.
 %
-% @spec read(Comp, Registers, Opts) -> {error, Reason} | Result
-%      Comp = acc | mag | alt
-%      Registers = [Atom]
-%      Opts = Map
+-spec read(component(), [register()], opts()) -> any() | {error, any()}.
 read(Comp, Registers, Opts) when is_list(Registers) ->
     call({read, Comp, Registers, Opts}).
 
@@ -467,7 +466,7 @@ atom_join(Atom1, Atom2) ->
     list_to_atom(atom_to_list(Atom1) ++ atom_to_list(Atom2)).
 
 % @doc Get the registers (with the possible entries) of all components.
-% @spec registers() -> Map
+- spec registers() -> #{component() => #{}}.
 registers() ->
     #{
         acc => registers(acc),
@@ -495,8 +494,7 @@ registers() ->
 %       {bw_g,2,raw}]}}
 % '''
 %
-% @spec registers(Comp) -> Map
-%        Comp = acc | mag | alt
+-spec registers(component()) -> #{atom() => any()}.
 registers(acc) ->
     #{
         act_ths => {16#04, read_write, 1, [
