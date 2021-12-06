@@ -20,11 +20,11 @@
 
 %--- API -----------------------------------------------------------------------
 
-% @doc Return the platform name as an atom.
+% @doc Returns the platform name as an atom.
 -spec platform() -> atom().
 platform() -> hw_platform_nif().
 
-% @doc Read GRiSP meta data from EEPROM
+% @doc Reads GRiSP meta data from EEPROM
 %
 % === Example ===
 % ```

@@ -10,7 +10,8 @@ and this project adheres to
 
 ### Added
 
-- `grisp_hw` module for hardware access functions.
+- `grisp_hw` module for hardware access functions
+- `grisp_rtems` module containing NIFs for selected RTEMS functions
 
 ### Changed
 
