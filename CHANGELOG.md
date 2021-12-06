@@ -16,6 +16,7 @@ and this project adheres to
 
 - `grisp_gpio` interface has been updated and simplified
 - `grisp_spi` interface has been updated and simplified
+- `grisp_i2c` interface has been updated and simplified
 - `pmod_gps` now validate the NMEA sentences and parse the GGA ones
 - `pmod_gps` API changed, it now return a pre-parsed tuple, and for the GGA a parsed map of the sentence fields
 
@@ -23,6 +24,7 @@ and this project adheres to
 
 - **Breaking change!** The old GPIO API has been removed in favor of a new API
 - **Breaking change!** The old SPI API has been removed in favor of a new API
+- **Breaking change!** The old I2C API has been removed in favor of a new API
 
 ## [1.2.1] - 2020-07-02
 

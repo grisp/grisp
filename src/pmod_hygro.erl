@@ -82,7 +82,7 @@ measurements() ->
 
 % @private
 init(i2c = Slot) ->
-    Bus = grisp_ni2c:open(i2c1),
+    Bus = grisp_i2c:open(i2c1),
     verify_device(Bus),
     grisp_devices:register(Slot, ?MODULE),
     {ok, #state{bus = Bus}}.
@@ -125,9 +125,9 @@ verify_device(Bus) ->
     end.
 
 device_request(Bus, Register, Delay, BytesToRead) ->
-    [ok] = grisp_ni2c:transfer(Bus, [{write, ?DEVICE_ADR, 0, <<Register:8>>}]),
+    [ok] = grisp_i2c:transfer(Bus, [{write, ?DEVICE_ADR, 0, <<Register:8>>}]),
     timer:sleep(Delay),
-    [Response] = grisp_ni2c:transfer(Bus, [{read, ?DEVICE_ADR, 0, BytesToRead}]),
+    [Response] = grisp_i2c:transfer(Bus, [{read, ?DEVICE_ADR, 0, BytesToRead}]),
     {ok, Response}.
 
 evaluate_temp(T) ->

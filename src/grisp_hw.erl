@@ -37,7 +37,7 @@ platform() -> hw_platform_nif().
 %   grisp_version => "2"}
 % '''
 eeprom_read() ->
-    Bus = grisp_ni2c:open(?GRISP_EEPROM_BUS),
+    Bus = grisp_i2c:open(?GRISP_EEPROM_BUS),
     <<_SigVersion:8,
       _Dummy1:3/binary,     %% unused
       Serial:4/little-unit:8,
@@ -51,8 +51,8 @@ eeprom_read() ->
       _Mac:6/binary,
       _Dummy2:1/binary,     %% unused
       Crc:2/little-unit:8,
-      _Dummy3:2/binary>> = Data = grisp_ni2c:read(Bus, ?GRISP_EEPROM_ADR,
-                                                  0, ?GRISP_EEPROM_DATA_SIZE),
+      _Dummy3:2/binary>> = Data = grisp_i2c:read(Bus, ?GRISP_EEPROM_ADR,
+                                                 0, ?GRISP_EEPROM_DATA_SIZE),
     <<GrispVersion:4, PcbMajor:4>> = VersMajor,
     MetaData = #{grisp_version      => lists:flatten(io_lib:format("~p", [GrispVersion])),
                  grisp_serial       => Serial,
@@ -70,11 +70,11 @@ eeprom_read() ->
 % @doc Fixes CRC bytes for pre-production boards
 -spec eeprom_reset_crc() -> ok.
 eeprom_reset_crc() ->
-    Bus = grisp_ni2c:open(?GRISP_EEPROM_BUS),
-    <<DataToBeVerified:24/binary, _/binary>> = grisp_ni2c:read(Bus, ?GRISP_EEPROM_ADR,
-                                                               0, ?GRISP_EEPROM_DATA_SIZE),
+    Bus = grisp_i2c:open(?GRISP_EEPROM_BUS),
+    <<DataToBeVerified:24/binary, _/binary>> = grisp_i2c:read(Bus, ?GRISP_EEPROM_ADR,
+                                                              0, ?GRISP_EEPROM_DATA_SIZE),
     CrcData = <<(crc16(DataToBeVerified)):2/little-unit:8>>,
-    grisp_ni2c:transfer(Bus, [
+    grisp_i2c:transfer(Bus, [
         {write, ?GRISP_EEPROM_ADR, 0, <<24:8>>},
         {write, ?GRISP_EEPROM_ADR, 16#4000, CrcData}]),
     ok.
