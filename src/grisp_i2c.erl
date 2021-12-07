@@ -53,7 +53,7 @@
     Flags :: non_neg_integer(),
     Payload :: iodata() | length()
 }.
--type error() :: {error, term(), term()}.
+-type error() :: {error, any()}.
 
 -export_type([bus_name/0]).
 -export_type([bus/0]).
@@ -169,6 +169,6 @@ null(Bin) -> [Bin, 0].
 
 present(Bus, Target) ->
     case grisp_i2c:transfer(Bus, [{write, Target, 0, <<>>}]) of
-        {error, ioctl_failed, _} -> false;
+        {error, _} -> false;
         [ok] -> true
     end.
