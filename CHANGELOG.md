@@ -18,8 +18,9 @@ and this project adheres to
 - `grisp_gpio` interface has been updated and simplified
 - `grisp_spi` interface has been updated and simplified
 - `grisp_i2c` interface has been updated and simplified
-- `pmod_gps` now validate the NMEA sentences and parse the GGA ones
-- `pmod_gps` API changed, it now return a pre-parsed tuple, and for the GGA a parsed map of the sentence fields
+- `pmod_gps` now validates the NMEA sentences and parses the GGA ones
+- `pmod_gps` API changed, it now returns a pre-parsed tuple, and for the GGA a
+  parsed map of the sentence fields
 
 ### Removed
 
