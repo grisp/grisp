@@ -185,9 +185,11 @@ static ERL_NIF_TERM i2c_transfer_nif(ErlNifEnv *env, int argc,
   rv = ioctl(data->fd, I2C_RDWR, &payload);
   free(msgs);
   if (rv != 0) {
-    return enif_make_tuple3(
-        env, am_error, am_ioctl_failed,
-        enif_make_string(env, strerror(errno), ERL_NIF_LATIN1));
+    return enif_make_tuple2(
+        env, am_error,
+        enif_make_tuple2(
+            env, am_ioctl_failed,
+            enif_make_string(env, strerror(errno), ERL_NIF_LATIN1)));
   }
 
   if (!enif_make_reverse_list(env, resps, &rev_resps)) {
