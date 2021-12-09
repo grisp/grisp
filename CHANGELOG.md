@@ -8,6 +8,9 @@ and this project adheres to
 
 ## Unreleased
 
+***Note! This release is not compatible with GRiSP 1 yet!** GRiSP 1
+   compatibility will get added in a later patch release.*
+
 ### Added
 
 - `grisp_hw` module for hardware access functions
