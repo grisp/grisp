@@ -10,99 +10,126 @@
 %
 % === Pin Mappings ===
 %
+% For PMOD connectors, the number column (<b>#</b>) maps to the respective PMOD
+% pin (see <a href="#figure_1">Figure 1</a>).
+%
 % <table border="1" cellpadding="8">
 %   <caption>GRiSP 2 Pin Mappings</caption>
 %   <tr>
 %     <th rowspan="2">ID</th>
-%     <th colspan="3">Mapping</th>
+%     <th colspan="4">Mapping</th>
 %     <th rowspan="2">Direction</th>
 %     <th rowspan="2">Description</th>
 %   </tr>
 %   <tr>
 %     <th>Slot</th>
 %     <th>Type</th>
+%     <th>#</th>
 %     <th>Schematic</th>
 %   </tr>
-%   <tr><td>`gpio1_1'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>X1404.1</td>    <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio1_2'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>X1404.2</td>    <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio1_3'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>X1404.3</td>    <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio1_4'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>X1404.4</td>    <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio1_7'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>X1404.7</td>    <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio1_8'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>X1404.8</td>    <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio1_9'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>X1404.9</td>    <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio_1_3'</td>   <td>GPIO_1</td>   <td>Generic</td>  <td>X1300.3</td>    <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio_1_4'</td>   <td>GPIO_1</td>   <td>Generic</td>  <td>X1300.4</td>    <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio_1_5'</td>   <td>GPIO_1</td>   <td>Generic</td>  <td>X1300.5</td>    <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio_1_6'</td>   <td>GPIO_1</td>   <td>Generic</td>  <td>X1300.6</td>    <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio_2_3'</td>   <td>GPIO_2/4</td> <td>Generic</td>  <td>X1301.3</td>    <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio_2_4'</td>   <td>GPIO_2/4</td> <td>Generic</td>  <td>X1301.4</td>    <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio_2_5'</td>   <td>GPIO_2/4</td> <td>Generic</td>  <td>X1301.5</td>    <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio_2_6'</td>   <td>GPIO_2/4</td> <td>Generic</td>  <td>X1301.6</td>    <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio_2_7'</td>   <td>GPIO_2/4</td> <td>Generic</td>  <td>X1301.7</td>    <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio_2_8'</td>   <td>GPIO_2/4</td> <td>Generic</td>  <td>X1301.8</td>    <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio_2_9'</td>   <td>GPIO_2/4</td> <td>Generic</td>  <td>X1301.9</td>    <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio_2_10'</td>  <td>GPIO_2/4</td> <td>Generic</td>  <td>X1301.10</td>   <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio_2_11'</td>  <td>GPIO_2/4</td> <td>Generic</td>  <td>X1301.11</td>   <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio_2_12'</td>  <td>GPIO_2/4</td> <td>Generic</td>  <td>X1301.12</td>   <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio_2_13'</td>  <td>GPIO_2/4</td> <td>Generic</td>  <td>X1301.13</td>   <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio_2_14'</td>  <td>GPIO_2/4</td> <td>Generic</td>  <td>X1301.14</td>   <td>In/Out</td> <td></td></tr>
-%   <tr><td>`led1_r'</td>     <td>LED 1</td>    <td>LED</td>      <td>RGB1red</td>    <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
-%   <tr><td>`led1_g'</td>     <td>LED 1</td>    <td>LED</td>      <td>RGB1green</td>  <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
-%   <tr><td>`led1_b'</td>     <td>LED 1</td>    <td>LED</td>      <td>RGB1blue</td>   <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
-%   <tr><td>`led2_r'</td>     <td>LED 2</td>    <td>LED</td>      <td>RGB2red</td>    <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
-%   <tr><td>`led2_g'</td>     <td>LED 2</td>    <td>LED</td>      <td>RGB2green</td>  <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
-%   <tr><td>`led2_b'</td>     <td>LED 2</td>    <td>LED</td>      <td>RGB3blue</td>   <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
-%   <tr><td>`jumper_1'</td>   <td>Mode</td>     <td>Jumper</td>   <td>JUMPER1</td>    <td>In</td>     <td>Mode Switch Jumper State</td></tr>
-%   <tr><td>`jumper_2'</td>   <td>Mode</td>     <td>Jumper</td>   <td>JUMPER2</td>    <td>In</td>     <td>Mode Switch Jumper State</td></tr>
-%   <tr><td>`jumper_3'</td>   <td>Mode</td>     <td>Jumper</td>   <td>JUMPER3</td>    <td>In</td>     <td>Mode Switch Jumper State</td></tr>
-%   <tr><td>`jumper_4'</td>   <td>Mode</td>     <td>Jumper</td>   <td>JUMPER4</td>    <td>In</td>     <td>Mode Switch Jumper State</td></tr>
-%   <tr><td>`jumper_5'</td>   <td>Mode</td>     <td>Jumper</td>   <td>JUMPER5</td>    <td>In</td>     <td>Mode Switch Jumper State</td></tr>
-%   <tfoot><tr><td colspan="6"><b>Warning!</b> Reserved pins should only be carefully used if their drivers are not in use</td></tr></tfoot>
+%   <tr><td>`gpio1_1'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>1</td>  <td>X1404.1</td>    <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio1_2'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>2</td>  <td>X1404.2</td>    <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio1_3'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>3</td>  <td>X1404.3</td>    <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio1_4'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>4</td>  <td>X1404.4</td>    <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio1_7'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>7</td>  <td>X1404.7</td>    <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio1_8'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>8</td>  <td>X1404.8</td>    <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio1_9'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>9</td>  <td>X1404.9</td>    <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio_1_3'</td>   <td>GPIO_1</td>   <td>Generic</td>  <td></td>   <td>X1300.3</td>    <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio_1_4'</td>   <td>GPIO_1</td>   <td>Generic</td>  <td></td>   <td>X1300.4</td>    <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio_1_5'</td>   <td>GPIO_1</td>   <td>Generic</td>  <td></td>   <td>X1300.5</td>    <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio_1_6'</td>   <td>GPIO_1</td>   <td>Generic</td>  <td></td>   <td>X1300.6</td>    <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio_2_3'</td>   <td>GPIO_2/4</td> <td>Generic</td>  <td></td>   <td>X1301.3</td>    <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio_2_4'</td>   <td>GPIO_2/4</td> <td>Generic</td>  <td></td>   <td>X1301.4</td>    <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio_2_5'</td>   <td>GPIO_2/4</td> <td>Generic</td>  <td></td>   <td>X1301.5</td>    <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio_2_6'</td>   <td>GPIO_2/4</td> <td>Generic</td>  <td></td>   <td>X1301.6</td>    <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio_2_7'</td>   <td>GPIO_2/4</td> <td>Generic</td>  <td></td>   <td>X1301.7</td>    <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio_2_8'</td>   <td>GPIO_2/4</td> <td>Generic</td>  <td></td>   <td>X1301.8</td>    <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio_2_9'</td>   <td>GPIO_2/4</td> <td>Generic</td>  <td></td>   <td>X1301.9</td>    <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio_2_10'</td>  <td>GPIO_2/4</td> <td>Generic</td>  <td></td>   <td>X1301.10</td>   <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio_2_11'</td>  <td>GPIO_2/4</td> <td>Generic</td>  <td></td>   <td>X1301.11</td>   <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio_2_12'</td>  <td>GPIO_2/4</td> <td>Generic</td>  <td></td>   <td>X1301.12</td>   <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio_2_13'</td>  <td>GPIO_2/4</td> <td>Generic</td>  <td></td>   <td>X1301.13</td>   <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio_2_14'</td>  <td>GPIO_2/4</td> <td>Generic</td>  <td></td>   <td>X1301.14</td>   <td>In/Out</td> <td></td></tr>
+%   <tr><td>`led1_r'</td>     <td>LED 1</td>    <td>LED</td>      <td></td>   <td>RGB1red</td>    <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
+%   <tr><td>`led1_g'</td>     <td>LED 1</td>    <td>LED</td>      <td></td>   <td>RGB1green</td>  <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
+%   <tr><td>`led1_b'</td>     <td>LED 1</td>    <td>LED</td>      <td></td>   <td>RGB1blue</td>   <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
+%   <tr><td>`led2_r'</td>     <td>LED 2</td>    <td>LED</td>      <td></td>   <td>RGB2red</td>    <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
+%   <tr><td>`led2_g'</td>     <td>LED 2</td>    <td>LED</td>      <td></td>   <td>RGB2green</td>  <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
+%   <tr><td>`led2_b'</td>     <td>LED 2</td>    <td>LED</td>      <td></td>   <td>RGB3blue</td>   <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
+%   <tr><td>`jumper_1'</td>   <td>Mode</td>     <td>Jumper</td>   <td></td>   <td>JUMPER1</td>    <td>In</td>     <td>Mode Switch Jumper State</td></tr>
+%   <tr><td>`jumper_2'</td>   <td>Mode</td>     <td>Jumper</td>   <td></td>   <td>JUMPER2</td>    <td>In</td>     <td>Mode Switch Jumper State</td></tr>
+%   <tr><td>`jumper_3'</td>   <td>Mode</td>     <td>Jumper</td>   <td></td>   <td>JUMPER3</td>    <td>In</td>     <td>Mode Switch Jumper State</td></tr>
+%   <tr><td>`jumper_4'</td>   <td>Mode</td>     <td>Jumper</td>   <td></td>   <td>JUMPER4</td>    <td>In</td>     <td>Mode Switch Jumper State</td></tr>
+%   <tr><td>`jumper_5'</td>   <td>Mode</td>     <td>Jumper</td>   <td></td>   <td>JUMPER5</td>    <td>In</td>     <td>Mode Switch Jumper State</td></tr>
+%   <tfoot><tr><td colspan="7"><b>Warning!</b> Reserved pins should only be carefully used if their drivers are not in use</td></tr></tfoot>
 % </table><br/>
 % <table border="1" cellpadding="8">
 %   <caption>GRiSP 1 Pin Mappings</caption>
 %   <tr>
 %     <th rowspan="2">ID</th>
-%     <th colspan="3">Mapping</th>
+%     <th colspan="4">Mapping</th>
 %     <th rowspan="2">Direction</th>
 %     <th rowspan="2">Description</th>
 %   </tr>
 %   <tr>
 %     <th>Slot</th>
 %     <th>Type</th>
+%     <th>#</th>
 %     <th>Schematic</th>
 %   </tr>
-%   <tr><td>`gpio1_1'</td>    <td>GPIO1</td>    <td>PMOD 1</td>    <td>X502.1</td>     <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio1_2'</td>    <td>GPIO1</td>    <td>PMOD 1</td>    <td>X502.2</td>     <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio1_3'</td>    <td>GPIO1</td>    <td>PMOD 1</td>    <td>X502.3</td>     <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio1_4'</td>    <td>GPIO1</td>    <td>PMOD 1</td>    <td>X502.4</td>     <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio2_1'</td>    <td>GPIO2</td>    <td>PMOD 1</td>    <td>X503.1</td>     <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio2_2'</td>    <td>GPIO2</td>    <td>PMOD 1</td>    <td>X503.2</td>     <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio2_3'</td>    <td>GPIO2</td>    <td>PMOD 1</td>    <td>X503.3</td>     <td>In/Out</td> <td></td></tr>
-%   <tr><td>`gpio2_4'</td>    <td>GPIO2</td>    <td>PMOD 1</td>    <td>X503.4</td>     <td>In/Out</td> <td></td></tr>
-%   <tr><td>`led1_r'</td>     <td>LED 1</td>    <td>LED</td>       <td>RGB1red</td>    <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
-%   <tr><td>`led1_g'</td>     <td>LED 1</td>    <td>LED</td>       <td>RGB1green</td>  <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
-%   <tr><td>`led1_b'</td>     <td>LED 1</td>    <td>LED</td>       <td>RGB1blue</td>   <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
-%   <tr><td>`led2_r'</td>     <td>LED 2</td>    <td>LED</td>       <td>RGB2red</td>    <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
-%   <tr><td>`led2_g'</td>     <td>LED 2</td>    <td>LED</td>       <td>RGB2green</td>  <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
-%   <tr><td>`led2_b'</td>     <td>LED 2</td>    <td>LED</td>       <td>RGB3blue</td>   <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
-%   <tr><td>`jumper_1'</td>   <td>Mode</td>     <td>Jumper</td>    <td>JUMPER1</td>    <td>In</td>     <td>Mode Switch Jumper State</td></tr>
-%   <tr><td>`jumper_2'</td>   <td>Mode</td>     <td>Jumper</td>    <td>JUMPER2</td>    <td>In</td>     <td>Mode Switch Jumper State</td></tr>
-%   <tr><td>`jumper_3'</td>   <td>Mode</td>     <td>Jumper</td>    <td>JUMPER3</td>    <td>In</td>     <td>Mode Switch Jumper State</td></tr>
-%   <tr><td>`jumper_4'</td>   <td>Mode</td>     <td>Jumper</td>    <td>JUMPER4</td>    <td>In</td>     <td>Mode Switch Jumper State</td></tr>
-%   <tr><td>`jumper_5'</td>   <td>Mode</td>     <td>Jumper</td>    <td>JUMPER5</td>    <td>In</td>     <td>Mode Switch Jumper State</td></tr>
-%   <tr><td>`spi1_pin7'</td>  <td>SPI1</td>     <td>PMOD 2A</td>   <td>X501.7</td>     <td>In/Out</td> <td></td></tr>
-%   <tr><td>`spi1_pin8'</td>  <td>SPI1</td>     <td>PMOD 2A</td>   <td>X501.8</td>     <td>In/Out</td> <td></td></tr>
-%   <tr><td>`spi1_pin9'</td>  <td>SPI1</td>     <td>PMOD 2A</td>   <td>X501.9</td>     <td>In/Out</td> <td><em>Reserved by SPI driver</em></td></tr>
-%   <tr><td>`spi1_pin10'</td> <td>SPI1</td>     <td>PMOD 2A</td>   <td>X501.10</td>    <td>In/Out</td> <td><em>Reserved by SPI driver</em></td></tr>
-%   <tr><td>`spi1_pin1'</td>  <td>SPI1</td>     <td>PMOD 2A</td>   <td>X501.1</td>     <td>In/Out</td> <td><em>Reserved by SPI driver</em></td></tr>
-%   <tr><td>`spi2_pin1'</td>  <td>SPI2</td>     <td>PMOD 2</td>    <td>X509.1</td>     <td>In/Out</td> <td><em>Reserved by SPI driver</em></td></tr>
-%   <tr><td>`uart_1_cts'</td> <td>UART</td>     <td>PMOD 3</td>    <td>X508.1</td>     <td>In/Out</td> <td></td></tr>
-%   <tr><td>`uart_2_txd'</td> <td>UART</td>     <td>PMOD 3</td>    <td>X508.2</td>     <td>In/Out</td> <td></td></tr>
-%   <tr><td>`uart_3_rxd'</td> <td>UART</td>     <td>PMOD 3</td>    <td>X508.3</td>     <td>In/Out</td> <td></td></tr>
-%   <tr><td>`uart_4_rts'</td> <td>UART</td>     <td>PMOD 3</td>    <td>X508.4</td>     <td>In/Out</td> <td></td></tr>
-%   <tfoot><tr><td colspan="6"><b>Warning!</b> Reserved pins should only be carefully used if their drivers are not in use</td></tr></tfoot>
+%   <tr><td>`gpio1_1'</td>    <td>GPIO1</td>    <td>PMOD 1</td>   <td>1</td>  <td>X502.1</td>     <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio1_2'</td>    <td>GPIO1</td>    <td>PMOD 1</td>   <td>2</td>  <td>X502.2</td>     <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio1_3'</td>    <td>GPIO1</td>    <td>PMOD 1</td>   <td>3</td>  <td>X502.3</td>     <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio1_4'</td>    <td>GPIO1</td>    <td>PMOD 1</td>   <td>4</td>  <td>X502.4</td>     <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio2_1'</td>    <td>GPIO2</td>    <td>PMOD 1</td>   <td>1</td>  <td>X503.1</td>     <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio2_2'</td>    <td>GPIO2</td>    <td>PMOD 1</td>   <td>2</td>  <td>X503.2</td>     <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio2_3'</td>    <td>GPIO2</td>    <td>PMOD 1</td>   <td>3</td>  <td>X503.3</td>     <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio2_4'</td>    <td>GPIO2</td>    <td>PMOD 1</td>   <td>4</td>  <td>X503.4</td>     <td>In/Out</td> <td></td></tr>
+%   <tr><td>`led1_r'</td>     <td>LED 1</td>    <td>LED</td>      <td></td>   <td>RGB1red</td>    <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
+%   <tr><td>`led1_g'</td>     <td>LED 1</td>    <td>LED</td>      <td></td>   <td>RGB1green</td>  <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
+%   <tr><td>`led1_b'</td>     <td>LED 1</td>    <td>LED</td>      <td></td>   <td>RGB1blue</td>   <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
+%   <tr><td>`led2_r'</td>     <td>LED 2</td>    <td>LED</td>      <td></td>   <td>RGB2red</td>    <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
+%   <tr><td>`led2_g'</td>     <td>LED 2</td>    <td>LED</td>      <td></td>   <td>RGB2green</td>  <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
+%   <tr><td>`led2_b'</td>     <td>LED 2</td>    <td>LED</td>      <td></td>   <td>RGB3blue</td>   <td>Out</td>    <td><em>Reserved by LED driver</em></td></tr>
+%   <tr><td>`jumper_1'</td>   <td>Mode</td>     <td>Jumper</td>   <td></td>   <td>JUMPER1</td>    <td>In</td>     <td>Mode Switch Jumper State</td></tr>
+%   <tr><td>`jumper_2'</td>   <td>Mode</td>     <td>Jumper</td>   <td></td>   <td>JUMPER2</td>    <td>In</td>     <td>Mode Switch Jumper State</td></tr>
+%   <tr><td>`jumper_3'</td>   <td>Mode</td>     <td>Jumper</td>   <td></td>   <td>JUMPER3</td>    <td>In</td>     <td>Mode Switch Jumper State</td></tr>
+%   <tr><td>`jumper_4'</td>   <td>Mode</td>     <td>Jumper</td>   <td></td>   <td>JUMPER4</td>    <td>In</td>     <td>Mode Switch Jumper State</td></tr>
+%   <tr><td>`jumper_5'</td>   <td>Mode</td>     <td>Jumper</td>   <td></td>   <td>JUMPER5</td>    <td>In</td>     <td>Mode Switch Jumper State</td></tr>
+%   <tr><td>`spi1_pin7'</td>  <td>SPI1</td>     <td>PMOD 2A</td>  <td>7</td>  <td>X501.7</td>     <td>In/Out</td> <td></td></tr>
+%   <tr><td>`spi1_pin8'</td>  <td>SPI1</td>     <td>PMOD 2A</td>  <td>8</td>  <td>X501.8</td>     <td>In/Out</td> <td></td></tr>
+%   <tr><td>`spi1_pin9'</td>  <td>SPI1</td>     <td>PMOD 2A</td>  <td>9</td>  <td>X501.9</td>     <td>In/Out</td> <td><em>Reserved by SPI driver</em></td></tr>
+%   <tr><td>`spi1_pin10'</td> <td>SPI1</td>     <td>PMOD 2A</td>  <td>10</td> <td>X501.10</td>    <td>In/Out</td> <td><em>Reserved by SPI driver</em></td></tr>
+%   <tr><td>`spi1_pin1'</td>  <td>SPI1</td>     <td>PMOD 2A</td>  <td>1</td>  <td>X501.1</td>     <td>In/Out</td> <td><em>Reserved by SPI driver</em></td></tr>
+%   <tr><td>`spi2_pin1'</td>  <td>SPI2</td>     <td>PMOD 2</td>   <td>1</td>  <td>X509.1</td>     <td>In/Out</td> <td><em>Reserved by SPI driver</em></td></tr>
+%   <tr><td>`uart_1_cts'</td> <td>UART</td>     <td>PMOD 3</td>   <td>1</td>  <td>X508.1</td>     <td>In/Out</td> <td></td></tr>
+%   <tr><td>`uart_2_txd'</td> <td>UART</td>     <td>PMOD 3</td>   <td>2</td>  <td>X508.2</td>     <td>In/Out</td> <td></td></tr>
+%   <tr><td>`uart_3_rxd'</td> <td>UART</td>     <td>PMOD 3</td>   <td>3</td>  <td>X508.3</td>     <td>In/Out</td> <td></td></tr>
+%   <tr><td>`uart_4_rts'</td> <td>UART</td>     <td>PMOD 3</td>   <td>4</td>  <td>X508.4</td>     <td>In/Out</td> <td></td></tr>
+%   <tfoot><tr><td colspan="7"><b>Warning!</b> Reserved pins should only be carefully used if their drivers are not in use</td></tr></tfoot>
 % </table><br/>
+%
+% === PMOD Pin Numbers ===
+%
+% <figure id="figure_1">
+%   <img src="images/pin-mapping.svg" width="700px" alt="PMOD connectors as seen
+%     from the side of a GRiSP board with number mappings"/>
+%   <figcaption><em>Figure 1. PMOD connectors as seen from the side of a GRiSP
+%     board with number mappings</em></figcaption>
+% </figure>
+%
+% PMOD Type A consists of:
+% <ul>
+%   <li>4 &#215; data, pins #1-4</li>
+%   <li>1 &#215; ground, pin #5</li>
+%   <li>1 &#215; 3.3V power, pin #6</li>
+% </ul>
+% PMOD Type B consists of:
+% <ul>
+%   <li>8 &#215; data, pins #1-4 and #7-10</li>
+%   <li>1 &#215; ground, pins #5 and #11</li>
+%   <li>1 &#215; 3.3V power, pins #6 and #12</li>
+% </ul>
 -module(grisp_gpio).
 
 -include("grisp_nif.hrl").
