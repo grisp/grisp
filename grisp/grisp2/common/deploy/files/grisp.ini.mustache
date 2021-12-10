@@ -1,5 +1,5 @@
 [erlang]
-args = erl.rtems -C multi_time_warp -- -mode embedded -home . -pa . -root {{release_name}} -boot {{release_name}}/releases/{{release_version}}/start
+args = erl.rtems -C multi_time_warp -- -mode embedded -home . -pa . -root {{release_name}} -boot {{release_name}}/releases/{{release_version}}/start -config {{release_name}}/releases/{{release_version}}/sys.config
 
 ;[network]
 ;ip_self=dhcp
