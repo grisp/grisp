@@ -65,7 +65,6 @@ eeprom_read() ->
         false   -> {invalid_crc, MetaData}
     end.
 
-
 % @doc Fixes CRC bytes for pre-production boards
 -spec eeprom_reset_crc() -> ok.
 eeprom_reset_crc() ->
@@ -73,7 +72,10 @@ eeprom_reset_crc() ->
         grisp_eeprom:read(board, 0, ?GRISP_EEPROM_DATA_SIZE),
     CrcData = <<(crc16(DataToBeVerified)):2/little-unit:8>>,
     grisp_eeprom:write(board, 24, CrcData),
-    ok.
+    case eeprom_read() of
+        {ok, _} -> ok;
+        _ -> error
+    end.
 
 
 %--- Callbacks -----------------------------------------------------------------

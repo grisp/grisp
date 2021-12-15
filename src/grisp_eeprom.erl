@@ -29,7 +29,7 @@
 
 %--- RECORDS -------------------------------------------------------------------
 
--record(state, {bus, addr, wait}).
+-record(state, {bus, addr, wait, addr_size, page_size}).
 
 
 %--- API FUNCTIONS -------------------------------------------------------------
@@ -39,7 +39,9 @@ start_link(Name)->
     gen_server:start_link({local, eeprom_proc(Name)}, ?MODULE, [
         grisp_i2c:open(eeprom_bus(Name)),
         eeprom_addr(Name),
-        eeprom_wait(Name)
+        eeprom_wait(Name),
+        eeprom_addr_size(Name),
+        eeprom_page_size(Name)
     ], []).
 
 read(Name, ReadAddr, ReadSize) ->
@@ -59,16 +61,19 @@ write(Name, WriteAddr, Data) ->
 %--- BEHAVIOUR gen_server CALLBACK FUNCTIONS -----------------------------------
 
 % @private
-init([Bus, ChipAddress, Wait]) ->
-    {ok, #state{bus = Bus, addr = ChipAddress, wait = Wait}}.
+init([Bus, ChipAddress, Wait, AddrSize, PageSize]) ->
+    {ok, #state{bus = Bus, addr = ChipAddress, wait = Wait,
+                addr_size = AddrSize, page_size = PageSize}}.
 
 % @private
 handle_call({read, ReadAddr, ReadSize}, _From,
-            #state{bus = Bus, addr = ChipAddr} = State) ->
-    {reply, eeprom_read(Bus, ChipAddr, ReadAddr, ReadSize), State};
+            #state{bus = Bus, addr = ChipAddr, addr_size = AddrSize} = State) ->
+    {reply, eeprom_read(Bus, ChipAddr, AddrSize, ReadAddr, ReadSize), State};
 handle_call({write, WriteAddr, Data}, _From,
-            #state{bus = Bus, addr = ChipAddr, wait = Wait} = State) ->
-    {reply, eeprom_write(Bus, ChipAddr, Wait, WriteAddr, Data), State};
+            #state{bus = Bus, addr = ChipAddr, wait = Wait,
+                   addr_size = AddrSize, page_size = PageSize} = State) ->
+    Res = eeprom_write(Bus, ChipAddr, AddrSize, PageSize, Wait, WriteAddr, Data),
+    {reply, Res, State};
 handle_call(Call, _From, _State) ->
     error({unknown_call, Call}).
 
@@ -103,9 +108,18 @@ eeprom_addr(board) -> ?GRISP_EEPROM_BOARD_ADDR.
 eeprom_wait(som) -> ?GRISP_EEPROM_SOM_WAIT;
 eeprom_wait(board) -> ?GRISP_EEPROM_BOARD_WAIT.
 
-eeprom_read(Bus, ChipAddr, ReadAddr, ReadSize) ->
+eeprom_addr_size(som) -> ?GRISP_EEPROM_SOM_ADDR_SIZE;
+eeprom_addr_size(board) -> ?GRISP_EEPROM_BOARD_ADDR_SIZE.
+
+eeprom_page_size(som) -> ?GRISP_EEPROM_SOM_PAGE_SIZE;
+eeprom_page_size(board) -> ?GRISP_EEPROM_BOARD_PAGE_SIZE.
+
+eeprom_address(1, Addr) when Addr =< 16#FF -> <<Addr:8>>;
+eeprom_address(2, Addr) when Addr =< 16#FFFF -><<Addr:16/big-integer>>.
+
+eeprom_read(Bus, ChipAddr, AddrSize, ReadAddr, ReadSize) ->
     Cmds = [
-        {write, ChipAddr, 0, <<ReadAddr:16/big-integer>>},
+        {write, ChipAddr, 0, eeprom_address(AddrSize, ReadAddr)},
         {read, ChipAddr, 1, ReadSize}
     ],
     case grisp_i2c:transfer(Bus, Cmds) of
@@ -113,23 +127,26 @@ eeprom_read(Bus, ChipAddr, ReadAddr, ReadSize) ->
         [ok, Data] -> {ok, Data}
     end.
 
-eeprom_write(Bus, ChipAddr, Wait, WriteAddr, <<Data:32/binary, Rest/binary>>) ->
-    timer:sleep(Wait),
-    case eeprom_write_block(Bus, ChipAddr, WriteAddr, Data) of
-        {error, _Reason} = Error -> Error;
-        ok ->
-            eeprom_write(Bus, ChipAddr, Wait, WriteAddr + byte_size(Data), Rest)
-    end;
-eeprom_write(_Bus, _ChipAddr, _Wait, _WriteAddr, <<>>) ->
-    ok;
-eeprom_write(Bus, ChipAddr, Wait, WriteAddr, Data) ->
-    timer:sleep(Wait),
-    eeprom_write_block(Bus, ChipAddr, WriteAddr, Data).
+eeprom_write(Bus, ChipAddr, AddrSize, PageSize, Wait, WriteAddr, Data) ->
+    case Data of
+        <<>> -> ok;
+        <<Page:PageSize/binary, Rest/binary>> ->
+            case eeprom_write_block(Bus, ChipAddr, AddrSize, WriteAddr, Page) of
+                {error, _Reason} = Error -> Error;
+                ok ->
+                    timer:sleep(Wait),
+                    eeprom_write(Bus, ChipAddr, AddrSize, PageSize, Wait,
+                                 WriteAddr + byte_size(Page), Rest)
+            end;
+        Page ->
+            Res = eeprom_write_block(Bus, ChipAddr, AddrSize, WriteAddr, Page),
+            timer:sleep(Wait),
+            Res
+    end.
 
-
-eeprom_write_block(Bus, ChipAddr, WriteAddr, Data) ->
+eeprom_write_block(Bus, ChipAddr, AddrSize, WriteAddr, Data) ->
     Cmds = [
-        {write, ChipAddr, 0, <<WriteAddr:16/big-integer>>},
+        {write, ChipAddr, 0, eeprom_address(AddrSize, WriteAddr)},
         {write, ChipAddr, 16#4000, Data}
     ],
     case grisp_i2c:transfer(Bus, Cmds) of

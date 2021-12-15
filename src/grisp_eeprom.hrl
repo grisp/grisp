@@ -2,9 +2,13 @@
 -define(GRISP_EEPROM_SOM_ADDR, 16#52).
 -define(GRISP_EEPROM_SOM_BUS, i2c0).
 -define(GRISP_EEPROM_SOM_WAIT, 5).
+-define(GRISP_EEPROM_SOM_ADDR_SIZE, 2).
+-define(GRISP_EEPROM_SOM_PAGE_SIZE, 32).
 -define(GRISP_EEPROM_BOARD_PROC, grisp_eeprom_board).
 -define(GRISP_EEPROM_BOARD_ADDR, 16#57).
 -define(GRISP_EEPROM_BOARD_BUS, i2c0).
 -define(GRISP_EEPROM_BOARD_WAIT, 5).
+-define(GRISP_EEPROM_BOARD_ADDR_SIZE, 1).
+-define(GRISP_EEPROM_BOARD_PAGE_SIZE, 16).
 
 -type grisp_eeprom() :: som | board.
