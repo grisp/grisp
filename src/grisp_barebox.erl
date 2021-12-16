@@ -87,7 +87,6 @@ init([Store]) ->
         size = 192,
         stride = 64,
         vars = [
-            #var{name = [bootstate, booted_system], type = uint32, value = 0},
             #var{name = [bootstate, update_system], type = uint32, value = 0},
             #var{name = [bootstate, update_boot_count], type = uint32, value = 0},
             #var{name = [bootstate, active_system], type = uint32, value = 0}
