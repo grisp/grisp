@@ -75,7 +75,7 @@ write_file_to_device(FilePath, DevicePath) ->
 -spec write_file_to_device(string(), string(), non_neg_integer(), non_neg_integer())
     -> {ok, integer()} | {error, list()} | {error, atom(), term()}.
 write_file_to_device(FilePath, DevicePath, ReadChunkSize, WriteChunkSize) ->
-    case file:open(FilePath, [read, raw, binary]) of
+    case file:open(FilePath, [read, binary, compressed]) of
         {ok, Fd} ->
             try
                 read_write_loop(Fd, DevicePath, ReadChunkSize, WriteChunkSize, 0)
@@ -116,7 +116,7 @@ pwrite_nif(_DevicePath, _Buffer, _Offset) -> ?NIF_STUB.
 
 
 read_write_loop(Fd, DevicePath, ReadChunkSize, WriteChunkSize, BytesReadTotal) ->
-    case file:pread(Fd, BytesReadTotal, ReadChunkSize) of
+    case file:read(Fd, ReadChunkSize) of
         {ok, ReadChunk} ->
             case write_loop(DevicePath, ReadChunk, WriteChunkSize, BytesReadTotal, 0) of
                 {ok, ChunkBytesWritten} ->
