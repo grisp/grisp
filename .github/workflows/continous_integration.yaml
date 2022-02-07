@@ -39,3 +39,46 @@ jobs:
 
       - name: Analyze
         run: rebar3 dialyzer
+
+  otp:
+    runs-on: ubuntu-latest
+    name: OTP Build
+    strategy:
+      matrix:
+        otp: ['23']
+        rebar: ['3']
+    steps:
+
+      - uses: actions/checkout@v2
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{matrix.otp}}
+          rebar3-version: ${{matrix.rebar3}}
+
+      - uses: actions/cache@v2
+        env:
+          cache-name: rebar3
+        with:
+          path: |
+            ~/.cache/rebar3
+            _build
+          key: ci-${{runner.os}}-${{env.cache-name}}-otp_${{matrix.otp}}-rebar_${{matrix.rebar3}}-${{hashFiles('rebar.lock')}}
+          restore-keys: |
+            ci-${{runner.os}}-${{env.cache-name}}-otp_${{matrix.otp}}-rebar_${{matrix.rebar3}}
+            ci-${{runner.os}}-${{env.cache-name}}-otp_${{matrix.otp}}
+
+      - run: echo "TEMP=$(mktemp -d)" >> $GITHUB_ENV
+
+      - run: mkdir $HOME/.config/rebar3 && echo "{plugins, [rebar3_grisp]}." >> $HOME/.config/rebar3/rebar.config
+
+      - run: rebar3 new grispapp name=foo
+        working-directory: ${{env.TEMP}}
+
+      - run: |
+          sed -i.bak '/{grisp, \[/s/.*/&\ \
+              {build, \[{toolchain, \[{directory, "foo"}\]}\]},/' rebar.config
+        working-directory: ${{env.TEMP}}/foo
+
+      - run: rebar3 grisp build
+        working-directory: ${{env.TEMP}}/foo
