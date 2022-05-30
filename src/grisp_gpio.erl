@@ -273,18 +273,14 @@ pin(grisp2, gpio1_7)        -> #{path => <<"/pmod-gpio\0">>,             propert
 pin(grisp2, gpio1_8)        -> #{path => <<"/pmod-gpio\0">>,             property => <<"grisp,gpios\0">>, index => 5};
 pin(grisp2, gpio1_9)        -> #{path => <<"/pmod-gpio\0">>,             property => <<"grisp,gpios\0">>, index => 6};
 pin(grisp2, gpio1_10)       -> #{path => <<"/pmod-gpio\0">>,             property => <<"grisp,gpios\0">>, index => 7};
-%
-% enabled uart pins sendod row (lower)
 pin(grisp2, uart_7)        -> #{path => <<"/pmod-uart\0">>,             property => <<"grisp,gpios\0">>, index => 4};
 pin(grisp2, uart_8)        -> #{path => <<"/pmod-uart\0">>,             property => <<"grisp,gpios\0">>, index => 5};
 pin(grisp2, uart_9)        -> #{path => <<"/pmod-uart\0">>,             property => <<"grisp,gpios\0">>, index => 6};
 pin(grisp2, uart_10)       -> #{path => <<"/pmod-uart\0">>,             property => <<"grisp,gpios\0">>, index => 7};
-% enabled i2c pins
 pin(grisp2, i2c_1)        -> #{path => <<"/pmod-i2c\0">>,             property => <<"grisp,gpios\0">>, index => 0};
 pin(grisp2, i2c_2)        -> #{path => <<"/pmod-i2c\0">>,             property => <<"grisp,gpios\0">>, index => 1};
 pin(grisp2, i2c_3)        -> #{path => <<"/pmod-i2c\0">>,             property => <<"grisp,gpios\0">>, index => 2};
 pin(grisp2, i2c_4)       -> #{path => <<"/pmod-i2c\0">>,             property => <<"grisp,gpios\0">>, index => 3};
-%
 pin(grisp2, gpio_1_3)       -> #{path => <<"/pin-gpio\0">>,              property => <<"grisp,gpios\0">>, index => 0};
 pin(grisp2, gpio_1_4)       -> #{path => <<"/pin-gpio\0">>,              property => <<"grisp,gpios\0">>, index => 1};
 pin(grisp2, gpio_1_5)       -> #{path => <<"/pin-gpio\0">>,              property => <<"grisp,gpios\0">>, index => 2};
