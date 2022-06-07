@@ -8,6 +8,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.1.0] - 2022-06-07
+
+### Added
+
+- It is now possible to use UART (lower row) and I2C PMOD ports as GPIO pins
+- PmodHB5 driver now supports the new available GPIO pins
+
 ## [2.0.0] - 2022-02-01
 
 ***Note! This release is not compatible with GRiSP 1 yet!** GRiSP 1
@@ -168,7 +175,8 @@ and this project adheres to
 * Fix for \#2. Negative intervals are now treated by turning off leds [\#5](https://github.com/grisp/grisp/pull/5) ([nextl00p](https://github.com/nextl00p))
 
 
-[Unreleased]: https://github.com/grisp/grisp/compare/2.0.0...HEAD
+[Unreleased]: https://github.com/grisp/grisp/compare/2.1.0...HEAD
+[2.1.0]: https://github.com/grisp/grisp/compare/2.0.0...2.1.0
 [2.0.0]: https://github.com/grisp/grisp/compare/1.2.1...2.0.0
 [1.2.1]: https://github.com/grisp/grisp/compare/1.2.0...1.2.1
 [1.2.0]: https://github.com/grisp/grisp/compare/1.1.6...1.2.0
