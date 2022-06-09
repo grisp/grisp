@@ -216,9 +216,6 @@ static int ini_file_handler(void *arg, const char *section, const char *name,
   int ok = 0;
   const char *rootdir = (const char*)arg;
 
-  printf("grisp.ini: "
-         "section \"%s\", name \"%s\", value \"%s\"\n",
-         section, name, value);
   if (strcmp(section, "network") == 0) {
     if (strcmp(name, "hostname") == 0) {
       hostname = strdup(value);
@@ -262,9 +259,6 @@ static int ini_file_handler(void *arg, const char *section, const char *name,
     }
   } else if (strcmp(section, "erlang") == 0) {
     if (strcmp(name, "args") == 0) {
-      printf("erl args: "
-             "section \"%s\", name \"%s\", value \"%s\"\n",
-             section, name, value);
       erl_args = strdup(value);
       ok = 1;
     }

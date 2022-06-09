@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- Removed redundant command line argument boot debug output
+
 ## [2.1.0] - 2022-06-07
 
 ### Added
