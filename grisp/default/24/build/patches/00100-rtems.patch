@@ -31,10 +31,10 @@ index 3746c703e1..6c078e7c3e 100644
  install: $(INST_DEP)
  
 diff --git a/erts/Makefile b/erts/Makefile
-index 4f083752a7..a2d00f59a7 100644
+index 4f083752a7..fcddddeeaa 100644
 --- a/erts/Makefile
 +++ b/erts/Makefile
-@@ -27,7 +27,12 @@ include $(ERL_TOP)/make/$(TARGET)/otp.mk
+@@ -27,7 +27,11 @@ include $(ERL_TOP)/make/$(TARGET)/otp.mk
  # ----------------------------------------------------------------------
  
  # Other erts dirs than the emulator dir...
@@ -43,7 +43,6 @@ index 4f083752a7..a2d00f59a7 100644
 +else
  ERTSDIRS = etc epmd lib_src
 +endif
-+ERTSDIRS = etc lib_src
  XINSTDIRS = preloaded
  ifeq ($(NO_START_SCRIPTS),)
  ERTSDIRS += start_scripts
