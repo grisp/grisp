@@ -1,0 +1,2063 @@
+diff --git a/.gitignore b/.gitignore
+index 794d384b4d..278336401c 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -51,6 +51,11 @@ powerpc-unknown-linux-gnu
+ aarch64-unknown-linux-gnu
+ i386-elf-ose
+ powerpc-unknown-ose
++arm-unknown-rtems[0-9]*.[0-9]*
++powerpc-unknown-rtems[0-9]*.[0-9]*
++
++# Compilation/linking artifacts
++linker.map
+ 
+ # Mac OS X
+ a.out.dSYM/
+diff --git a/Makefile.in b/Makefile.in
+index 3746c703e1..6c078e7c3e 100644
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -1104,7 +1104,11 @@ $(TEST_DIRS):
+ #
+ # Order is important here, don't change it!
+ #
++ifeq ($(findstring rtems,$(TARGET)),rtems)
++INST_DEP += install.dirs install.emulator install.libs install.Install install.otp_version
++else
+ INST_DEP += install.dirs install.emulator install.libs install.Install install.otp_version install.bin
++endif
+ 
+ install: $(INST_DEP)
+ 
+diff --git a/erts/Makefile b/erts/Makefile
+index 4f083752a7..a2d00f59a7 100644
+--- a/erts/Makefile
++++ b/erts/Makefile
+@@ -27,7 +27,12 @@ include $(ERL_TOP)/make/$(TARGET)/otp.mk
+ # ----------------------------------------------------------------------
+ 
+ # Other erts dirs than the emulator dir...
++ifeq ($(findstring rtems, $(TARGET)), rtems)
++ERTSDIRS = etc lib_src
++else
+ ERTSDIRS = etc epmd lib_src
++endif
++ERTSDIRS = etc lib_src
+ XINSTDIRS = preloaded
+ ifeq ($(NO_START_SCRIPTS),)
+ ERTSDIRS += start_scripts
+diff --git a/erts/configure b/erts/configure
+index 7da8d32a1b..b51aefa8d1 100755
+--- a/erts/configure
++++ b/erts/configure
+@@ -773,7 +773,6 @@ infodir
+ docdir
+ oldincludedir
+ includedir
+-runstatedir
+ localstatedir
+ sharedstatedir
+ sysconfdir
+@@ -919,7 +918,6 @@ datadir='${datarootdir}'
+ sysconfdir='${prefix}/etc'
+ sharedstatedir='${prefix}/com'
+ localstatedir='${prefix}/var'
+-runstatedir='${localstatedir}/run'
+ includedir='${prefix}/include'
+ oldincludedir='/usr/include'
+ docdir='${datarootdir}/doc/${PACKAGE}'
+@@ -1172,15 +1170,6 @@ do
+   | -silent | --silent | --silen | --sile | --sil)
+     silent=yes ;;
+ 
+-  -runstatedir | --runstatedir | --runstatedi | --runstated \
+-  | --runstate | --runstat | --runsta | --runst | --runs \
+-  | --run | --ru | --r)
+-    ac_prev=runstatedir ;;
+-  -runstatedir=* | --runstatedir=* | --runstatedi=* | --runstated=* \
+-  | --runstate=* | --runstat=* | --runsta=* | --runst=* | --runs=* \
+-  | --run=* | --ru=* | --r=*)
+-    runstatedir=$ac_optarg ;;
+-
+   -sbindir | --sbindir | --sbindi | --sbind | --sbin | --sbi | --sb)
+     ac_prev=sbindir ;;
+   -sbindir=* | --sbindir=* | --sbindi=* | --sbind=* | --sbin=* \
+@@ -1318,7 +1307,7 @@ fi
+ for ac_var in	exec_prefix prefix bindir sbindir libexecdir datarootdir \
+ 		datadir sysconfdir sharedstatedir localstatedir includedir \
+ 		oldincludedir docdir infodir htmldir dvidir pdfdir psdir \
+-		libdir localedir mandir runstatedir
++		libdir localedir mandir
+ do
+   eval ac_val=\$$ac_var
+   # Remove trailing slashes.
+@@ -1471,7 +1460,6 @@ Fine tuning of the installation directories:
+   --sysconfdir=DIR        read-only single-machine data [PREFIX/etc]
+   --sharedstatedir=DIR    modifiable architecture-independent data [PREFIX/com]
+   --localstatedir=DIR     modifiable single-machine data [PREFIX/var]
+-  --runstatedir=DIR       modifiable per-process data [LOCALSTATEDIR/run]
+   --libdir=DIR            object code libraries [EPREFIX/lib]
+   --includedir=DIR        C header files [PREFIX/include]
+   --oldincludedir=DIR     C header files for non-gcc [/usr/include]
+diff --git a/erts/emulator/Makefile.in b/erts/emulator/Makefile.in
+index 99da2b101e..ab99dccaed 100644
+--- a/erts/emulator/Makefile.in
++++ b/erts/emulator/Makefile.in
+@@ -459,8 +459,10 @@ endif
+ 
+ UNIX_ONLY_BUILDS =
+ ifeq ($(ERLANG_OSTYPE), unix)
++ifneq ($(findstring rtems, $(TARGET)), rtems)
+ UNIX_ONLY_BUILDS =	$(BINDIR)/$(CS_EXECUTABLE)
+ endif
++endif
+ 
+ .PHONY: all
+ ifdef VOID_EMULATOR
+@@ -523,9 +525,11 @@ release_spec: all
+ 	$(INSTALL_DATA) $(RELEASE_INCLUDES) "$(RELSYSDIR)/include"
+ 	$(INSTALL_PROGRAM) $(BINDIR)/$(EMULATOR_EXECUTABLE) "$(RELSYSDIR)/bin"
+ ifeq ($(ERLANG_OSTYPE), unix)
++ifneq ($(findstring rtems, $(TARGET)), rtems)
+ 	$(INSTALL_PROGRAM) $(BINDIR)/$(CS_EXECUTABLE) "$(RELSYSDIR)/bin"
+ endif
+ endif
++endif
+ 
+ .PHONY: release_docs_spec
+ release_docs_spec:
+diff --git a/erts/emulator/beam/io.c b/erts/emulator/beam/io.c
+index 12bfe138fb..5568aa12ac 100644
+--- a/erts/emulator/beam/io.c
++++ b/erts/emulator/beam/io.c
+@@ -2985,7 +2985,7 @@ void erts_init_io(int port_tab_size,
+     init_driver(&fd_driver, &fd_driver_entry, NULL);
+     init_driver(&vanilla_driver, &vanilla_driver_entry, NULL);
+     init_driver(&spawn_driver, &spawn_driver_entry, NULL);
+-#ifndef __WIN32__
++#if !(defined(__WIN32__) || defined(__rtems__))
+     init_driver(&forker_driver, &forker_driver_entry, NULL);
+ #endif
+     erts_init_static_drivers();
+diff --git a/erts/emulator/beam/sys.h b/erts/emulator/beam/sys.h
+index 1ffc7f5028..9a6ecf3231 100644
+--- a/erts/emulator/beam/sys.h
++++ b/erts/emulator/beam/sys.h
+@@ -181,7 +181,7 @@ typedef ERTS_SYS_FD_TYPE ErtsSysFdType;
+ #if (defined(__APPLE__) && defined(__MACH__)) || defined(__DARWIN__)
+ #  define ERTS_WRITE_UNLIKELY(X) X __attribute__ ((section ("__DATA,ERTS_LOW_WRITE") ))
+ #else
+-#  define ERTS_WRITE_UNLIKELY(X) X __attribute__ ((section ("ERTS_LOW_WRITE") ))
++#  define ERTS_WRITE_UNLIKELY(X) X __attribute__ ((section (".data.read_mostly") ))
+ #endif
+ #else
+ #  define ERTS_WRITE_UNLIKELY(X) X
+diff --git a/erts/emulator/nifs/common/prim_socket_nif.c b/erts/emulator/nifs/common/prim_socket_nif.c
+index 438387b9c4..685d8454c8 100644
+--- a/erts/emulator/nifs/common/prim_socket_nif.c
++++ b/erts/emulator/nifs/common/prim_socket_nif.c
+@@ -20300,6 +20300,11 @@ int on_load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
+     initCmsgTables();
+ 
+     data.iov_max =
++#if defined(__rtems__)
++        /* sysconf should be working on RTEMS, but for some unknown reasons
++           it returns -1 for _SC_IOV_MAX, so we hardcode the value for now */
++        1024
++#else
+ #if defined(NO_SYSCONF) || (! defined(_SC_IOV_MAX))
+ #   ifdef IOV_MAX
+         IOV_MAX
+@@ -20308,6 +20313,7 @@ int on_load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
+ #   endif
+ #else
+         sysconf(_SC_IOV_MAX)
++#endif
+ #endif
+         ;
+     ESOCK_ASSERT( data.iov_max > 0 );
+diff --git a/erts/emulator/sys/common/erl_mmap.h b/erts/emulator/sys/common/erl_mmap.h
+index e4e9dfb7ae..ac740ba70e 100644
+--- a/erts/emulator/sys/common/erl_mmap.h
++++ b/erts/emulator/sys/common/erl_mmap.h
+@@ -213,7 +213,7 @@ ERTS_GLB_INLINE void erts_mem_discard(void *p, UWord size);
+             data[i] = pattern[i % sizeof(pattern)];
+         }
+     }
+-#elif defined(HAVE_SYS_MMAN_H) && defined(HAVE_MADVISE) && !(defined(__sun) || defined(__sun__))
++#elif defined(HAVE_SYS_MMAN_H) && defined(HAVE_MADVISE) && !(defined(__sun) || defined(__sun__)) && !defined(__rtems__)
+     #include <sys/mman.h>
+ 
+     ERTS_GLB_INLINE void erts_mem_discard(void *ptr, UWord size) {
+diff --git a/erts/emulator/sys/unix/sys.c b/erts/emulator/sys/unix/sys.c
+index 7ff8425d52..0d8cd4dd52 100644
+--- a/erts/emulator/sys/unix/sys.c
++++ b/erts/emulator/sys/unix/sys.c
+@@ -407,6 +407,7 @@ erts_sys_is_area_readable(char *start, char *stop) {
+ static ERTS_INLINE int
+ prepare_crash_dump(int secs)
+ {
++#ifndef __rtems__
+ #define NUFBUF (3)
+     int i;
+     char env[21]; /* enough to hold any 64-bit integer */
+@@ -468,6 +469,9 @@ prepare_crash_dump(int secs)
+     UnUseTmpHeapNoproc(NUFBUF);
+ #undef NUFBUF
+     return has_heart;
++#else  /* __rtems__ */
++    return 0;
++#endif /* __rtems__ */
+ }
+ 
+ int erts_sys_prepare_crash_dump(int secs)
+diff --git a/erts/etc/common/Makefile.in b/erts/etc/common/Makefile.in
+index e5ff959078..1cd3091295 100644
+--- a/erts/etc/common/Makefile.in
++++ b/erts/etc/common/Makefile.in
+@@ -182,6 +182,26 @@ endif
+ PORT_ENTRY_POINT=erl_port_entry
+ ENTRY_LDFLAGS=-entry:$(PORT_ENTRY_POINT)
+ 
++else # UNIX (!win32)
++ifeq ($(findstring rtems,$(TARGET)), rtems)
++ENTRY_LDFLAGS=
++ENTRY_OBJ=
++ERLSRV_OBJECTS=
++MC_OUTPUTS=
++INET_GETHOST=$(BINDIR)/inet_gethost@EXEEXT@
++INSTALL_EMBEDDED_PROGS=
++INSTALL_EMBEDDED_DATA=../unix/start.src ../unix/start_erl.src
++INSTALL_TOP=Install
++INSTALL_TOP_BIN=
++INSTALL_MISC=
++INSTALL_SRC=
++ERLEXECDIR=
++INSTALL_LIBS=
++INSTALL_OBJS=
++INSTALL_INCLUDES=
++TEXTFILES=Install erl.src
++INSTALL_PROGS=
++
+ else
+ ENTRY_LDFLAGS=
+ ENTRY_OBJ=
+@@ -215,6 +235,7 @@ INSTALL_PROGS =              \
+ 	$(BINDIR)/$(ERLEXEC) \
+ 	$(INSTALL_EMBEDDED_PROGS)
+ endif
++endif
+ 
+ .PHONY: etc
+ etc:	$(ENTRY_OBJ) $(INSTALL_PROGS) $(EXTRA_LIBS) $(INSTALL_LIBS) $(TEXTFILES) $(INSTALL_TOP_BIN)
+@@ -488,11 +509,13 @@ $(BINDIR)/typer@EXEEXT@: $(OBJDIR)/typer.o $(ERTS_LIB)
+ $(OBJDIR)/typer.o: typer.c $(RC_GENERATED)
+ 	$(V_CC) $(CFLAGS) -o $@ -c typer.c
+ 
++ifneq ($(findstring rtems,$(TARGET)), rtems)
+ $(BINDIR)/escript@EXEEXT@: $(OBJDIR)/escript.o $(ERTS_LIB)
+ 	$(ld_verbose) $(LD) $(LDFLAGS) -o $@ $(OBJDIR)/escript.o -L$(OBJDIR) $(LIBS) $(ERTS_INTERNAL_LIBS)
+ 
+ $(OBJDIR)/escript.o: escript.c $(RC_GENERATED)
+ 	$(V_CC) $(CFLAGS) -o $@ -c escript.c
++endif
+ 
+ $(BINDIR)/ct_run@EXEEXT@: $(OBJDIR)/ct_run.o $(ERTS_LIB)
+ 	$(ld_verbose) $(LD) $(LDFLAGS) -o $@ $(OBJDIR)/ct_run.o -L$(OBJDIR) $(LIBS) $(ERTS_INTERNAL_LIBS)
+diff --git a/erts/etc/unix/Install.src b/erts/etc/unix/Install.src
+index 7437e073e0..dc36c546b0 100644
+--- a/erts/etc/unix/Install.src
++++ b/erts/etc/unix/Install.src
+@@ -86,13 +86,34 @@ chmod 755 erl
+ 
+ cd "$ERL_ROOT/bin"
+ 
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erl" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erlc" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erl_call" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/dialyzer" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/typer" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/ct_run" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/escript" .
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/erl" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erl" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/erlc" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erlc" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/erl_call" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erl_call" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/dialyzer" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/dialyzer" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/typer" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/typer" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/ct_run" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/ct_run" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/escript" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/escript" .
++fi
+ 
+ #
+ # Set a soft link to epmd
+@@ -106,9 +127,19 @@ fi
+ 
+ ln -s ../erts-%I_VSN%/bin/epmd epmd
+ 
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/run_erl" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/to_erl" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/start" .
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/run_erl" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/run_erl" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/to_erl" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/to_erl" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/start" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/start" .
++fi
++
+ sed -e "s;%EMU%;%EMULATOR%%EMULATOR_NUMBER%;" "$ERL_ROOT/erts-%I_VSN%/bin/start_erl.src" > start_erl
+ chmod 755 start_erl
+ echo ""
+diff --git a/erts/lib_src/Makefile.in b/erts/lib_src/Makefile.in
+index d5a5fd0f4d..3b6d59cf54 100644
+--- a/erts/lib_src/Makefile.in
++++ b/erts/lib_src/Makefile.in
+@@ -39,6 +39,7 @@ INSTALL=@INSTALL@
+ INSTALL_DIR=@INSTALL_DIR@
+ INSTALL_DATA=@INSTALL_DATA@
+ INSTALL_PROGRAM=@INSTALL_PROGRAM@
++CROSS_COMPILING = @CROSS_COMPILING@
+ 
+ ERLANG_OSTYPE=@ERLANG_OSTYPE@
+ 
+@@ -340,7 +341,13 @@ YCF_SOURCE_DIR=$(ERL_TOP)/erts/lib_src/yielding_c_fun
+ 
+ include $(YCF_SOURCE_DIR)/main_target.mk
+ 
++ifeq ($(CROSS_COMPILING),no)
++# TODO: Move this to a proper flag in erts/configure.in
++#       (erl_xcomp_build_ycf=true|false)
+ $(OBJ_DIR)/MADE: $(YCF_EXECUTABLE) $(ETHREAD_LIB) $(ERTS_LIBS) $(ERTS_INTERNAL_LIBS)
++else
++$(OBJ_DIR)/MADE: $(ETHREAD_LIB) $(ERTS_LIBS) $(ERTS_INTERNAL_LIBS)
++endif
+ 	$(gen_verbose)
+ ifeq ($(OMIT_OMIT_FP),yes)
+ 	@echo '* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *'
+@@ -493,7 +500,11 @@ INTERNAL_RELEASE_LIBS= \
+ 
+ .PHONY: release_spec
+ release_spec: all
++ifeq ($(CROSS_COMPILING),no)
++# TODO: Move this to a proper flag in erts/configure.in
++#       (erl_xcomp_build_ycf=true|false)
+ 	$(INSTALL_PROGRAM) $(YCF_EXECUTABLE) "$(RELSYSDIR)/bin"
++endif
+ ifneq ($(strip $(RELEASE_INCLUDES)),)
+ 	$(INSTALL_DIR) "$(RELSYSDIR)/include"
+ 	$(INSTALL_DIR) "$(RELEASE_PATH)/usr/include"
+diff --git a/erts/lib_src/pthread/ethread.c b/erts/lib_src/pthread/ethread.c
+index f7262c02b1..8e7aa28e1a 100644
+--- a/erts/lib_src/pthread/ethread.c
++++ b/erts/lib_src/pthread/ethread.c
+@@ -155,6 +155,7 @@ ppc_init__(void)
+     /* If anything what so ever failes we assume no lwsync for safety */
+     ethr_runtime__.conf.have_lwsync = 0;
+ 
++#ifndef __rtems__
+     /*
+      * We perform the lwsync test (which might cause an illegal
+      * instruction signal) in a separate process in order to be
+@@ -186,6 +187,8 @@ ppc_init__(void)
+ 	    }
+ 	}
+     }
++#endif
++
+     return 0;
+ }
+ 
+diff --git a/lib/Makefile b/lib/Makefile
+index 067f00787b..ec0ced4d5b 100644
+--- a/lib/Makefile
++++ b/lib/Makefile
+@@ -83,7 +83,7 @@ endif
+ 
+ # Any applications listed in SKIP-APPLICATIONS should be skipped
+ SKIP_FILE := $(wildcard SKIP-APPLICATIONS)
+-SKIP_APPLICATIONS := $(if $(SKIP_FILE),$(shell cat $(SKIP_FILE)))
++SKIP_APPLICATIONS += $(if $(SKIP_FILE),$(shell cat $(SKIP_FILE)))
+ SUB_DIRECTORIES := $(filter-out $(SKIP_APPLICATIONS),$(SUB_DIRECTORIES))
+ 
+ # ----------------------------------------------------------------------
+diff --git a/lib/asn1/c_src/Makefile b/lib/asn1/c_src/Makefile
+index 8fb3360f83..a4e775cd51 100644
+--- a/lib/asn1/c_src/Makefile
++++ b/lib/asn1/c_src/Makefile
+@@ -69,7 +69,9 @@ NIF_LIB_FILE = $(LIBDIR)/asn1rt_nif.lib
+ CLIB_FLAGS =
+ LN=cp
+ else
++ifneq ($(findstring rtems,$(TARGET)),rtems)
+ NIF_SHARED_OBJ_FILE = $(LIBDIR)/asn1rt_nif.so
++endif
+ NIF_LIB_FILE = $(LIBDIR)/asn1rt_nif.a
+ CLIB_FLAGS =
+ LN= ln -s
+@@ -135,7 +137,9 @@ include $(ERL_TOP)/make/otp_release_targets.mk
+ 
+ release_spec: opt
+ 	$(INSTALL_DIR) "$(RELSYSDIR)/priv/lib"
++ifneq ($(findstring rtems,$(TARGET)),rtems)
+ 	$(INSTALL_PROGRAM) $(NIF_SHARED_OBJ_FILE) "$(RELSYSDIR)/priv/lib"
++endif
+ 	$(INSTALL_DIR) "$(RELSYSDIR)/c_src"
+ 	$(INSTALL_DATA) *.c "$(RELSYSDIR)/c_src"
+ 
+diff --git a/lib/common_test/configure b/lib/common_test/configure
+index 73b2a2d156..279117f6a9 100755
+--- a/lib/common_test/configure
++++ b/lib/common_test/configure
+@@ -611,7 +611,6 @@ infodir
+ docdir
+ oldincludedir
+ includedir
+-runstatedir
+ localstatedir
+ sharedstatedir
+ sysconfdir
+@@ -676,7 +675,6 @@ datadir='${datarootdir}'
+ sysconfdir='${prefix}/etc'
+ sharedstatedir='${prefix}/com'
+ localstatedir='${prefix}/var'
+-runstatedir='${localstatedir}/run'
+ includedir='${prefix}/include'
+ oldincludedir='/usr/include'
+ docdir='${datarootdir}/doc/${PACKAGE}'
+@@ -929,15 +927,6 @@ do
+   | -silent | --silent | --silen | --sile | --sil)
+     silent=yes ;;
+ 
+-  -runstatedir | --runstatedir | --runstatedi | --runstated \
+-  | --runstate | --runstat | --runsta | --runst | --runs \
+-  | --run | --ru | --r)
+-    ac_prev=runstatedir ;;
+-  -runstatedir=* | --runstatedir=* | --runstatedi=* | --runstated=* \
+-  | --runstate=* | --runstat=* | --runsta=* | --runst=* | --runs=* \
+-  | --run=* | --ru=* | --r=*)
+-    runstatedir=$ac_optarg ;;
+-
+   -sbindir | --sbindir | --sbindi | --sbind | --sbin | --sbi | --sb)
+     ac_prev=sbindir ;;
+   -sbindir=* | --sbindir=* | --sbindi=* | --sbind=* | --sbin=* \
+@@ -1075,7 +1064,7 @@ fi
+ for ac_var in	exec_prefix prefix bindir sbindir libexecdir datarootdir \
+ 		datadir sysconfdir sharedstatedir localstatedir includedir \
+ 		oldincludedir docdir infodir htmldir dvidir pdfdir psdir \
+-		libdir localedir mandir runstatedir
++		libdir localedir mandir
+ do
+   eval ac_val=\$$ac_var
+   # Remove trailing slashes.
+@@ -1228,7 +1217,6 @@ Fine tuning of the installation directories:
+   --sysconfdir=DIR        read-only single-machine data [PREFIX/etc]
+   --sharedstatedir=DIR    modifiable architecture-independent data [PREFIX/com]
+   --localstatedir=DIR     modifiable single-machine data [PREFIX/var]
+-  --runstatedir=DIR       modifiable per-process data [LOCALSTATEDIR/run]
+   --libdir=DIR            object code libraries [EPREFIX/lib]
+   --includedir=DIR        C header files [PREFIX/include]
+   --oldincludedir=DIR     C header files for non-gcc [/usr/include]
+diff --git a/lib/common_test/test_server/configure b/lib/common_test/test_server/configure
+index d190f0250b..dac99cace4 100755
+--- a/lib/common_test/test_server/configure
++++ b/lib/common_test/test_server/configure
+@@ -678,7 +678,6 @@ infodir
+ docdir
+ oldincludedir
+ includedir
+-runstatedir
+ localstatedir
+ sharedstatedir
+ sysconfdir
+@@ -753,7 +752,6 @@ datadir='${datarootdir}'
+ sysconfdir='${prefix}/etc'
+ sharedstatedir='${prefix}/com'
+ localstatedir='${prefix}/var'
+-runstatedir='${localstatedir}/run'
+ includedir='${prefix}/include'
+ oldincludedir='/usr/include'
+ docdir='${datarootdir}/doc/${PACKAGE}'
+@@ -1006,15 +1004,6 @@ do
+   | -silent | --silent | --silen | --sile | --sil)
+     silent=yes ;;
+ 
+-  -runstatedir | --runstatedir | --runstatedi | --runstated \
+-  | --runstate | --runstat | --runsta | --runst | --runs \
+-  | --run | --ru | --r)
+-    ac_prev=runstatedir ;;
+-  -runstatedir=* | --runstatedir=* | --runstatedi=* | --runstated=* \
+-  | --runstate=* | --runstat=* | --runsta=* | --runst=* | --runs=* \
+-  | --run=* | --ru=* | --r=*)
+-    runstatedir=$ac_optarg ;;
+-
+   -sbindir | --sbindir | --sbindi | --sbind | --sbin | --sbi | --sb)
+     ac_prev=sbindir ;;
+   -sbindir=* | --sbindir=* | --sbindi=* | --sbind=* | --sbin=* \
+@@ -1152,7 +1141,7 @@ fi
+ for ac_var in	exec_prefix prefix bindir sbindir libexecdir datarootdir \
+ 		datadir sysconfdir sharedstatedir localstatedir includedir \
+ 		oldincludedir docdir infodir htmldir dvidir pdfdir psdir \
+-		libdir localedir mandir runstatedir
++		libdir localedir mandir
+ do
+   eval ac_val=\$$ac_var
+   # Remove trailing slashes.
+@@ -1305,7 +1294,6 @@ Fine tuning of the installation directories:
+   --sysconfdir=DIR        read-only single-machine data [PREFIX/etc]
+   --sharedstatedir=DIR    modifiable architecture-independent data [PREFIX/com]
+   --localstatedir=DIR     modifiable single-machine data [PREFIX/var]
+-  --runstatedir=DIR       modifiable per-process data [LOCALSTATEDIR/run]
+   --libdir=DIR            object code libraries [EPREFIX/lib]
+   --includedir=DIR        C header files [PREFIX/include]
+   --oldincludedir=DIR     C header files for non-gcc [/usr/include]
+diff --git a/lib/crypto/c_src/Makefile.in b/lib/crypto/c_src/Makefile.in
+index 4478ed7d9c..06fc614b72 100644
+--- a/lib/crypto/c_src/Makefile.in
++++ b/lib/crypto/c_src/Makefile.in
+@@ -119,10 +119,18 @@ CRYPTO_STATIC_OBJS = $(patsubst $(OBJDIR)/%$(TYPEMARKER).o,$(OBJDIR)/%_static$(T
+ 
+ NIF_ARCHIVE = $(LIBDIR)/crypto$(TYPEMARKER).a
+ 
++NIF_LIB =
++CALLBACK_LIB =
++ifneq ($(findstring rtems, $(TARGET)), rtems)
+ NIF_LIB = $(LIBDIR)/crypto$(TYPEMARKER).@DED_EXT@
+ CALLBACK_LIB = $(LIBDIR)/crypto_callback$(TYPEMARKER).@DED_EXT@
++endif
+ 
++ifneq ($(findstring rtems, $(TARGET)), rtems)
+ DISABLE_OTP_TEST_ENGINE = @DISABLE_OTP_TEST_ENGINE@
++else
++DISABLE_OTP_TEST_ENGINE = yes
++endif
+ ifeq ($(DISABLE_OTP_TEST_ENGINE),yes)
+ TEST_ENGINE_LIB =
+ TEST_ENGINE_OBJS =
+@@ -260,7 +268,9 @@ include $(ERL_TOP)/make/otp_release_targets.mk
+ 
+ release_spec: opt
+ 	$(INSTALL_DIR) "$(RELSYSDIR)/priv/lib"
++ifneq ($(findstring rtems, $(TARGET)), rtems)
+ 	$(INSTALL_PROGRAM) $(NIF_LIB) "$(RELSYSDIR)/priv/lib"
++endif
+ ifeq ($(DYNAMIC_OR_WIN_CRYPTO_LIB),yes)
+ 	$(INSTALL_PROGRAM) $(CALLBACK_LIB) "$(RELSYSDIR)/priv/lib"
+ endif
+diff --git a/lib/crypto/configure b/lib/crypto/configure
+index 5033d0a33b..3407f594bb 100755
+--- a/lib/crypto/configure
++++ b/lib/crypto/configure
+@@ -717,7 +717,6 @@ infodir
+ docdir
+ oldincludedir
+ includedir
+-runstatedir
+ localstatedir
+ sharedstatedir
+ sysconfdir
+@@ -742,6 +741,7 @@ ac_user_opts='
+ enable_option_checking
+ with_ssl
+ with_ssl_lib_subdir
++with_ssl_lib
+ with_ssl_incl
+ with_ssl_zlib
+ with_ssl_rpath
+@@ -830,7 +830,6 @@ datadir='${datarootdir}'
+ sysconfdir='${prefix}/etc'
+ sharedstatedir='${prefix}/com'
+ localstatedir='${prefix}/var'
+-runstatedir='${localstatedir}/run'
+ includedir='${prefix}/include'
+ oldincludedir='/usr/include'
+ docdir='${datarootdir}/doc/${PACKAGE}'
+@@ -1083,15 +1082,6 @@ do
+   | -silent | --silent | --silen | --sile | --sil)
+     silent=yes ;;
+ 
+-  -runstatedir | --runstatedir | --runstatedi | --runstated \
+-  | --runstate | --runstat | --runsta | --runst | --runs \
+-  | --run | --ru | --r)
+-    ac_prev=runstatedir ;;
+-  -runstatedir=* | --runstatedir=* | --runstatedi=* | --runstated=* \
+-  | --runstate=* | --runstat=* | --runsta=* | --runst=* | --runs=* \
+-  | --run=* | --ru=* | --r=*)
+-    runstatedir=$ac_optarg ;;
+-
+   -sbindir | --sbindir | --sbindi | --sbind | --sbin | --sbi | --sb)
+     ac_prev=sbindir ;;
+   -sbindir=* | --sbindir=* | --sbindi=* | --sbind=* | --sbin=* \
+@@ -1229,7 +1219,7 @@ fi
+ for ac_var in	exec_prefix prefix bindir sbindir libexecdir datarootdir \
+ 		datadir sysconfdir sharedstatedir localstatedir includedir \
+ 		oldincludedir docdir infodir htmldir dvidir pdfdir psdir \
+-		libdir localedir mandir runstatedir
++		libdir localedir mandir
+ do
+   eval ac_val=\$$ac_var
+   # Remove trailing slashes.
+@@ -1382,7 +1372,6 @@ Fine tuning of the installation directories:
+   --sysconfdir=DIR        read-only single-machine data [PREFIX/etc]
+   --sharedstatedir=DIR    modifiable architecture-independent data [PREFIX/com]
+   --localstatedir=DIR     modifiable single-machine data [PREFIX/var]
+-  --runstatedir=DIR       modifiable per-process data [LOCALSTATEDIR/run]
+   --libdir=DIR            object code libraries [EPREFIX/lib]
+   --includedir=DIR        C header files [PREFIX/include]
+   --oldincludedir=DIR     C header files for non-gcc [/usr/include]
+@@ -1442,6 +1431,8 @@ Optional Packages:
+   --with-ssl-lib-subdir=RELATIVE_PATH
+                           specify extra OpenSSL lib sub-directory to search in
+                           (relative to base directory)
++  --with-ssl-lib=PATH     location of the library containing OpenSSL, if not
++                          standard
+   --with-ssl-incl=PATH    base location of OpenSSL include dir (if different
+                           than base location specified by --with-ssl=PATH)
+   --with-ssl-zlib=PATH    Path to static zlib library to link the crypto NIF
+@@ -5051,6 +5042,13 @@ fi
+  #default
+ 
+ 
++# Check whether --with-ssl-lib was given.
++if test "${with_ssl_lib+set}" = set; then :
++  withval=$with_ssl_lib;
++fi
++
++
++
+ # Check whether --with-ssl-incl was given.
+ if test "${with_ssl_incl+set}" = set; then :
+   withval=$with_ssl_incl;
+@@ -5226,8 +5224,8 @@ case $enable_dynamic_ssl in
+ 	SSL_DYNAMIC_ONLY=no;;
+ esac
+ 
+-case "$erl_xcomp_without_sysroot-$with_ssl" in
+-  yes-* | no-no)
++case "$erl_xcomp_without_sysroot-$with_ssl-$with_ssl_lib" in
++  yes-* | no-no-*)
+     SSL_APP=
+     CRYPTO_APP=
+     SSH_APP=
+@@ -5238,7 +5236,7 @@ case "$erl_xcomp_without_sysroot-$with_ssl" in
+         echo "$skip" > $ERL_TOP/lib/$a/SKIP
+     done
+     ;;
+-  no-yes | no- )
++  no-yes- | no-- )
+     # We search for OpenSSL in the common OS standard locations.
+     SSL_APP=ssl
+     CRYPTO_APP=crypto
+@@ -5344,7 +5342,11 @@ rm -f conftest*
+ 
+     CPPFLAGS="$save_CPPFLAGS"
+ 
+-    if test $valid_include != yes; then
++    if test -f "$with_ssl_lib"; then
++        found_dynlib=no
++        found_static_lib=yes
++        static_ext=.a
++    elif test $valid_include != yes; then
+        static_crypto_lib_name=
+        static_ssl_lib_name=
+        static_extra_libs=
+@@ -5671,7 +5673,7 @@ $as_echo "$as_me: WARNING: No (usable) OpenSSL found, skipping ssl, ssh and cryp
+        done
+     fi
+     ;;
+-  *)
++  *-*-)
+     # Option given with PATH to package
+     if test ! -d "$with_ssl" ; then
+        as_fn_error $? "Invalid path to option --with-ssl=PATH" "$LINENO" 5
+@@ -5771,7 +5773,11 @@ rm -f conftest*
+ 
+     CPPFLAGS="$save_CPPFLAGS"
+ 
+-    if test $valid_include != yes; then
++    if test -f "$with_ssl_lib"; then
++        found_dynlib=no
++        found_static_lib=yes
++        static_ext=.a
++    elif test $valid_include != yes; then
+        static_crypto_lib_name=
+        static_ssl_lib_name=
+        static_extra_libs=
+@@ -6063,6 +6069,721 @@ $as_echo "static $SSL_CRYPTO_LIBNAME library in $SSL_LIBDIR" >&6; }
+     else
+ 	SSL_RUNTIME_LIBDIR="$SSL_LIBDIR"
+     fi
++    ;;
++  *-*-*)
++    # Non-standard library specified by PATH
++    if test ! -f "$with_ssl_lib" ; then
++       as_fn_error $? "Invalid path to option --with-ssl-lib=PATH" "$LINENO" 5
++    fi
++
++    SSL_APP=ssl
++    CRYPTO_APP=crypto
++    SSH_APP=ssh
++
++    if test -d "$with_ssl_incl" ; then
++        if test ! -f "$with_ssl_incl/include/openssl/opensslv.h"; then
++            as_fn_error $? "\"$with_ssl_incl/include/openssl/opensslv.h not found\"" "$LINENO" 5
++        fi
++        SSL_INCDIR="$with_ssl_incl"
++        SSL_INCLUDE="-I$SSL_INCDIR/include"
++
++    # Check for static and dynamic crypto library in the directory
++    # given as argument...
++    #
++    # Written as a macro in order to avoid writing the tests twice...
++    idir="$with_ssl_incl"
++    prfx=""
++    rdir="$with_ssl"
++    dir="$prfx$rdir"
++    static_crypto_lib_name=crypto
++    static_ssl_lib_name=ssl
++    static_extra_libs="$forced_static_zlib"
++    static_lib_dir=
++    dynamic_crypto_lib_name=crypto
++    dynamic_ssl_lib_name=ssl
++    dynamic_extra_libs="$forced_static_zlib"
++    dynamic_lib_dir=
++    dynamic_runtime_lib_dir=
++    found_static_lib=no
++    found_dynamic_lib=no
++
++    save_CPPFLAGS=$CPPFLAGS
++    CPPFLAGS="-I$idir/include"
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++#include <openssl/opensslv.h>
++#if OPENSSL_VERSION_NUMBER >= 0x0090803fL
++yes
++#endif
++
++_ACEOF
++if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
++  $EGREP "^yes.?$" >/dev/null 2>&1; then :
++  valid_include=yes
++else
++  valid_include=no
++fi
++rm -f conftest*
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++#include <openssl/opensslv.h>
++#if OPENSSL_VERSION_MAJOR == 3
++yes
++#endif
++
++_ACEOF
++if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
++  $EGREP "^yes.?$" >/dev/null 2>&1; then :
++  v3_include=yes
++else
++  v3_include=no
++fi
++rm -f conftest*
++
++
++if test "x$DISABLE_OTP_TEST_ENGINE" = "xdefault"; then
++# Get default value for the --disable-otp-test-engine. Depends on cryptolib version
++          cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++#include <openssl/opensslv.h>
++#if LIBRESSL_VERSION_NUMBER >= 0x3050000fL
++yes
++#endif
++
++_ACEOF
++if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
++  $EGREP "^yes.?$" >/dev/null 2>&1; then :
++  DISABLE_OTP_TEST_ENGINE=yes
++else
++  DISABLE_OTP_TEST_ENGINE=no
++fi
++rm -f conftest*
++
++    fi
++
++    CPPFLAGS="$save_CPPFLAGS"
++
++    if test -f "$with_ssl_lib"; then
++        found_dynlib=no
++        found_static_lib=yes
++        static_ext=.a
++    elif test $valid_include != yes; then
++       static_crypto_lib_name=
++       static_ssl_lib_name=
++       static_extra_libs=
++       static_lib_dir=
++       dynamic_crypto_lib_name=
++       dynamic_ssl_lib_name=
++       dynamic_extra_libs=
++       dynamic_lib_dir=
++       dynamic_runtime_lib_dir=
++    elif test "$host_os" = "win32" ; then
++	if test -f "$dir/lib/VC/static/libcrypto${lib_bits}MD.lib"; then
++       	    static_crypto_lib_name=libcrypto${lib_bits}MD
++	    static_ssl_lib_name="libssl${lib_bits}MD"
++	    static_extra_libs="$static_extra_libs -lCRYPT32 -lWS2_32"
++	    static_lib_dir="$dir/lib/VC/static"
++	    found_static_lib=yes
++	fi
++	if test -f "$dir/lib/VC/libcrypto${lib_bits}MD.lib"; then
++       	    dynamic_crypto_lib_name=libcrypto${lib_bits}MD
++	    dynamic_ssl_lib_name="libssl${lib_bits}MD"
++    	    dynamic_runtime_lib_dir="$rdir/lib/VC"
++    	    dynamic_lib_dir="$dir/lib/VC"
++	    found_dynamic_lib=yes
++	fi
++    else # Non windows...
++
++	case "$host_os" in
++       	    darwin*)
++		static_ext=.a
++		dynamic_ext=.dylib;;
++	    *)
++		static_ext=.a
++		dynamic_ext=.so;;
++	esac
++	for sdir in $search_subdirs; do
++	    if test -f "$dir/$sdir/lib$dynamic_crypto_lib_name$dynamic_ext"; then
++	       found_dynlib=yes
++	    else
++	       found_dynlib=no
++	       case $host_os in
++	       	   openbsd*)
++		       # libcrypto.so got a suffix on (at least some) openbsd.
++		       # If we find libcrypto.so with suffix, we try to link
++		       # to it using -lcrypto ...
++		       for f in "$dir/$sdir/lib$dynamic_crypto_lib_name$dynamic_ext"*; do
++		       	   test -f "$f" && found_dynlib=yes
++			   break
++		       done;;
++		   *)
++		       ;;
++	       esac
++	    fi
++	    if test $found_dynlib = yes; then
++	       # Found dynamic library; check if it links...
++	       dynamic_lib_dir="$dir/$sdir"
++	       dynamic_runtime_lib_dir="$rdir/$sdir"
++
++    test_cflags="-I$idir/include"
++    test_ldflags="-L$dynamic_lib_dir"
++    test_libs="-l$dynamic_crypto_lib_name $dynamic_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main ()
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"; then :
++
++	    found_dynamic_lib=yes
++
++else
++
++	    found_dynamic_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++	       if test $found_dynamic_lib = no -a $static_zlib != no; then
++	          # No, but linking with zlib as well might help...
++	          dynamic_extra_libs="$dynamic_extra_libs $static_zlib"
++
++    test_cflags="-I$idir/include"
++    test_ldflags="-L$dynamic_lib_dir"
++    test_libs="-l$dynamic_crypto_lib_name $dynamic_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main ()
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"; then :
++
++	    found_dynamic_lib=yes
++
++else
++
++	    found_dynamic_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++	       fi
++	    fi
++	    if test -f "$dir/$sdir/lib$static_crypto_lib_name$static_ext"; then
++	       # Found static library; check if it links...
++	       static_lib_dir="$dir/$sdir"
++
++    test_cflags="-I$idir/include"
++    test_ldflags=
++    test_libs="$dir/$sdir/lib$static_crypto_lib_name$static_ext $static_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main ()
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"; then :
++
++	    found_static_lib=yes
++
++else
++
++	    found_static_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++	       if test $found_static_lib = no -a $static_zlib != no; then
++	          # No, but inking with zlib as well might help...
++	       	  static_extra_libs="$static_extra_libs $static_zlib"
++
++    test_cflags="-I$idir/include"
++    test_ldflags=
++    test_libs="$dir/$sdir/lib$static_crypto_lib_name$static_ext $static_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main ()
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"; then :
++
++	    found_static_lib=yes
++
++else
++
++	    found_static_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++	       fi
++	    fi
++	    if test $found_static_lib = yes -o $found_dynamic_lib = yes; then
++		break
++	    fi
++	done
++    fi
++
++
++    else
++        if test ! -f "$erl_xcomp_isysroot$rdir/include/openssl/opensslv.h"; then
++            as_fn_error $? "\"$erl_xcomp_isysroot$rdir/include/openssl/opensslv.h not found\"" "$LINENO" 5
++        fi
++        SSL_INCDIR="$erl_xcomp_isysroot$rdir"
++        SSL_INCLUDE="-I$SSL_INCDIR/include"
++
++    # Check for static and dynamic crypto library in the directory
++    # given as argument...
++    #
++    # Written as a macro in order to avoid writing the tests twice...
++    idir="$SSL_INCDIR"
++    prfx="$erl_xcomp_sysroot"
++    rdir="$rdir"
++    dir="$prfx$rdir"
++    static_crypto_lib_name=crypto
++    static_ssl_lib_name=ssl
++    static_extra_libs="$forced_static_zlib"
++    static_lib_dir=
++    dynamic_crypto_lib_name=crypto
++    dynamic_ssl_lib_name=ssl
++    dynamic_extra_libs="$forced_static_zlib"
++    dynamic_lib_dir=
++    dynamic_runtime_lib_dir=
++    found_static_lib=no
++    found_dynamic_lib=no
++
++    save_CPPFLAGS=$CPPFLAGS
++    CPPFLAGS="-I$idir/include"
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++#include <openssl/opensslv.h>
++#if OPENSSL_VERSION_NUMBER >= 0x0090803fL
++yes
++#endif
++
++_ACEOF
++if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
++  $EGREP "^yes.?$" >/dev/null 2>&1; then :
++  valid_include=yes
++else
++  valid_include=no
++fi
++rm -f conftest*
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++#include <openssl/opensslv.h>
++#if OPENSSL_VERSION_MAJOR == 3
++yes
++#endif
++
++_ACEOF
++if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
++  $EGREP "^yes.?$" >/dev/null 2>&1; then :
++  v3_include=yes
++else
++  v3_include=no
++fi
++rm -f conftest*
++
++
++if test "x$DISABLE_OTP_TEST_ENGINE" = "xdefault"; then
++# Get default value for the --disable-otp-test-engine. Depends on cryptolib version
++          cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++#include <openssl/opensslv.h>
++#if LIBRESSL_VERSION_NUMBER >= 0x3050000fL
++yes
++#endif
++
++_ACEOF
++if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
++  $EGREP "^yes.?$" >/dev/null 2>&1; then :
++  DISABLE_OTP_TEST_ENGINE=yes
++else
++  DISABLE_OTP_TEST_ENGINE=no
++fi
++rm -f conftest*
++
++    fi
++
++    CPPFLAGS="$save_CPPFLAGS"
++
++    if test -f "$with_ssl_lib"; then
++        found_dynlib=no
++        found_static_lib=yes
++        static_ext=.a
++    elif test $valid_include != yes; then
++       static_crypto_lib_name=
++       static_ssl_lib_name=
++       static_extra_libs=
++       static_lib_dir=
++       dynamic_crypto_lib_name=
++       dynamic_ssl_lib_name=
++       dynamic_extra_libs=
++       dynamic_lib_dir=
++       dynamic_runtime_lib_dir=
++    elif test "$host_os" = "win32" ; then
++	if test -f "$dir/lib/VC/static/libcrypto${lib_bits}MD.lib"; then
++       	    static_crypto_lib_name=libcrypto${lib_bits}MD
++	    static_ssl_lib_name="libssl${lib_bits}MD"
++	    static_extra_libs="$static_extra_libs -lCRYPT32 -lWS2_32"
++	    static_lib_dir="$dir/lib/VC/static"
++	    found_static_lib=yes
++	fi
++	if test -f "$dir/lib/VC/libcrypto${lib_bits}MD.lib"; then
++       	    dynamic_crypto_lib_name=libcrypto${lib_bits}MD
++	    dynamic_ssl_lib_name="libssl${lib_bits}MD"
++    	    dynamic_runtime_lib_dir="$rdir/lib/VC"
++    	    dynamic_lib_dir="$dir/lib/VC"
++	    found_dynamic_lib=yes
++	fi
++    else # Non windows...
++
++	case "$host_os" in
++       	    darwin*)
++		static_ext=.a
++		dynamic_ext=.dylib;;
++	    *)
++		static_ext=.a
++		dynamic_ext=.so;;
++	esac
++	for sdir in $search_subdirs; do
++	    if test -f "$dir/$sdir/lib$dynamic_crypto_lib_name$dynamic_ext"; then
++	       found_dynlib=yes
++	    else
++	       found_dynlib=no
++	       case $host_os in
++	       	   openbsd*)
++		       # libcrypto.so got a suffix on (at least some) openbsd.
++		       # If we find libcrypto.so with suffix, we try to link
++		       # to it using -lcrypto ...
++		       for f in "$dir/$sdir/lib$dynamic_crypto_lib_name$dynamic_ext"*; do
++		       	   test -f "$f" && found_dynlib=yes
++			   break
++		       done;;
++		   *)
++		       ;;
++	       esac
++	    fi
++	    if test $found_dynlib = yes; then
++	       # Found dynamic library; check if it links...
++	       dynamic_lib_dir="$dir/$sdir"
++	       dynamic_runtime_lib_dir="$rdir/$sdir"
++
++    test_cflags="-I$idir/include"
++    test_ldflags="-L$dynamic_lib_dir"
++    test_libs="-l$dynamic_crypto_lib_name $dynamic_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main ()
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"; then :
++
++	    found_dynamic_lib=yes
++
++else
++
++	    found_dynamic_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++	       if test $found_dynamic_lib = no -a $static_zlib != no; then
++	          # No, but linking with zlib as well might help...
++	          dynamic_extra_libs="$dynamic_extra_libs $static_zlib"
++
++    test_cflags="-I$idir/include"
++    test_ldflags="-L$dynamic_lib_dir"
++    test_libs="-l$dynamic_crypto_lib_name $dynamic_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main ()
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"; then :
++
++	    found_dynamic_lib=yes
++
++else
++
++	    found_dynamic_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++	       fi
++	    fi
++	    if test -f "$dir/$sdir/lib$static_crypto_lib_name$static_ext"; then
++	       # Found static library; check if it links...
++	       static_lib_dir="$dir/$sdir"
++
++    test_cflags="-I$idir/include"
++    test_ldflags=
++    test_libs="$dir/$sdir/lib$static_crypto_lib_name$static_ext $static_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main ()
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"; then :
++
++	    found_static_lib=yes
++
++else
++
++	    found_static_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++	       if test $found_static_lib = no -a $static_zlib != no; then
++	          # No, but inking with zlib as well might help...
++	       	  static_extra_libs="$static_extra_libs $static_zlib"
++
++    test_cflags="-I$idir/include"
++    test_ldflags=
++    test_libs="$dir/$sdir/lib$static_crypto_lib_name$static_ext $static_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main ()
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"; then :
++
++	    found_static_lib=yes
++
++else
++
++	    found_static_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++	       fi
++	    fi
++	    if test $found_static_lib = yes -o $found_dynamic_lib = yes; then
++		break
++	    fi
++	done
++    fi
++
++    fi
++
++    libname_with_ext=${with_ssl_lib##*lib}
++    libname_without_ext=${libname_with_ext%%.*}
++
++    SSL_CRYPTO_LIBNAME=$static_crypto_lib_name
++    SSL_SSL_LIBNAME=$libname_without_ext
++    SSL_LIBDIR=$(dirname $with_ssl_lib)
++    SSL_EXTRA_LIBS="$static_extra_libs"
++    SSL_RUNTIME_LIBDIR=
++    SSL_DYNAMIC_ONLY=no
++
++    if test ! -f "${SSL_LIBDIR}/lib${SSL_SSL_LIBNAME}.a"; then
++      as_fn_error $? "--with-ssl-lib not supported with dynamic linking" "$LINENO" 5
++    fi
++
++        ;;
+ esac
+ 
+ SSL_DED_LD_RUNTIME_LIBRARY_PATH=
+diff --git a/lib/crypto/configure.in b/lib/crypto/configure.in
+index 377acccd80..ad1cb844a2 100644
+--- a/lib/crypto/configure.in
++++ b/lib/crypto/configure.in
+@@ -73,6 +73,8 @@ fi
+ dnl
+ dnl SSL, SSH and CRYPTO need the OpenSSL libraries
+ dnl
++dnl TODO: Update comments
++dnl
+ dnl Check flags --with-ssl, --without-ssl --with-ssl=PATH.
+ dnl If no option is given or --with-ssl is set without a path then we
+ dnl search for OpenSSL libraries and header files in the standard locations. 
+@@ -103,6 +105,10 @@ esac
+ ],
+ [with_ssl_lib_subdir=]) #default
+ 
++dnl TODO: Add checks regarding conflicts between --with-ssl and --with-ssl-lib
++AC_ARG_WITH(ssl-lib,
++AS_HELP_STRING([--with-ssl-lib=PATH], [location of the library containing OpenSSL, if not standard]))
++
+ AC_ARG_WITH(ssl-incl,
+ AS_HELP_STRING([--with-ssl-incl=PATH],
+ 	       [base location of OpenSSL include dir (if different than base location specified by --with-ssl=PATH)]),
+@@ -265,7 +271,11 @@ yes
+ 
+     CPPFLAGS="$save_CPPFLAGS"
+ 
+-    if test $valid_include != yes; then
++    if test -f "$with_ssl_lib"; then
++        found_dynlib=no
++        found_static_lib=yes
++        static_ext=.a
++    elif test $valid_include != yes; then
+        static_crypto_lib_name=
+        static_ssl_lib_name=
+        static_extra_libs=
+@@ -441,8 +451,8 @@ case $enable_dynamic_ssl in
+ 	SSL_DYNAMIC_ONLY=no;;
+ esac
+ 
+-case "$erl_xcomp_without_sysroot-$with_ssl" in
+-  yes-* | no-no)
++case "$erl_xcomp_without_sysroot-$with_ssl-$with_ssl_lib" in
++  yes-* | no-no-*)
+     SSL_APP=
+     CRYPTO_APP=
+     SSH_APP=
+@@ -453,7 +463,7 @@ case "$erl_xcomp_without_sysroot-$with_ssl" in
+         echo "$skip" > $ERL_TOP/lib/$a/SKIP
+     done
+     ;;
+-  no-yes | no- )
++  no-yes- | no-- )
+     # We search for OpenSSL in the common OS standard locations.
+     SSL_APP=ssl
+     CRYPTO_APP=crypto
+@@ -549,7 +559,7 @@ case "$erl_xcomp_without_sysroot-$with_ssl" in
+        done
+     fi
+     ;;
+-  *)
++  *-*-)
+     # Option given with PATH to package
+     if test ! -d "$with_ssl" ; then
+        AC_MSG_ERROR(Invalid path to option --with-ssl=PATH)
+@@ -604,6 +614,50 @@ case "$erl_xcomp_without_sysroot-$with_ssl" in
+     else
+ 	SSL_RUNTIME_LIBDIR="$SSL_LIBDIR"
+     fi
++    ;;
++  *-*-*)
++    # Non-standard library specified by PATH
++    if test ! -f "$with_ssl_lib" ; then
++       AC_MSG_ERROR(Invalid path to option --with-ssl-lib=PATH)
++    fi
++
++    SSL_APP=ssl
++    CRYPTO_APP=crypto
++    SSH_APP=ssh
++
++    if test -d "$with_ssl_incl" ; then
++        if test ! -f "$with_ssl_incl/include/openssl/opensslv.h"; then
++            AC_MSG_ERROR("$with_ssl_incl/include/openssl/opensslv.h not found")
++        fi
++        SSL_INCDIR="$with_ssl_incl"
++        SSL_INCLUDE="-I$SSL_INCDIR/include"
++        ERL_CRYPTO_CHECK_LIB(["$with_ssl_incl"], [""], ["$with_ssl"])
++
++    else
++        if test ! -f "$erl_xcomp_isysroot$rdir/include/openssl/opensslv.h"; then
++            AC_MSG_ERROR("$erl_xcomp_isysroot$rdir/include/openssl/opensslv.h not found")
++        fi
++        SSL_INCDIR="$erl_xcomp_isysroot$rdir"
++        SSL_INCLUDE="-I$SSL_INCDIR/include"
++        ERL_CRYPTO_CHECK_LIB(["$SSL_INCDIR"], ["$erl_xcomp_sysroot"], ["$rdir"])
++    fi
++
++    libname_with_ext=${with_ssl_lib##*lib}
++    libname_without_ext=${libname_with_ext%%.*}
++
++    SSL_CRYPTO_LIBNAME=$static_crypto_lib_name
++    SSL_SSL_LIBNAME=$libname_without_ext
++    SSL_LIBDIR=$(dirname $with_ssl_lib)
++    SSL_EXTRA_LIBS="$static_extra_libs"
++    SSL_RUNTIME_LIBDIR=
++    SSL_DYNAMIC_ONLY=no
++
++    if test ! -f "${SSL_LIBDIR}/lib${SSL_SSL_LIBNAME}.a"; then
++      AC_MSG_ERROR(--with-ssl-lib not supported with dynamic linking)
++    fi
++
++    dnl TODO: Add a check for the lib actually having OpenSSL symbols ?
++    ;;
+ esac
+ 
+ SSL_DED_LD_RUNTIME_LIBRARY_PATH=
+diff --git a/lib/erl_interface/configure b/lib/erl_interface/configure
+index 50c4b6396e..f15565ff3b 100755
+--- a/lib/erl_interface/configure
++++ b/lib/erl_interface/configure
+@@ -691,7 +691,6 @@ infodir
+ docdir
+ oldincludedir
+ includedir
+-runstatedir
+ localstatedir
+ sharedstatedir
+ sysconfdir
+@@ -767,7 +766,6 @@ datadir='${datarootdir}'
+ sysconfdir='${prefix}/etc'
+ sharedstatedir='${prefix}/com'
+ localstatedir='${prefix}/var'
+-runstatedir='${localstatedir}/run'
+ includedir='${prefix}/include'
+ oldincludedir='/usr/include'
+ docdir='${datarootdir}/doc/${PACKAGE}'
+@@ -1020,15 +1018,6 @@ do
+   | -silent | --silent | --silen | --sile | --sil)
+     silent=yes ;;
+ 
+-  -runstatedir | --runstatedir | --runstatedi | --runstated \
+-  | --runstate | --runstat | --runsta | --runst | --runs \
+-  | --run | --ru | --r)
+-    ac_prev=runstatedir ;;
+-  -runstatedir=* | --runstatedir=* | --runstatedi=* | --runstated=* \
+-  | --runstate=* | --runstat=* | --runsta=* | --runst=* | --runs=* \
+-  | --run=* | --ru=* | --r=*)
+-    runstatedir=$ac_optarg ;;
+-
+   -sbindir | --sbindir | --sbindi | --sbind | --sbin | --sbi | --sb)
+     ac_prev=sbindir ;;
+   -sbindir=* | --sbindir=* | --sbindi=* | --sbind=* | --sbin=* \
+@@ -1166,7 +1155,7 @@ fi
+ for ac_var in	exec_prefix prefix bindir sbindir libexecdir datarootdir \
+ 		datadir sysconfdir sharedstatedir localstatedir includedir \
+ 		oldincludedir docdir infodir htmldir dvidir pdfdir psdir \
+-		libdir localedir mandir runstatedir
++		libdir localedir mandir
+ do
+   eval ac_val=\$$ac_var
+   # Remove trailing slashes.
+@@ -1319,7 +1308,6 @@ Fine tuning of the installation directories:
+   --sysconfdir=DIR        read-only single-machine data [PREFIX/etc]
+   --sharedstatedir=DIR    modifiable architecture-independent data [PREFIX/com]
+   --localstatedir=DIR     modifiable single-machine data [PREFIX/var]
+-  --runstatedir=DIR       modifiable per-process data [LOCALSTATEDIR/run]
+   --libdir=DIR            object code libraries [EPREFIX/lib]
+   --includedir=DIR        C header files [PREFIX/include]
+   --oldincludedir=DIR     C header files for non-gcc [/usr/include]
+diff --git a/lib/erl_interface/src/connect/ei_connect.c b/lib/erl_interface/src/connect/ei_connect.c
+index c310c93012..6d553427bf 100644
+--- a/lib/erl_interface/src/connect/ei_connect.c
++++ b/lib/erl_interface/src/connect/ei_connect.c
+@@ -2045,7 +2045,7 @@ static unsigned int gen_challenge(void)
+     uname(&s.name);
+     s.cpu  = clock();
+     s.pid  = getpid();
+-#if defined(__ANDROID__) || defined(__HAIKU__)
++#if defined(__ANDROID__) || defined(__HAIKU__) || defined(__rtems__)
+     s.hid  = 0;
+ #else
+     s.hid  = gethostid();
+diff --git a/lib/erl_interface/src/connect/ei_resolve.c b/lib/erl_interface/src/connect/ei_resolve.c
+index c3ac6023f2..bc37a7a227 100644
+--- a/lib/erl_interface/src/connect/ei_resolve.c
++++ b/lib/erl_interface/src/connect/ei_resolve.c
+@@ -398,7 +398,7 @@ struct hostent *ei_gethostbyaddr_r(const char *addr,
+   return gethostbyaddr(addr, length, type);
+ #elif !defined(HAVE_GETHOSTBYNAME_R)
+   return my_gethostbyaddr_r(addr,length,type,hostp,buffer,buflen,h_errnop);
+-#elif (defined(__GLIBC__) || defined(__linux__) || (defined(__FreeBSD_version) && (__FreeBSD_version >= 602000)) || defined(__DragonFly__))
++#elif (defined(__GLIBC__) || defined(__linux__) || (defined(__FreeBSD_version) && (__FreeBSD_version >= 602000)) || defined(__DragonFly__)) || defined(__rtems__)
+   struct hostent *result;
+ 
+   gethostbyaddr_r(addr, length, type, hostp, buffer, buflen, &result,
+@@ -421,7 +421,7 @@ struct hostent *ei_gethostbyname_r(const char *name,
+   return gethostbyname(name);
+ #elif !defined(HAVE_GETHOSTBYNAME_R)
+   return my_gethostbyname_r(name,hostp,buffer,buflen,h_errnop);
+-#elif (defined(__GLIBC__) || defined(__linux__) || (defined(__FreeBSD_version) && (__FreeBSD_version >= 602000)) || defined(__DragonFly__) || defined(__ANDROID__))
++#elif (defined(__GLIBC__) || defined(__linux__) || (defined(__FreeBSD_version) && (__FreeBSD_version >= 602000)) || defined(__DragonFly__) || defined(__ANDROID__)) || defined(__rtems__)
+   struct hostent *result;
+   int err;
+ 
+diff --git a/lib/kernel/src/erl_distribution.erl b/lib/kernel/src/erl_distribution.erl
+index 9e12ef8ad4..2f3b114bac 100644
+--- a/lib/kernel/src/erl_distribution.erl
++++ b/lib/kernel/src/erl_distribution.erl
+@@ -71,7 +71,7 @@ start_link(Opts) ->
+     supervisor:start_link({local,net_sup}, ?MODULE, [Opts]).
+ 
+ init(NetArgs) ->
+-    Epmd = 
++    Epmd =
+ 	case init:get_argument(no_epmd) of
+ 	    {ok, [[]]} ->
+ 		[];
+@@ -84,6 +84,13 @@ init(NetArgs) ->
+                    type => worker,
+                    modules => [EpmdMod]}]
+ 	end,
++    EpmdSrv = case init:get_argument(internal_epmd) of
++        {ok, [[EpmdSrvMod]]} ->
++            Esm = list_to_atom(EpmdSrvMod),
++            Esm:get_childspecs();
++        _ ->
++            []
++    end,
+     Auth = #{id => auth,
+              start => {auth,start_link,[]},
+              restart => permanent,
+@@ -100,7 +107,7 @@ init(NetArgs) ->
+     SupFlags = #{strategy => one_for_all,
+                  intensity => 0,
+                  period => 1},
+-    {ok, {SupFlags, EarlySpecs ++ Epmd ++ [Auth,Kernel]}}.
++    {ok, {SupFlags, EarlySpecs ++ EpmdSrv ++ Epmd ++ [Auth,Kernel]}}.
+ 
+ do_start_link([{Arg,Flag}|T]) ->
+     case init:get_argument(Arg) of
+diff --git a/lib/megaco/configure b/lib/megaco/configure
+index fac90552ce..75c6a66656 100755
+--- a/lib/megaco/configure
++++ b/lib/megaco/configure
+@@ -686,7 +686,6 @@ infodir
+ docdir
+ oldincludedir
+ includedir
+-runstatedir
+ localstatedir
+ sharedstatedir
+ sysconfdir
+@@ -760,7 +759,6 @@ datadir='${datarootdir}'
+ sysconfdir='${prefix}/etc'
+ sharedstatedir='${prefix}/com'
+ localstatedir='${prefix}/var'
+-runstatedir='${localstatedir}/run'
+ includedir='${prefix}/include'
+ oldincludedir='/usr/include'
+ docdir='${datarootdir}/doc/${PACKAGE}'
+@@ -1013,15 +1011,6 @@ do
+   | -silent | --silent | --silen | --sile | --sil)
+     silent=yes ;;
+ 
+-  -runstatedir | --runstatedir | --runstatedi | --runstated \
+-  | --runstate | --runstat | --runsta | --runst | --runs \
+-  | --run | --ru | --r)
+-    ac_prev=runstatedir ;;
+-  -runstatedir=* | --runstatedir=* | --runstatedi=* | --runstated=* \
+-  | --runstate=* | --runstat=* | --runsta=* | --runst=* | --runs=* \
+-  | --run=* | --ru=* | --r=*)
+-    runstatedir=$ac_optarg ;;
+-
+   -sbindir | --sbindir | --sbindi | --sbind | --sbin | --sbi | --sb)
+     ac_prev=sbindir ;;
+   -sbindir=* | --sbindir=* | --sbindi=* | --sbind=* | --sbin=* \
+@@ -1159,7 +1148,7 @@ fi
+ for ac_var in	exec_prefix prefix bindir sbindir libexecdir datarootdir \
+ 		datadir sysconfdir sharedstatedir localstatedir includedir \
+ 		oldincludedir docdir infodir htmldir dvidir pdfdir psdir \
+-		libdir localedir mandir runstatedir
++		libdir localedir mandir
+ do
+   eval ac_val=\$$ac_var
+   # Remove trailing slashes.
+@@ -1312,7 +1301,6 @@ Fine tuning of the installation directories:
+   --sysconfdir=DIR        read-only single-machine data [PREFIX/etc]
+   --sharedstatedir=DIR    modifiable architecture-independent data [PREFIX/com]
+   --localstatedir=DIR     modifiable single-machine data [PREFIX/var]
+-  --runstatedir=DIR       modifiable per-process data [LOCALSTATEDIR/run]
+   --libdir=DIR            object code libraries [EPREFIX/lib]
+   --includedir=DIR        C header files [PREFIX/include]
+   --oldincludedir=DIR     C header files for non-gcc [/usr/include]
+diff --git a/lib/odbc/configure b/lib/odbc/configure
+index a167f1b0ec..2e319fdb9e 100755
+--- a/lib/odbc/configure
++++ b/lib/odbc/configure
+@@ -669,7 +669,6 @@ infodir
+ docdir
+ oldincludedir
+ includedir
+-runstatedir
+ localstatedir
+ sharedstatedir
+ sysconfdir
+@@ -742,7 +741,6 @@ datadir='${datarootdir}'
+ sysconfdir='${prefix}/etc'
+ sharedstatedir='${prefix}/com'
+ localstatedir='${prefix}/var'
+-runstatedir='${localstatedir}/run'
+ includedir='${prefix}/include'
+ oldincludedir='/usr/include'
+ docdir='${datarootdir}/doc/${PACKAGE}'
+@@ -995,15 +993,6 @@ do
+   | -silent | --silent | --silen | --sile | --sil)
+     silent=yes ;;
+ 
+-  -runstatedir | --runstatedir | --runstatedi | --runstated \
+-  | --runstate | --runstat | --runsta | --runst | --runs \
+-  | --run | --ru | --r)
+-    ac_prev=runstatedir ;;
+-  -runstatedir=* | --runstatedir=* | --runstatedi=* | --runstated=* \
+-  | --runstate=* | --runstat=* | --runsta=* | --runst=* | --runs=* \
+-  | --run=* | --ru=* | --r=*)
+-    runstatedir=$ac_optarg ;;
+-
+   -sbindir | --sbindir | --sbindi | --sbind | --sbin | --sbi | --sb)
+     ac_prev=sbindir ;;
+   -sbindir=* | --sbindir=* | --sbindi=* | --sbind=* | --sbin=* \
+@@ -1141,7 +1130,7 @@ fi
+ for ac_var in	exec_prefix prefix bindir sbindir libexecdir datarootdir \
+ 		datadir sysconfdir sharedstatedir localstatedir includedir \
+ 		oldincludedir docdir infodir htmldir dvidir pdfdir psdir \
+-		libdir localedir mandir runstatedir
++		libdir localedir mandir
+ do
+   eval ac_val=\$$ac_var
+   # Remove trailing slashes.
+@@ -1294,7 +1283,6 @@ Fine tuning of the installation directories:
+   --sysconfdir=DIR        read-only single-machine data [PREFIX/etc]
+   --sharedstatedir=DIR    modifiable architecture-independent data [PREFIX/com]
+   --localstatedir=DIR     modifiable single-machine data [PREFIX/var]
+-  --runstatedir=DIR       modifiable per-process data [LOCALSTATEDIR/run]
+   --libdir=DIR            object code libraries [EPREFIX/lib]
+   --includedir=DIR        C header files [PREFIX/include]
+   --oldincludedir=DIR     C header files for non-gcc [/usr/include]
+diff --git a/lib/runtime_tools/c_src/Makefile.in b/lib/runtime_tools/c_src/Makefile.in
+index c6f98181be..616dd7d6a5 100644
+--- a/lib/runtime_tools/c_src/Makefile.in
++++ b/lib/runtime_tools/c_src/Makefile.in
+@@ -39,7 +39,11 @@ SHELL = /bin/sh
+ LIBS = $(DED_LIBS) @LIBS@
+ LDFLAGS += $(DED_LDFLAGS)
+ 
++ifeq ($(findstring rtems,$(TARGET)),rtems)
++TRACE_LIBNAME =
++else
+ TRACE_LIBNAME = dyntrace trace_file_drv trace_ip_drv
++endif
+ 
+ SYSINCLUDE = $(DED_SYS_INCLUDE)
+ 
+@@ -108,9 +112,13 @@ docs:
+ # ----------------------------------------------------
+ include $(ERL_TOP)/make/otp_release_targets.mk
+ 
++ifeq ($(findstring rtems,$(TARGET)),rtems)
++release_spec:
++else
+ release_spec: opt
+ 	$(INSTALL_DIR) "$(RELSYSDIR)/priv/lib"
+ 	$(INSTALL_PROGRAM) $(TRACE_LIBS) "$(RELSYSDIR)/priv/lib"
++endif
+ 
+ release_docs_spec:
+ 
+diff --git a/lib/snmp/configure b/lib/snmp/configure
+index 65d95918cc..9de9f7ca0e 100755
+--- a/lib/snmp/configure
++++ b/lib/snmp/configure
+@@ -612,7 +612,6 @@ infodir
+ docdir
+ oldincludedir
+ includedir
+-runstatedir
+ localstatedir
+ sharedstatedir
+ sysconfdir
+@@ -677,7 +676,6 @@ datadir='${datarootdir}'
+ sysconfdir='${prefix}/etc'
+ sharedstatedir='${prefix}/com'
+ localstatedir='${prefix}/var'
+-runstatedir='${localstatedir}/run'
+ includedir='${prefix}/include'
+ oldincludedir='/usr/include'
+ docdir='${datarootdir}/doc/${PACKAGE}'
+@@ -930,15 +928,6 @@ do
+   | -silent | --silent | --silen | --sile | --sil)
+     silent=yes ;;
+ 
+-  -runstatedir | --runstatedir | --runstatedi | --runstated \
+-  | --runstate | --runstat | --runsta | --runst | --runs \
+-  | --run | --ru | --r)
+-    ac_prev=runstatedir ;;
+-  -runstatedir=* | --runstatedir=* | --runstatedi=* | --runstated=* \
+-  | --runstate=* | --runstat=* | --runsta=* | --runst=* | --runs=* \
+-  | --run=* | --ru=* | --r=*)
+-    runstatedir=$ac_optarg ;;
+-
+   -sbindir | --sbindir | --sbindi | --sbind | --sbin | --sbi | --sb)
+     ac_prev=sbindir ;;
+   -sbindir=* | --sbindir=* | --sbindi=* | --sbind=* | --sbin=* \
+@@ -1076,7 +1065,7 @@ fi
+ for ac_var in	exec_prefix prefix bindir sbindir libexecdir datarootdir \
+ 		datadir sysconfdir sharedstatedir localstatedir includedir \
+ 		oldincludedir docdir infodir htmldir dvidir pdfdir psdir \
+-		libdir localedir mandir runstatedir
++		libdir localedir mandir
+ do
+   eval ac_val=\$$ac_var
+   # Remove trailing slashes.
+@@ -1229,7 +1218,6 @@ Fine tuning of the installation directories:
+   --sysconfdir=DIR        read-only single-machine data [PREFIX/etc]
+   --sharedstatedir=DIR    modifiable architecture-independent data [PREFIX/com]
+   --localstatedir=DIR     modifiable single-machine data [PREFIX/var]
+-  --runstatedir=DIR       modifiable per-process data [LOCALSTATEDIR/run]
+   --libdir=DIR            object code libraries [EPREFIX/lib]
+   --includedir=DIR        C header files [PREFIX/include]
+   --oldincludedir=DIR     C header files for non-gcc [/usr/include]
+diff --git a/lib/ssl/src/ssl_config.erl b/lib/ssl/src/ssl_config.erl
+index 91bd03decf..e0debffdb5 100644
+--- a/lib/ssl/src/ssl_config.erl
++++ b/lib/ssl/src/ssl_config.erl
+@@ -163,6 +163,10 @@ init_certificates(undefined, #{pem_cache := PemCache} = Config, CertFile, server
+     end;
+ init_certificates(OwnCerts, Config, _, _) ->
+     {ok, Config, OwnCerts}.
++
++%% HACK: allow callbacks for signing using the GRiSP Secure Element
++init_private_key(_, #{algorithm := ecdsa, sign_fun := _SignFun} = Key, _, _, _) ->
++    Key;
+ init_private_key(_, #{algorithm := Alg} = Key, _, _Password, _Client) when Alg == ecdsa;
+                                                                            Alg == rsa;
+                                                                            Alg == dss ->
+diff --git a/lib/ssl/src/ssl_handshake.erl b/lib/ssl/src/ssl_handshake.erl
+index 9462607193..d80703a7fe 100644
+--- a/lib/ssl/src/ssl_handshake.erl
++++ b/lib/ssl/src/ssl_handshake.erl
+@@ -2093,6 +2093,12 @@ digitally_signed(Version, Msg, HashAlgo, PrivateKey, SignAlgo) ->
+ 	    throw(?ALERT_REC(?FATAL, ?HANDSHAKE_FAILURE, bad_key(PrivateKey)))
+     end.
+ 
++%% HACK: allow callbacks for signing using the GRiSP Secure Element
++%% We only care here for sha256 + ecdsa for TLS 1.2 and 1.3 (SSL 3.3 and 3.4)
++do_digitally_signed({3, 4}, Msg, sha256, #{algorithm := ecdsa, sign_fun := {Mod, Fun}}, ecdsa) ->
++    Mod:Fun(Msg);
++do_digitally_signed({3, 3}, Hash, sha256, #{algorithm := ecdsa, sign_fun := {Mod, Fun}}, ecdsa) ->
++    Mod:Fun({digest, Hash});
+ do_digitally_signed({3, Minor}, Msg, HashAlgo, {#'RSAPrivateKey'{} = Key,
+                                                  #'RSASSA-PSS-params'{}}, SignAlgo) when Minor >= 3 ->
+     Options = signature_options(SignAlgo, HashAlgo),
+diff --git a/lib/tools/c_src/Makefile.in b/lib/tools/c_src/Makefile.in
+index 878aa2cde6..64ba7a1d85 100644
+--- a/lib/tools/c_src/Makefile.in
++++ b/lib/tools/c_src/Makefile.in
+@@ -75,10 +75,12 @@ DRIVERS=
+ #
+ 
+ 
++ifneq ($(findstring rtems, $(TARGET)), rtems)
+ ifneq ($(strip $(ETHR_LIB_NAME)),)
+ # Need ethread package for emem
+ PROGS += $(BIN_DIR)/emem$(TYPEMARKER)@EXEEXT@
+ endif
++endif
+ 
+ EMEM_OBJ_DIR=$(OBJ_DIR)/emem
+ CREATE_DIRS += $(EMEM_OBJ_DIR)
+diff --git a/lib/wx/configure b/lib/wx/configure
+index 6cb5ce03b4..1b57baf3e2 100755
+--- a/lib/wx/configure
++++ b/lib/wx/configure
+@@ -700,7 +700,6 @@ infodir
+ docdir
+ oldincludedir
+ includedir
+-runstatedir
+ localstatedir
+ sharedstatedir
+ sysconfdir
+@@ -780,7 +779,6 @@ datadir='${datarootdir}'
+ sysconfdir='${prefix}/etc'
+ sharedstatedir='${prefix}/com'
+ localstatedir='${prefix}/var'
+-runstatedir='${localstatedir}/run'
+ includedir='${prefix}/include'
+ oldincludedir='/usr/include'
+ docdir='${datarootdir}/doc/${PACKAGE}'
+@@ -1033,15 +1031,6 @@ do
+   | -silent | --silent | --silen | --sile | --sil)
+     silent=yes ;;
+ 
+-  -runstatedir | --runstatedir | --runstatedi | --runstated \
+-  | --runstate | --runstat | --runsta | --runst | --runs \
+-  | --run | --ru | --r)
+-    ac_prev=runstatedir ;;
+-  -runstatedir=* | --runstatedir=* | --runstatedi=* | --runstated=* \
+-  | --runstate=* | --runstat=* | --runsta=* | --runst=* | --runs=* \
+-  | --run=* | --ru=* | --r=*)
+-    runstatedir=$ac_optarg ;;
+-
+   -sbindir | --sbindir | --sbindi | --sbind | --sbin | --sbi | --sb)
+     ac_prev=sbindir ;;
+   -sbindir=* | --sbindir=* | --sbindi=* | --sbind=* | --sbin=* \
+@@ -1179,7 +1168,7 @@ fi
+ for ac_var in	exec_prefix prefix bindir sbindir libexecdir datarootdir \
+ 		datadir sysconfdir sharedstatedir localstatedir includedir \
+ 		oldincludedir docdir infodir htmldir dvidir pdfdir psdir \
+-		libdir localedir mandir runstatedir
++		libdir localedir mandir
+ do
+   eval ac_val=\$$ac_var
+   # Remove trailing slashes.
+@@ -1332,7 +1321,6 @@ Fine tuning of the installation directories:
+   --sysconfdir=DIR        read-only single-machine data [PREFIX/etc]
+   --sharedstatedir=DIR    modifiable architecture-independent data [PREFIX/com]
+   --localstatedir=DIR     modifiable single-machine data [PREFIX/var]
+-  --runstatedir=DIR       modifiable per-process data [LOCALSTATEDIR/run]
+   --libdir=DIR            object code libraries [EPREFIX/lib]
+   --includedir=DIR        C header files [PREFIX/include]
+   --oldincludedir=DIR     C header files for non-gcc [/usr/include]
+diff --git a/make/configure b/make/configure
+index c44049816c..87a4e0909f 100755
+--- a/make/configure
++++ b/make/configure
+@@ -718,7 +718,6 @@ infodir
+ docdir
+ oldincludedir
+ includedir
+-runstatedir
+ localstatedir
+ sharedstatedir
+ sysconfdir
+@@ -754,6 +753,7 @@ with_javac
+ enable_megaco_flex_scanner_lineno
+ enable_megaco_reentrant_flex_scanner
+ with_ssl
++with_ssl_lib
+ with_ssl_incl
+ with_ssl_zlib
+ with_ssl_lib_subdir
+@@ -849,7 +849,6 @@ datadir='${datarootdir}'
+ sysconfdir='${prefix}/etc'
+ sharedstatedir='${prefix}/com'
+ localstatedir='${prefix}/var'
+-runstatedir='${localstatedir}/run'
+ includedir='${prefix}/include'
+ oldincludedir='/usr/include'
+ docdir='${datarootdir}/doc/${PACKAGE}'
+@@ -1102,15 +1101,6 @@ do
+   | -silent | --silent | --silen | --sile | --sil)
+     silent=yes ;;
+ 
+-  -runstatedir | --runstatedir | --runstatedi | --runstated \
+-  | --runstate | --runstat | --runsta | --runst | --runs \
+-  | --run | --ru | --r)
+-    ac_prev=runstatedir ;;
+-  -runstatedir=* | --runstatedir=* | --runstatedi=* | --runstated=* \
+-  | --runstate=* | --runstat=* | --runsta=* | --runst=* | --runs=* \
+-  | --run=* | --ru=* | --r=*)
+-    runstatedir=$ac_optarg ;;
+-
+   -sbindir | --sbindir | --sbindi | --sbind | --sbin | --sbi | --sb)
+     ac_prev=sbindir ;;
+   -sbindir=* | --sbindir=* | --sbindi=* | --sbind=* | --sbin=* \
+@@ -1248,7 +1238,7 @@ fi
+ for ac_var in	exec_prefix prefix bindir sbindir libexecdir datarootdir \
+ 		datadir sysconfdir sharedstatedir localstatedir includedir \
+ 		oldincludedir docdir infodir htmldir dvidir pdfdir psdir \
+-		libdir localedir mandir runstatedir
++		libdir localedir mandir
+ do
+   eval ac_val=\$$ac_var
+   # Remove trailing slashes.
+@@ -1401,7 +1391,6 @@ Fine tuning of the installation directories:
+   --sysconfdir=DIR        read-only single-machine data [PREFIX/etc]
+   --sharedstatedir=DIR    modifiable architecture-independent data [PREFIX/com]
+   --localstatedir=DIR     modifiable single-machine data [PREFIX/var]
+-  --runstatedir=DIR       modifiable per-process data [LOCALSTATEDIR/run]
+   --libdir=DIR            object code libraries [EPREFIX/lib]
+   --includedir=DIR        C header files [PREFIX/include]
+   --oldincludedir=DIR     C header files for non-gcc [/usr/include]
+@@ -1494,6 +1483,8 @@ Optional Packages:
+   --with-ssl=PATH         base location of OpenSSL include and lib directories
+   --with-ssl              use SSL (default)
+   --without-ssl           don't use SSL
++  --with-ssl-lib=PATH     location of the library containing OpenSSL, if not
++                          standard
+   --with-ssl-incl=PATH    base location of OpenSSL include directory (if
+                           different than base location specified by
+                           --with-ssl=PATH)
+@@ -4555,6 +4546,13 @@ fi
+ 
+ 
+ 
++# Check whether --with-ssl-lib was given.
++if test "${with_ssl_lib+set}" = set; then :
++  withval=$with_ssl_lib;
++fi
++
++
++
+ # Check whether --with-ssl-incl was given.
+ if test "${with_ssl_incl+set}" = set; then :
+   withval=$with_ssl_incl;
+diff --git a/make/configure.in b/make/configure.in
+index 660c51e363..e59d75817f 100644
+--- a/make/configure.in
++++ b/make/configure.in
+@@ -284,6 +284,10 @@ AS_HELP_STRING([--with-ssl=PATH], [base location of OpenSSL include and lib dire
+ AS_HELP_STRING([--with-ssl], [use SSL (default)])
+ AS_HELP_STRING([--without-ssl], [don't use SSL]))
+ 
++AC_ARG_WITH(ssl-lib,
++AS_HELP_STRING([--with-ssl-lib=PATH],
++               [location of the library containing OpenSSL, if not standard]))
++
+ AC_ARG_WITH(ssl-incl,
+ AS_HELP_STRING([--with-ssl-incl=PATH],
+ 	       [base location of OpenSSL include directory (if different than base location specified by --with-ssl=PATH)]))
