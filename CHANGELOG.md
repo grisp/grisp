@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.2.0] - 2022-07-18
+
+### Added
+
+- Support for OTP 24
+
 ### Fixed
 
 - Removed redundant command line argument boot debug output
@@ -179,7 +185,8 @@ and this project adheres to
 * Fix for \#2. Negative intervals are now treated by turning off leds [\#5](https://github.com/grisp/grisp/pull/5) ([nextl00p](https://github.com/nextl00p))
 
 
-[Unreleased]: https://github.com/grisp/grisp/compare/2.1.0...HEAD
+[Unreleased]: https://github.com/grisp/grisp/compare/2.2.0...HEAD
+[2.2.0]: https://github.com/grisp/grisp/compare/2.1.0...2.2.0
 [2.1.0]: https://github.com/grisp/grisp/compare/2.0.0...2.1.0
 [2.0.0]: https://github.com/grisp/grisp/compare/1.2.1...2.0.0
 [1.2.1]: https://github.com/grisp/grisp/compare/1.2.0...1.2.1
