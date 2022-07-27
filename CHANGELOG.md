@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- Support for OTP 25
+
 ## [2.2.0] - 2022-07-18
 
 ### Added
