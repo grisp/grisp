@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.3.0] - 2022-07-27
+
 ### Added
 
 - Support for OTP 25
@@ -189,7 +191,8 @@ and this project adheres to
 * Fix for \#2. Negative intervals are now treated by turning off leds [\#5](https://github.com/grisp/grisp/pull/5) ([nextl00p](https://github.com/nextl00p))
 
 
-[Unreleased]: https://github.com/grisp/grisp/compare/2.2.0...HEAD
+[Unreleased]: https://github.com/grisp/grisp/compare/2.3.0...HEAD
+[2.3.0]: https://github.com/grisp/grisp/compare/2.2.0...2.3.0
 [2.2.0]: https://github.com/grisp/grisp/compare/2.1.0...2.2.0
 [2.1.0]: https://github.com/grisp/grisp/compare/2.0.0...2.1.0
 [2.0.0]: https://github.com/grisp/grisp/compare/1.2.1...2.0.0
