@@ -14,6 +14,7 @@
 % API
 -export([start_link/2]).
 -export([measurements/0]).
+-export([reset/1]).
 
 % Callbacks
 -export([init/1]).
@@ -22,6 +23,8 @@
 -export([handle_info/2]).
 -export([code_change/3]).
 -export([terminate/2]).
+
+% defines
 
 -define(DEVICE_ADR, 16#0E).
 -define(WHO_AM_I, 16#0F).
@@ -39,9 +42,6 @@
 -define(YOUT_H, 16#09).
 -define(ZOUT_L, 16#0A).
 -define(ZOUT_H, 16#0B).
-
-
--define(DELAY_TIME, 15).
 
 -define(DEVICE_ID, 16#35).
 
@@ -70,6 +70,18 @@ start_link(Slot, Opts) ->
 measurements() ->
     gen_server:call(?MODULE, measurements).
 
+% @doc Repeats the setup procedure,
+% allowing to change the initial device settings.
+%
+% === Example ===
+% ```
+% 2> kxtj3_acc:reset(#{g_range => 16, resolution => 14}).
+% ok
+% '''
+-spec reset(Opts :: map()) -> ok.
+reset(Opts) ->
+    gen_server:call(?MODULE, {reset, Opts}).
+
 %--- Callbacks -----------------------------------------------------------------
 
 % @private
@@ -84,7 +96,10 @@ init([i2c = Slot, Opts]) ->
 handle_call(measurements, _From, State) ->
     {X, Y, Z} = read_registers(State),
     Result =  {convert(X, State), convert(Y, State), convert(Z, State)},
-    {reply, Result, State}.
+    {reply, Result, State};
+handle_call({reset, Opts}, _From, #state{bus = Bus}) ->
+    State = setup_device(Bus, Opts),
+    {reply, ok, State}.
 
 % @private
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
@@ -108,9 +123,22 @@ verify_device(Bus) ->
     end.
 
 setup_device(Bus, Opts) ->
-    State = apply_opts(maps:to_list(Opts), #state{bus = Bus}),
-    ok = device_write(Bus, ?CTRL_REG1, <<?PC1:8>>),
+    unset_bits(Bus, ?CTRL_REG1, ?PC1), % stop operations
+    device_write(Bus, ?CTRL_REG1, <<0:8>>), % set all bits to 0
+    State = apply_opts(Opts, #state{bus = Bus}),
+    set_bits(Bus, ?CTRL_REG1, ?PC1), % start operations
     State.
+
+set_bits(Bus, Reg, Mask) ->
+    {ok, <<RegState:8>>} = device_read(Bus, Reg),
+    device_write(Bus, Reg, <<(RegState bor Mask):8>>).
+
+unset_bits(Bus, Reg, Mask) ->
+    {ok, <<RegState:8>>} = device_read(Bus, Reg),
+    device_write(Bus, Reg, <<(RegState bxor Mask):8>>).
+
+device_write(Bus, Register, Payload) ->
+    ok = grisp_i2c:write(Bus, ?DEVICE_ADR, Register, Payload).
 
 device_read(Bus, Register) ->
     device_read(Bus, Register, 0).
@@ -121,10 +149,6 @@ device_read(Bus, Register, Delay) ->
     [Response] = grisp_i2c:transfer(Bus, [{read, ?DEVICE_ADR, 0, 1}]),
     {ok, Response}.
 
-device_write(Bus, Register, Payload) ->
-    ok = grisp_i2c:write(Bus, ?DEVICE_ADR, Register, Payload).
-
-
 read_registers(#state{ bus = Bus,  resolution = R }) ->
     LSB = abs(8 - R), % resolution can be 8, 12 or 14
     {ok, <<X_H:8>>} = device_read(Bus, ?XOUT_H),
@@ -133,27 +157,49 @@ read_registers(#state{ bus = Bus,  resolution = R }) ->
     {ok, <<X_L:LSB,_/bitstring>>} = device_read(Bus, ?XOUT_L),
     {ok, <<Y_L:LSB,_/bitstring>>} = device_read(Bus, ?YOUT_L),
     {ok, <<Z_L:LSB,_/bitstring>>} = device_read(Bus, ?ZOUT_L),
-    <<X/signed>> = <<X_H:8,X_L:LSB>>,
-    <<Y/signed>> = <<Y_H:8,Y_L:LSB>>,
-    <<Z/signed>> = <<Z_H:8,Z_L:LSB>>,
+    <<X:(8+LSB)/signed>> = <<X_H:8,X_L:LSB>>,
+    <<Y:(8+LSB)/signed>> = <<Y_H:8,Y_L:LSB>>,
+    <<Z:(8+LSB)/signed>> = <<Z_H:8,Z_L:LSB>>,
     {X, Y, Z}.
 
-convert(Val, #state{ g_range = MaxVal, resolution = Bits}) ->
+convert(Val, #state{g_range = MaxVal, resolution = Bits}) ->
     Val * MaxVal / math:pow(2, Bits - 1).
 
-apply_opts([], S) ->
-    S;
-apply_opts([Opt| Opts], S) ->
-    apply_opts(Opts, apply_opt(Opt, S)).
+apply_opts(Opts, #state{bus = B} = S) ->
+    G = maps:get(g_range, Opts, 2),
+    R = maps:get(resolution, Opts, 8),
+    set_range_and_resolution(B, G, R),
+    S#state{g_range = G, resolution = R}.
 
-apply_opt( {resolution, R}, #state{ bus = B} = S)
-        when (R == 8) or (R == 12) or (R == 14) ->
-    ok = device_write(B, ?CTRL_REG1, <<?PC1:8>>),
-    S#state{resolution = R};
-apply_opt( {g_range, G}, #state{ bus = B} = S)
-        when (G == 2) or (G == 4) or (G == 8) or (G == 16) ->
-    ok = device_write(B, ?CTRL_REG1, <<?PC1:8>>),
-    S#state{g_range = G};
-apply_opt( Opt, S) ->
-    error({illegal_option, Opt}),
-    S.
+set_range_and_resolution(Bus, G, R) ->
+    % getting values for
+    % RES, GSEL1, GSEL0, EN16G
+    % These are interdependent
+    Value = range_and_output_selection(G,R),
+    set_bits(Bus, ?CTRL_REG1, Value).
+
+% RES   Mode
+%   0   low-power -> 8 bits
+%   1   high-power -> 12 or 14 bits
+%   GSEL1   GSEL0   EN16G   Range
+%       0       0       0   ±2g
+%       0       1       0   ±4g
+%       1       0       0   ±8g
+%       1       1       0   ±8g <- only 14 bits precision
+%       0       0       1   ±16g \
+%       0       1       1   ±16g ->--- these 3 look like equivalents
+%       1       0       1   ±16g /
+%       1       1       1   ±16g <- only 14 bits precision
+range_and_output_selection(2, 8) -> 0;
+range_and_output_selection(4, 8) -> ?GSEL0;
+range_and_output_selection(8, 8) -> ?GSEL1;
+range_and_output_selection(16, 8) -> ?EN16G;
+range_and_output_selection(2, 12) -> ?RES;
+range_and_output_selection(4, 12) -> ?GSEL0 bor ?RES;
+range_and_output_selection(8, 12) -> ?GSEL1 bor ?RES;
+range_and_output_selection(16, 12) -> ?EN16G bor ?RES;
+range_and_output_selection(8, 14) -> ?GSEL1 bor ?GSEL0 bor ?RES;
+range_and_output_selection(16, 14) -> ?GSEL1 bor ?GSEL0 bor ?EN16G bor ?RES;
+range_and_output_selection(G, R) -> error(illegal_range_res_combo, {G, R}).
+
+
