@@ -67,6 +67,24 @@
 
 -define(DEVICE_ID, 16#35).
 
+%--- Types -------------------------------------------------------------------
+%
+-type wakeup_config() ::
+    #{
+        threshold => float(),
+        delay => float(),
+        cooldown => float(),
+        data_rate => pos_integer() % 1 to 8
+    }.
+
+-type config() ::
+    #{
+        g_range => 2 | 4 | 8 | 16,
+        resolution => 8 | 12 | 14,
+        data_rate =>  pos_integer(), % 1 to 12
+        wfu => wakeup_config() | false
+    }.
+%
 %--- Records -------------------------------------------------------------------
 %
 -record(state, {
@@ -100,7 +118,7 @@ measurements() ->
 % 2> kxtj3_acc:reset(#{g_range => 16, resolution => 14}).
 % ok
 % '''
--spec reset(Opts :: map()) -> ok.
+-spec reset(Opts :: config()) -> ok.
 reset(Opts) ->
     gen_server:call(?MODULE, {?FUNCTION_NAME, Opts}).
 
@@ -244,6 +262,27 @@ range_and_output_selection(16, 14) -> ?GSEL1 bor ?GSEL0 bor ?EN16G bor ?RES;
 range_and_output_selection(G, R) -> error(illegal_range_res_combo, {G, R}).
 
 
+
+
+set_wake_up_function(Bus, false) ->
+    unset_bits(Bus, ?INT_CTRL_REG1, ?IEN),
+    unset_bits(Bus, ?CTRL_REG1, ?WUFE);
+set_wake_up_function(Bus, Opts) ->
+    Threshold = maps:get(threshold, Opts, 0.5),
+    Delay = maps:get(delay, Opts, 1.0),
+    Cooldown = maps:get(cooldown, Opts, 1.0),
+    Datarate_lvl = maps:get(data_rate, Opts, 8),
+    {Rate_bits, Hertz} = select_wuf_data_rate(Datarate_lvl),
+    set_bits(Bus, ?CTRL_REG2, Rate_bits),
+    <<T_H:8,T_L:8>> = <<(round(Threshold * 256)):16>>,
+    set_bits(Bus, ?WAKEUP_THRESHOLD_L, T_L),
+    set_bits(Bus, ?WAKEUP_THRESHOLD_H, T_H),
+    set_bits(Bus, ?WAKEUP_COUNTER, round(Delay * Hertz)),
+    set_bits(Bus, ?NA_COUNTER, round(Cooldown * Hertz)),
+    set_bits(Bus, ?INT_CTRL_REG1, ?IEN), % enable int pin
+    set_bits(Bus, ?CTRL_REG1, ?WUFE). % enable wake up function
+
+
 % OWUFA   OWUFB   OWUFC Data Rate
 %   0       0       0   0.781   Hz
 %   0       0       1   1.563   Hz
@@ -253,20 +292,14 @@ range_and_output_selection(G, R) -> error(illegal_range_res_combo, {G, R}).
 %   1       0       1   25      Hz
 %   1       1       0   50      Hz
 %   1       1       1   100     Hz
-
-set_wake_up_function(Bus, false) ->
-    unset_bits(Bus, ?INT_CTRL_REG1, ?IEN),
-    unset_bits(Bus, ?CTRL_REG1, ?WUFE);
-set_wake_up_function(Bus, Opts) ->
-    Delay = maps:get(delay, Opts, 1.0),
-    Threshold = maps:get(delay, Opts, 0.5),
-    Wuf_datarate = ?OWUFA bor ?OWUFB bor ?OWUFC, % max speed 100 Hz
-    set_bits(Bus, ?CTRL_REG2, Wuf_datarate),
-    <<T_H:8,T_L:8>> = <<(round(Threshold * 256)):16>>,
-    set_bits(Bus, ?WAKEUP_THRESHOLD_L, T_L),
-    set_bits(Bus, ?WAKEUP_THRESHOLD_H, T_H),
-    set_bits(Bus, ?WAKEUP_COUNTER, round(Delay * 100.0)),
-    set_bits(Bus, ?NA_COUNTER, 1), % unit is 1/OWUF delay period
-    set_bits(Bus, ?INT_CTRL_REG1, ?IEN), % enable int pin
-    set_bits(Bus, ?CTRL_REG1, ?WUFE). % enable wake up function
+select_wuf_data_rate(1) -> {0,                               0.781};
+select_wuf_data_rate(2) -> {?OWUFC,                          1.563};
+select_wuf_data_rate(3) -> {?OWUFB,                          3.125};
+select_wuf_data_rate(4) -> {?OWUFB bor ?OWUFC,               6.25};
+select_wuf_data_rate(5) -> {?OWUFA,                          12.5};
+select_wuf_data_rate(6) -> {?OWUFA bor ?OWUFC,               25.0};
+select_wuf_data_rate(7) -> {?OWUFA bor ?OWUFB,               50.0};
+select_wuf_data_rate(8) -> {?OWUFA bor ?OWUFB bor ?OWUFC,    100.0};
+select_wuf_data_rate(_) ->
+    error(invalid_data_rate).
 
