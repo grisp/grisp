@@ -15,6 +15,8 @@
 -export([start_link/2]).
 -export([measurements/0]).
 -export([reset/1]).
+-export([check_interrupt/0]).
+-export([clear_interrupt/0]).
 
 % Callbacks
 -export([init/1]).
@@ -36,6 +38,26 @@
     -define(GSEL0,  (1 bsl 3)).
     -define(EN16G,  (1 bsl 2)).
     -define(WUFE,   (1 bsl 1)).
+-define(CTRL_REG2, 16#1D).
+    -define(SRST,    (1 bsl 7)).
+    -define(DCST,  (1 bsl 4)).
+    -define(OWUFA,  (1 bsl 2)).
+    -define(OWUFB,   (1 bsl 1)).
+    -define(OWUFC,   (1 bsl 0)).
+-define(INT_CTRL_REG1, 16#1E).
+    -define(IEN,    (1 bsl 5)).
+    -define(IEA,    (1 bsl 4)).
+    -define(IEL,    (1 bsl 3)).
+    -define(STPOL,  (1 bsl 1)).
+-define(WAKEUP_COUNTER, 16#29).
+-define(NA_COUNTER, 16#2A).
+-define(WAKEUP_THRESHOLD_H, 16#6A).
+-define(WAKEUP_THRESHOLD_L, 16#6B).
+-define(INT_SOURCE1, 16#16).
+-define(INT_SOURCE2, 16#17).
+-define(INT_REL, 16#1A).
+-define(STATUS_REG, 16#18).
+    -define(INT, (1 bsl 4)).
 -define(XOUT_L, 16#06).
 -define(XOUT_H, 16#07).
 -define(YOUT_L, 16#08).
@@ -80,7 +102,17 @@ measurements() ->
 % '''
 -spec reset(Opts :: map()) -> ok.
 reset(Opts) ->
-    gen_server:call(?MODULE, {reset, Opts}).
+    gen_server:call(?MODULE, {?FUNCTION_NAME, Opts}).
+
+% @doc Checks if an interrupt occurred
+-spec check_interrupt() -> true | false.
+check_interrupt() ->
+    gen_server:call(?MODULE, ?FUNCTION_NAME).
+
+% @doc Sets the interrut pin to low
+-spec clear_interrupt() -> ok.
+clear_interrupt() ->
+    gen_server:call(?MODULE, ?FUNCTION_NAME).
 
 %--- Callbacks -----------------------------------------------------------------
 
@@ -99,7 +131,18 @@ handle_call(measurements, _From, State) ->
     {reply, Result, State};
 handle_call({reset, Opts}, _From, #state{bus = Bus}) ->
     State = setup_device(Bus, Opts),
-    {reply, ok, State}.
+    {reply, ok, State};
+handle_call(check_interrupt, _From, #state{bus = Bus} = S) ->
+    Reply = case device_read(Bus, ?STATUS_REG) of
+        {ok, <<Val:8>>} when Val == ?INT -> true;
+        {ok, _} -> false
+    end,
+    {reply, Reply, S};
+handle_call(clear_interrupt, _From, #state{bus = Bus} = S) ->
+    device_read(Bus, ?INT_REL),
+    {reply, ok, S};
+handle_call(Request, _From, _State) ->
+    error({unknown_cast, Request}).
 
 % @private
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
@@ -125,9 +168,13 @@ verify_device(Bus) ->
 setup_device(Bus, Opts) ->
     unset_bits(Bus, ?CTRL_REG1, ?PC1), % stop operations
     device_write(Bus, ?CTRL_REG1, <<0:8>>), % set all bits to 0
-    State = apply_opts(Opts, #state{bus = Bus}),
-    set_bits(Bus, ?CTRL_REG1, ?PC1), % start operations
-    State.
+    G = maps:get(g_range, Opts, 2),
+    R = maps:get(resolution, Opts, 8),
+    set_range_and_resolution(Bus, G, R),
+    Wuf = maps:get(wuf, Opts, false),
+    set_wake_up_function(Bus, Wuf),
+    set_bits(Bus, ?CTRL_REG1, ?PC1),
+    #state{bus = Bus, g_range = G, resolution = R}.
 
 set_bits(Bus, Reg, Mask) ->
     {ok, <<RegState:8>>} = device_read(Bus, Reg),
@@ -165,12 +212,6 @@ read_registers(#state{ bus = Bus,  resolution = R }) ->
 convert(Val, #state{g_range = MaxVal, resolution = Bits}) ->
     Val * MaxVal / math:pow(2, Bits - 1).
 
-apply_opts(Opts, #state{bus = B} = S) ->
-    G = maps:get(g_range, Opts, 2),
-    R = maps:get(resolution, Opts, 8),
-    set_range_and_resolution(B, G, R),
-    S#state{g_range = G, resolution = R}.
-
 set_range_and_resolution(Bus, G, R) ->
     % getting values for
     % RES, GSEL1, GSEL0, EN16G
@@ -202,4 +243,30 @@ range_and_output_selection(8, 14) -> ?GSEL1 bor ?GSEL0 bor ?RES;
 range_and_output_selection(16, 14) -> ?GSEL1 bor ?GSEL0 bor ?EN16G bor ?RES;
 range_and_output_selection(G, R) -> error(illegal_range_res_combo, {G, R}).
 
+
+% OWUFA   OWUFB   OWUFC Data Rate
+%   0       0       0   0.781   Hz
+%   0       0       1   1.563   Hz
+%   0       1       0   3.125   Hz
+%   0       1       1   6.25    Hz
+%   1       0       0   12.5    Hz
+%   1       0       1   25      Hz
+%   1       1       0   50      Hz
+%   1       1       1   100     Hz
+
+set_wake_up_function(Bus, false) ->
+    unset_bits(Bus, ?INT_CTRL_REG1, ?IEN),
+    unset_bits(Bus, ?CTRL_REG1, ?WUFE);
+set_wake_up_function(Bus, Opts) ->
+    Delay = maps:get(delay, Opts, 1.0),
+    Threshold = maps:get(delay, Opts, 0.5),
+    Wuf_datarate = ?OWUFA bor ?OWUFB bor ?OWUFC, % max speed 100 Hz
+    set_bits(Bus, ?CTRL_REG2, Wuf_datarate),
+    <<T_H:8,T_L:8>> = <<(round(Threshold * 256)):16>>,
+    set_bits(Bus, ?WAKEUP_THRESHOLD_L, T_L),
+    set_bits(Bus, ?WAKEUP_THRESHOLD_H, T_H),
+    set_bits(Bus, ?WAKEUP_COUNTER, round(Delay * 100.0)),
+    set_bits(Bus, ?NA_COUNTER, 1), % unit is 1/OWUF delay period
+    set_bits(Bus, ?INT_CTRL_REG1, ?IEN), % enable int pin
+    set_bits(Bus, ?CTRL_REG1, ?WUFE). % enable wake up function
 
