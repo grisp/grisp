@@ -58,6 +58,11 @@
 -define(INT_REL, 16#1A).
 -define(STATUS_REG, 16#18).
     -define(INT, (1 bsl 4)).
+-define(DATA_CTRL_REG, 16#21).
+    -define(OSAA,  (1 bsl 3)).
+    -define(OSAB,  (1 bsl 2)).
+    -define(OSAC,  (1 bsl 1)).
+    -define(OSAD,  (1 bsl 0)).
 -define(XOUT_L, 16#06).
 -define(XOUT_H, 16#07).
 -define(YOUT_L, 16#08).
@@ -82,7 +87,7 @@
         g_range => 2 | 4 | 8 | 16,
         resolution => 8 | 12 | 14,
         data_rate =>  pos_integer(), % 1 to 12
-        wfu => wakeup_config() | false
+        wuf => wakeup_config() | false
     }.
 %
 %--- Records -------------------------------------------------------------------
@@ -186,9 +191,11 @@ verify_device(Bus) ->
 setup_device(Bus, Opts) ->
     unset_bits(Bus, ?CTRL_REG1, ?PC1), % stop operations
     device_write(Bus, ?CTRL_REG1, <<0:8>>), % set all bits to 0
-    G = maps:get(g_range, Opts, 2),
-    R = maps:get(resolution, Opts, 8),
+    G = maps:get(g_range, Opts, 2), % def 2g
+    R = maps:get(resolution, Opts, 8), % def 8 bit
+    DR = maps:get(data_rate, Opts, 7), % def 50Hz
     set_range_and_resolution(Bus, G, R),
+    set_output_datarates(Bus, DR),
     Wuf = maps:get(wuf, Opts, false),
     set_wake_up_function(Bus, Wuf),
     set_bits(Bus, ?CTRL_REG1, ?PC1),
@@ -237,6 +244,7 @@ set_range_and_resolution(Bus, G, R) ->
     Value = range_and_output_selection(G,R),
     set_bits(Bus, ?CTRL_REG1, Value).
 
+
 % RES   Mode
 %   0   low-power -> 8 bits
 %   1   high-power -> 12 or 14 bits
@@ -262,7 +270,24 @@ range_and_output_selection(16, 14) -> ?GSEL1 bor ?GSEL0 bor ?EN16G bor ?RES;
 range_and_output_selection(G, R) -> error(illegal_range_res_combo, {G, R}).
 
 
+set_output_datarates(Bus, DR_lvl) ->
+    ODR = select_ouput_data_rate(DR_lvl),
+    device_write(Bus, ?DATA_CTRL_REG, <<ODR:8>>).
 
+select_ouput_data_rate(1) ->    ?OSAA; % 0.781Hz
+select_ouput_data_rate(2) ->    ?OSAA bor ?OSAD;
+select_ouput_data_rate(3) ->    ?OSAA bor ?OSAC;
+select_ouput_data_rate(4) ->    ?OSAA bor ?OSAC bor ?OSAD;
+select_ouput_data_rate(5) ->    0;
+select_ouput_data_rate(6) ->    ?OSAD;
+select_ouput_data_rate(7) ->    ?OSAC;  % 50Hz
+select_ouput_data_rate(8) ->    ?OSAC bor ?OSAD;
+select_ouput_data_rate(9) ->    ?OSAB;
+select_ouput_data_rate(10) ->   ?OSAB bor ?OSAD; % 400Hz
+select_ouput_data_rate(11) ->   ?OSAB bor ?OSAC; % 800Hz
+select_ouput_data_rate(12) ->   ?OSAB bor ?OSAC bor ?OSAD; % 1600Hz
+select_ouput_data_rate(_) ->
+    error(invalid_output_rate).
 
 set_wake_up_function(Bus, false) ->
     unset_bits(Bus, ?INT_CTRL_REG1, ?IEN),
