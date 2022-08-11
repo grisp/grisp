@@ -14,21 +14,29 @@
 
 start_link() ->
     ExtraInternalWorkers = case grisp_hw:platform() of
-        grisp2 -> [
-            worker(grisp_onewire, []),
+        igrisp -> [
             worker(grisp_eeprom_som, grisp_eeprom, [som]),
             worker(grisp_eeprom_board, grisp_eeprom, [board]),
             worker(grisp_barebox, [som])
         ];
+        grisp2 -> [
+            worker(grisp_onewire, []),
+            worker(grisp_eeprom_som, grisp_eeprom, [som]),
+            worker(grisp_eeprom_board, grisp_eeprom, [board]),
+            worker(grisp_barebox, [som]),
+            worker(grisp_gpio_events, gen_event, [{local, grisp_gpio_events}]),
+            worker(grisp_gpio_poller, []),
+            worker(grisp_led, [])
+        ];
         grisp_base -> [
+            worker(grisp_gpio_events, gen_event, [{local, grisp_gpio_events}]),
+            worker(grisp_gpio_poller, []),
+            worker(grisp_led, [])
         ]
     end,
     Children = [
         supervisor(grisp_devices_sup, grisp_devices_sup, []),
         supervisor(grisp_internal_sup, [
-            worker(grisp_gpio_events, gen_event, [{local, grisp_gpio_events}]),
-            worker(grisp_gpio_poller, []),
-            worker(grisp_led, []),
             worker(grisp_devices, [])
             | ExtraInternalWorkers
         ])
