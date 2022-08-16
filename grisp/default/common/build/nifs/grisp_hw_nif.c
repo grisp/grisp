@@ -3,6 +3,8 @@
 #include <erl_nif.h>
 #include <grisp.h>
 
+#include "grisp_platform.h"
+
 /* NIF interface declarations */
 int hw_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info);
 
