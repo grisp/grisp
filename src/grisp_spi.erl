@@ -169,6 +169,8 @@ pin(grisp2, spi1_pin1) -> {cs, 0};
 pin(grisp2, spi2_pin1) -> {cs, 1};
 pin(grisp2, spi2_pin9) -> {cs, 2};
 pin(grisp2, spi2_pin10) -> {cs, 3};
+pin(igrisp, spi1_pin1) -> {cs, 1};
+pin(igrisp, spi2_pin1) -> {cs, 2};
 pin(_Platform, Pin) -> {gpio, grisp_gpio:open(Pin, #{mode => {output, 1}})}.
 
 message({Bus, Pin}, {Mode, Message, Skip, Pad}) ->
