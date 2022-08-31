@@ -1,14 +1,14 @@
 -module(pmod_dio).
 -behaviour(gen_server).
 
-% FIXME: remove!
--export([crc5/1]).
--export([read/2]).
--export([read_burst/2]).
--export([write/3]).
-
 % API
 -export([start_link/2]).
+-export([read/2]).
+-export([read/3]).
+-export([read_burst/2]).
+-export([read_burst/3]).
+-export([write/3]).
+-export([write/4]).
 
 % Callbacks
 -export([init/1]).
@@ -25,21 +25,26 @@
 
 %--- API -----------------------------------------------------------------------
 
-start_link(Connector, _Opts) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, Connector, []).
+start_link(Slot, _Opts) -> gen_server:start_link(?MODULE, Slot, []).
 
-read(Chip, Reg) ->
+read(Chip, Reg) -> read(default, Chip, Reg).
+
+read(Slot, Chip, Reg) ->
     Value = <<0>>,
-    call({request, {Chip, single, read, Reg, Value}}).
+    call(Slot, {request, {Chip, single, read, Reg, Value}}).
 
-read_burst(Chip, 'DoiLevel') ->
+read_burst(Chip, Reg) -> read_burst(default, Chip, Reg).
+
+read_burst(Slot, Chip, 'DoiLevel') ->
     Value = <<0, 0, 0, 0, 0, 0>>,
-    call({request, {Chip, burst, read, 'DoiLevel', Value}});
-read_burst(_Chip, Reg) ->
+    call(Slot, {request, {Chip, burst, read, 'DoiLevel', Value}});
+read_burst(_Slot, _Chip, Reg) ->
     error({invalid_burst_register, Reg}).
 
-write(Chip, Reg, Value) ->
-    call({request, {Chip, single, write, Reg, Value}}).
+write(Chip, Reg, Value) -> write(default, Chip, Reg, Value).
+
+write(Slot, Chip, Reg, Value) ->
+    call(Slot, {request, {Chip, single, write, Reg, Value}}).
 
 %--- Callbacks -----------------------------------------------------------------
 
@@ -57,8 +62,11 @@ handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
 %--- Internal ------------------------------------------------------------------
 
-call(Call) ->
+call(default, Call) ->
     Dev = grisp_devices:default(?MODULE),
+    gen_server:call(Dev#device.pid, Call);
+call(Slot, Call) ->
+    Dev = grisp:device(Slot),
     gen_server:call(Dev#device.pid, Call).
 
 send_request(Bus, {Chip, Type, Op, Reg, Value}) ->
