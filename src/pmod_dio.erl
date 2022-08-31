@@ -66,7 +66,7 @@ call(default, Call) ->
     Dev = grisp_devices:default(?MODULE),
     gen_server:call(Dev#device.pid, Call);
 call(Slot, Call) ->
-    Dev = grisp:device(Slot),
+    Dev = grisp_devices:slot(Slot),
     gen_server:call(Dev#device.pid, Call).
 
 send_request(Bus, {Chip, Type, Op, Reg, Value}) ->
