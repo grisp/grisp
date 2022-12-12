@@ -159,4 +159,4 @@ $ rebar3 as test shell
 [PMOD]: https://digilent.com/reference/pmod/start
 [rebar3_plugin]: https://github.com/grisp/rebar3_grisp
 [mix_plugin]: https://github.com/grisp/mix_grisp
-[grisp_emulaton]: https://github.com/grisp/grisp_emulation
+[grisp_emulation]: https://github.com/grisp/grisp_emulation
