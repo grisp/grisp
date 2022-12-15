@@ -153,12 +153,15 @@
 %--- Types ---------------------------------------------------------------------
 
 -type pin() :: atom().
--type opts() :: map().
+-type opts() :: #{'mode' => mode(),
+                  _ => _}.
+-type mode() :: 'input' | {'output', value()}.
 -opaque ref() :: reference().
 -type value() :: 0 | 1.
 
 -export_type([pin/0]).
 -export_type([opts/0]).
+-export_type([mode/0]).
 -export_type([ref/0]).
 -export_type([value/0]).
 
@@ -169,12 +172,19 @@
 open(Pin) -> open(Pin, #{}).
 
 % @doc Creates a reference to a GPIO pin.
+%      If no mode is given in the options, it defaults to `{output, 0}'.
 %
 % === Example ===
 % Open the GPIO pin of the red component of LED 1 as an output pin with initial
 % value of `0':
 % ```
-% 1> grisp_gpio:open(led1_r, {output, 0}).
+% 1> grisp_gpio:open(led1_r, #{mode => {output, 0}}).
+% #Ref<0.2691682867.116916226.176944>
+% '''
+%
+% Open the GPIO pin of Mode Jumper 1 as an input pin:
+% ```
+% 1> grisp_gpio:open(jumper_1, #{mode => input}).
 % #Ref<0.2691682867.116916226.176944>
 % '''
 -spec open(pin(), opts()) -> ref().
@@ -187,7 +197,7 @@ open(Pin, UserOpts) ->
 % === Example ===
 % Turn off the red component of LED 1:
 % ```
-% 1> LED1R = grisp_gpio:open(led1_r, {output, 0}).
+% 1> LED1R = grisp_gpio:open(led1_r, #{mode => {output, 0}}).
 % #Ref<0.2691682867.116916226.176944>
 % 2> grisp_gpio:set(LED1R, 0).
 % ok
@@ -208,13 +218,26 @@ set(Pin, Value) when is_integer(Value) -> gpio_set_nif(Pin, Value).
 % === Examples ===
 % To see whether the red component of LED 1 is enabled:
 % ```
-% 1> LED1R = grisp_gpio:open(led1_r, {output, 0}).
+% 1> LED1R = grisp_gpio:open(led1_r, #{mode => {output, 0}}).
 % #Ref<0.2691682867.116916226.176944>
 % 2> grisp_gpio:get(LED1R).
 % 0
 % 3> grisp_gpio:set(LED1R, 1).
 % ok
 % 2> grisp_gpio:get(LED1R).
+% 1
+% '''
+%
+% To see whether Mode Jumper 1 is on or off:
+% ```
+% 1> Jumper1 = grisp_gpio:open(jumper_1, #{mode => input}).
+% #Ref<0.2691682867.116916226.176944>
+% 2> grisp_gpio:get(Jumper1).
+% 0
+% '''
+% Flip the jumper
+% ```
+% 3> grisp_gpio:get(Jumper1).
 % 1
 % '''
 -spec get(ref()) -> value().
