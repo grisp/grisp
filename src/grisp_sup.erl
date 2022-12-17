@@ -6,6 +6,7 @@
 % API
 -export([start_link/0]).
 -export([start_link/2]).
+-export([start_child/2]).
 
 % Callbacks
 -export([init/1]).
@@ -45,6 +46,9 @@ start_link() ->
 
 start_link(Name, Children) ->
     supervisor:start_link({local, Name}, ?MODULE, Children).
+
+start_child(Module, Args) ->
+    supervisor:start_child(?MODULE, worker(Module, Module, Args)).
 
 %--- Callbacks -----------------------------------------------------------------
 
