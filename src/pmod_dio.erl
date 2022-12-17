@@ -1,14 +1,17 @@
+% MAX14906 specs:
+% https://www.analog.com/media/en/technical-documentation/data-sheets/MAX14906.pdf
 -module(pmod_dio).
 -behaviour(gen_server).
 
-% FIXME: remove!
--export([crc5/1]).
--export([read/2]).
--export([read_burst/2]).
--export([write/3]).
-
 % API
 -export([start_link/2]).
+-export([chips/1]).
+-export([read/2]).
+-export([read/3]).
+-export([read_burst/2]).
+-export([read_burst/3]).
+-export([write/3]).
+-export([write/4]).
 
 % Callbacks
 -export([init/1]).
@@ -23,52 +26,74 @@
 
 -include("grisp.hrl").
 
+-record(req, {chip, type = single, op = read, reg, value}).
+
 %--- API -----------------------------------------------------------------------
 
-start_link(Connector, _Opts) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, Connector, []).
+start_link(Slot, UserOpts) ->
+    Opts = opts(maps:merge(#{chips => [1]}, UserOpts)),
+    gen_server:start_link(?MODULE, Opts#{slot => Slot}, []).
 
-read(Chip, Reg) ->
-    Value = <<0>>,
-    call({request, {Chip, single, read, Reg, Value}}).
+chips(Slot) -> call(Slot, chips).
 
-read_burst(Chip, 'DoiLevel') ->
+read(Chip, Reg) -> read(default, Chip, Reg).
+
+read(Slot, Chip, Reg) ->
+    call(Slot, #req{chip = Chip, reg = Reg, value = <<0>>}).
+
+read_burst(Chip, Reg) -> read_burst(default, Chip, Reg).
+
+read_burst(Slot, Chip, 'DoiLevel' = Reg) ->
     Value = <<0, 0, 0, 0, 0, 0>>,
-    call({request, {Chip, burst, read, 'DoiLevel', Value}});
-read_burst(_Chip, Reg) ->
+    call(Slot, #req{chip = Chip, type = burst, reg = Reg, value = Value});
+read_burst(_Slot, _Chip, Reg) ->
     error({invalid_burst_register, Reg}).
 
-write(Chip, Reg, Value) ->
-    call({request, {Chip, single, write, Reg, Value}}).
+write(Chip, Reg, Value) -> write(default, Chip, Reg, Value).
+
+write(Slot, Chip, Reg, Value) ->
+    call(Slot, #req{chip = Chip, op = write, reg = Reg, value = Value}).
 
 %--- Callbacks -----------------------------------------------------------------
 
-init(Slot) ->
+init(#{slot := Slot} = Opts) ->
     grisp_devices:register(Slot, ?MODULE),
     Bus = grisp_spi:open(Slot),
-    {ok, #{bus => Bus}}.
+    {ok, Opts#{bus => Bus}}.
 
-handle_call({request, Request}, _From, #{bus := Bus} = State) ->
-    {reply, send_request(Bus, Request), State};
-handle_call(Request, From, _State) ->
-    error({unknown_call, Request, From}).
+handle_call(chips, _From, #{chips := Chips} = State) ->
+    {reply, maps:keys(Chips), State};
+handle_call(Req, _From, #{chips := Chips} = State) when
+    is_map_key(Req#req.chip, Chips)
+->
+    {reply, send_request(State, Req), State};
+handle_call(#req{} = Req, _From, State) ->
+    {reply, {error, {unknown_chip, Req#req.chip}}, State};
+handle_call(Req, From, _State) ->
+    error({unknown_call, Req, From}).
 
-handle_cast(Request, _State) -> error({unknown_cast, Request}).
+handle_cast(Req, _State) -> error({unknown_cast, Req}).
 
 %--- Internal ------------------------------------------------------------------
 
-call(Call) ->
+opts(#{chips := Chips} = Opts) ->
+    Opts#{chips := maps:from_list([{C, true} || C <- Chips])}.
+
+call(default, Call) ->
     Dev = grisp_devices:default(?MODULE),
+    gen_server:call(Dev#device.pid, Call);
+call(Slot, Call) ->
+    Dev = grisp_devices:slot(Slot),
     gen_server:call(Dev#device.pid, Call).
 
-send_request(Bus, {Chip, Type, Op, Reg, Value}) ->
-    Addr = Chip - 1,
-    Encoded = encode_request(Reg, Value),
-    Request = request(Type, Op, Addr, Reg, Encoded),
+send_request(#{bus := Bus}, #req{op = Op, reg = Reg} = Req) ->
+    Addr = Req#req.chip - 1,
+    Encoded = encode_request(Req),
+    Request = request(Req, Addr, Encoded),
     [Response] = grisp_spi:transfer(Bus, [{?SPI_MODE, Request}]),
     decode_response(Op, Addr, Reg, bit_size(Encoded), Response).
 
-request(Type, Op, Addr, Reg, Value) ->
+request(#req{type = Type, reg = Reg, op = Op}, Addr, Value) ->
     Req =
         <<Addr:2, (type(Type)):1, (reg(Reg)):4, (rw(Op)):1, Value/binary,
             2#000:3>>,
@@ -81,8 +106,7 @@ type(burst) -> 1.
 rw(read) -> 0;
 rw(write) -> 1.
 
-crc5(Bitstring) ->
-    crc5(Bitstring, ?CRC5_START).
+crc5(Bitstring) -> crc5(Bitstring, ?CRC5_START).
 
 crc5(<<Bit:1, Bin/bitstring>>, R) ->
     R2 =
@@ -94,10 +118,15 @@ crc5(<<Bit:1, Bin/bitstring>>, R) ->
 crc5(<<>>, R) ->
     R.
 
-encode_request(_Reg, Value) when is_binary(Value) ->
-    Value;
-encode_request(Reg, Value) ->
-    reg(encode, Reg, Value).
+encode_request(#req{value = Value}) when is_binary(Value) -> Value;
+encode_request(#req{reg = Reg, value = Value}) -> reg(encode, Reg, Value).
+
+-define(MAP_FIELD(Name),
+    list_to_atom(??Name) => field(decode, list_to_atom(??Name), Name)
+).
+-define(MAP_FIELD(Variable, Key), Key => field(decode, Key, Variable)).
+-define(BIN_FIELD(Name), (field(encode, list_to_atom(??Name), Name))).
+-define(BIN_FIELD(Variable, Key), (field(encode, Key, Variable))).
 
 decode_response(Op, Addr, Reg, Len, <<_:2, Response/bitstring>>) ->
     0 = crc5(Response),
@@ -113,23 +142,20 @@ decode_response(Op, Addr, Reg, Len, <<_:2, Response/bitstring>>) ->
         ThrErr:1,
         _CRC:5
     >> = Response,
-    maps:merge(
-        #{
-            'SHTVDD' => boolean(SHTVDD),
-            'AbvVDD' => boolean(AbvVDD),
-            'OWOffF' => boolean(OWOffF),
-            'OvrCurr' => boolean(OvrCurr),
-            'OvlDf' => boolean(OvlDf),
-            'GLOBLF' => boolean(GLOBLF),
-            'ThrErr' => boolean(ThrErr)
-        },
-        decode_result(Op, Reg, Result)
-    ).
+    #{
+        ?MAP_FIELD(SHTVDD),
+        ?MAP_FIELD(SHTVDD),
+        ?MAP_FIELD(AbvVDD),
+        ?MAP_FIELD(OWOffF),
+        ?MAP_FIELD(OvrCurr),
+        ?MAP_FIELD(OvlDf),
+        ?MAP_FIELD(GLOBLF),
+        ?MAP_FIELD(ThrErr),
+        result => decode_result(Op, Reg, Result)
+    }.
 
 decode_result(read, Reg, Result) ->
-    #{
-        result => decode_registers(Reg, Result)
-    };
+    decode_registers(Reg, Result);
 decode_result(write, _Reg, Result) ->
     <<
         DiLvl4:1,
@@ -142,16 +168,14 @@ decode_result(write, _Reg, Result) ->
         F1:1
     >> = Result,
     #{
-        result => #{
-            'DiLvl4' => boolean(DiLvl4),
-            'DiLvl3' => boolean(DiLvl3),
-            'DiLvl2' => boolean(DiLvl2),
-            'DiLvl1' => boolean(DiLvl1),
-            'F4' => boolean(F4),
-            'F3' => boolean(F3),
-            'F2' => boolean(F2),
-            'F1' => boolean(F1)
-        }
+        ?MAP_FIELD(DiLvl4, {'DiLvl_', 4}),
+        ?MAP_FIELD(DiLvl3, {'DiLvl_', 3}),
+        ?MAP_FIELD(DiLvl2, {'DiLvl_', 2}),
+        ?MAP_FIELD(DiLvl1, {'DiLvl_', 1}),
+        ?MAP_FIELD(F4, {'F_', 4}),
+        ?MAP_FIELD(F3, {'F_', 3}),
+        ?MAP_FIELD(F2, {'F_', 2}),
+        ?MAP_FIELD(F1, {'F_', 1})
     }.
 
 decode_registers(StartReg, Response) ->
@@ -164,13 +188,6 @@ decode_registers(Reg, <<Resp:8/bitstring, Response/binary>>, Result) ->
     });
 decode_registers(_Reg, <<>>, Result) ->
     Result.
-
--define(MAP_FIELD(Name),
-    list_to_atom(??Name) => field(decode, list_to_atom(??Name), Name)
-).
--define(BIN_FIELD(Name),
-    (field(encode, list_to_atom(??Name), Name))
-).
 
 reg('SetOUT') -> 16#00;
 reg('SetLED') -> 16#01;
@@ -218,35 +235,34 @@ reg(decode, 'SetOUT', Content) when is_binary(Content) ->
         HighO1:1
     >> = Content,
     #{
-        ?MAP_FIELD(SetDi4),
-        ?MAP_FIELD(SetDi3),
-        ?MAP_FIELD(SetDi2),
-        ?MAP_FIELD(SetDi1),
-        ?MAP_FIELD(HighO4),
-        ?MAP_FIELD(HighO3),
-        ?MAP_FIELD(HighO2),
-        ?MAP_FIELD(HighO1)
+        ?MAP_FIELD(SetDi4, {'SetDi_', 4}),
+        ?MAP_FIELD(SetDi3, {'SetDi_', 3}),
+        ?MAP_FIELD(SetDi2, {'SetDi_', 2}),
+        ?MAP_FIELD(SetDi1, {'SetDi_', 1}),
+        ?MAP_FIELD(HighO4, {'HighO_', 4}),
+        ?MAP_FIELD(HighO3, {'HighO_', 3}),
+        ?MAP_FIELD(HighO2, {'HighO_', 2}),
+        ?MAP_FIELD(HighO1, {'HighO_', 1})
     };
-reg(encode, 'SetOUT', Content) when is_map(Content) ->
-    #{
-        'SetDi4' := SetDi4,
-        'SetDi3' := SetDi3,
-        'SetDi2' := SetDi2,
-        'SetDi1' := SetDi1,
-        'HighO4' := HighO4,
-        'HighO3' := HighO3,
-        'HighO2' := HighO2,
-        'HighO1' := HighO1
-    } = Content,
+reg(encode, 'SetOUT', #{
+    {'SetDi_', 4} := SetDi4,
+    {'SetDi_', 3} := SetDi3,
+    {'SetDi_', 2} := SetDi2,
+    {'SetDi_', 1} := SetDi1,
+    {'HighO_', 4} := HighO4,
+    {'HighO_', 3} := HighO3,
+    {'HighO_', 2} := HighO2,
+    {'HighO_', 1} := HighO1
+}) ->
     <<
-        ?BIN_FIELD(SetDi4):1,
-        ?BIN_FIELD(SetDi3):1,
-        ?BIN_FIELD(SetDi2):1,
-        ?BIN_FIELD(SetDi1):1,
-        ?BIN_FIELD(HighO4):1,
-        ?BIN_FIELD(HighO3):1,
-        ?BIN_FIELD(HighO2):1,
-        ?BIN_FIELD(HighO1):1
+        ?BIN_FIELD(SetDi4, {'SetDi_', 4}):1,
+        ?BIN_FIELD(SetDi3, {'SetDi_', 3}):1,
+        ?BIN_FIELD(SetDi2, {'SetDi_', 2}):1,
+        ?BIN_FIELD(SetDi1, {'SetDi_', 1}):1,
+        ?BIN_FIELD(HighO4, {'HighO_', 4}):1,
+        ?BIN_FIELD(HighO3, {'HighO_', 3}):1,
+        ?BIN_FIELD(HighO2, {'HighO_', 2}):1,
+        ?BIN_FIELD(HighO1, {'HighO_', 1}):1
     >>;
 reg(decode, 'SetLED', Content) when is_binary(Content) ->
     <<
@@ -260,35 +276,34 @@ reg(decode, 'SetLED', Content) when is_binary(Content) ->
         FLED1:1
     >> = Content,
     #{
-        ?MAP_FIELD(SLED4),
-        ?MAP_FIELD(SLED3),
-        ?MAP_FIELD(SLED2),
-        ?MAP_FIELD(SLED1),
-        ?MAP_FIELD(FLED4),
-        ?MAP_FIELD(FLED3),
-        ?MAP_FIELD(FLED2),
-        ?MAP_FIELD(FLED1)
+        ?MAP_FIELD(SLED4, {'SLED_', 4}),
+        ?MAP_FIELD(SLED3, {'SLED_', 3}),
+        ?MAP_FIELD(SLED2, {'SLED_', 2}),
+        ?MAP_FIELD(SLED1, {'SLED_', 1}),
+        ?MAP_FIELD(FLED4, {'FLED_', 4}),
+        ?MAP_FIELD(FLED3, {'FLED_', 3}),
+        ?MAP_FIELD(FLED2, {'FLED_', 2}),
+        ?MAP_FIELD(FLED1, {'FLED_', 1})
     };
-reg(encode, 'SetLED', Content) when is_map(Content) ->
-    #{
-        'SLED4' := SLED4,
-        'SLED3' := SLED3,
-        'SLED2' := SLED2,
-        'SLED1' := SLED1,
-        'FLED4' := FLED4,
-        'FLED3' := FLED3,
-        'FLED2' := FLED2,
-        'FLED1' := FLED1
-    } = Content,
+reg(encode, 'SetLED', #{
+    {'SLED_', 4} := SLED4,
+    {'SLED_', 3} := SLED3,
+    {'SLED_', 2} := SLED2,
+    {'SLED_', 1} := SLED1,
+    {'FLED_', 4} := FLED4,
+    {'FLED_', 3} := FLED3,
+    {'FLED_', 2} := FLED2,
+    {'FLED_', 1} := FLED1
+}) ->
     <<
-        ?BIN_FIELD(SLED4):1,
-        ?BIN_FIELD(SLED3):1,
-        ?BIN_FIELD(SLED2):1,
-        ?BIN_FIELD(SLED1):1,
-        ?BIN_FIELD(FLED4):1,
-        ?BIN_FIELD(FLED3):1,
-        ?BIN_FIELD(FLED2):1,
-        ?BIN_FIELD(FLED1):1
+        ?BIN_FIELD(SLED4, {'SLED_', 4}):1,
+        ?BIN_FIELD(SLED3, {'SLED_', 3}):1,
+        ?BIN_FIELD(SLED2, {'SLED_', 2}):1,
+        ?BIN_FIELD(SLED1, {'SLED_', 1}):1,
+        ?BIN_FIELD(FLED4, {'FLED_', 4}):1,
+        ?BIN_FIELD(FLED3, {'FLED_', 3}):1,
+        ?BIN_FIELD(FLED2, {'FLED_', 2}):1,
+        ?BIN_FIELD(FLED1, {'FLED_', 1}):1
     >>;
 reg(decode, 'DoiLevel', Content) when is_binary(Content) ->
     <<
@@ -302,14 +317,14 @@ reg(decode, 'DoiLevel', Content) when is_binary(Content) ->
         DoiLevel1_VDDOKFault:1
     >> = Content,
     #{
-        ?MAP_FIELD(SafeDemagF4),
-        ?MAP_FIELD(SafeDemagF3),
-        ?MAP_FIELD(SafeDemagF2),
-        ?MAP_FIELD(SafeDemagF1),
-        ?MAP_FIELD(DoiLevel4_VDDOKFault),
-        ?MAP_FIELD(DoiLevel3_VDDOKFault),
-        ?MAP_FIELD(DoiLevel2_VDDOKFault),
-        ?MAP_FIELD(DoiLevel1_VDDOKFault)
+        ?MAP_FIELD(SafeDemagF4, {'SafeDemagF_', 4}),
+        ?MAP_FIELD(SafeDemagF3, {'SafeDemagF_', 3}),
+        ?MAP_FIELD(SafeDemagF2, {'SafeDemagF_', 2}),
+        ?MAP_FIELD(SafeDemagF1, {'SafeDemagF_', 1}),
+        ?MAP_FIELD(DoiLevel4_VDDOKFault, {'DoiLevel_/VDDOKFault_', 4}),
+        ?MAP_FIELD(DoiLevel3_VDDOKFault, {'DoiLevel_/VDDOKFault_', 3}),
+        ?MAP_FIELD(DoiLevel2_VDDOKFault, {'DoiLevel_/VDDOKFault_', 2}),
+        ?MAP_FIELD(DoiLevel1_VDDOKFault, {'DoiLevel_/VDDOKFault_', 1})
     };
 reg(decode, 'Interrupt', Content) ->
     <<ComErr:1, SupplyErr:1, DeMagFault:1, ShtVDDFault:1, AboveVDDFault:1,
@@ -336,14 +351,14 @@ reg(decode, 'OvrLdChF', Content) ->
         OVL1:1
     >> = Content,
     #{
-        ?MAP_FIELD(CL4),
-        ?MAP_FIELD(CL3),
-        ?MAP_FIELD(CL2),
-        ?MAP_FIELD(CL1),
-        ?MAP_FIELD(OVL4),
-        ?MAP_FIELD(OVL3),
-        ?MAP_FIELD(OVL2),
-        ?MAP_FIELD(OVL1)
+        ?MAP_FIELD(CL4, {'CL_', 4}),
+        ?MAP_FIELD(CL3, {'CL_', 3}),
+        ?MAP_FIELD(CL2, {'CL_', 2}),
+        ?MAP_FIELD(CL1, {'CL_', 1}),
+        ?MAP_FIELD(OVL4, {'OVL_', 4}),
+        ?MAP_FIELD(OVL3, {'OVL_', 3}),
+        ?MAP_FIELD(OVL2, {'OVL_', 2}),
+        ?MAP_FIELD(OVL1, {'OVL_', 1})
     };
 reg(decode, 'OpnWirChF', Content) ->
     <<
@@ -357,14 +372,14 @@ reg(decode, 'OpnWirChF', Content) ->
         OWOff1:1
     >> = Content,
     #{
-        ?MAP_FIELD(AboveVDD4),
-        ?MAP_FIELD(AboveVDD3),
-        ?MAP_FIELD(AboveVDD2),
-        ?MAP_FIELD(AboveVDD1),
-        ?MAP_FIELD(OWOff4),
-        ?MAP_FIELD(OWOff3),
-        ?MAP_FIELD(OWOff2),
-        ?MAP_FIELD(OWOff1)
+        ?MAP_FIELD(AboveVDD4, {'AboveVDD_', 4}),
+        ?MAP_FIELD(AboveVDD3, {'AboveVDD_', 3}),
+        ?MAP_FIELD(AboveVDD2, {'AboveVDD_', 2}),
+        ?MAP_FIELD(AboveVDD1, {'AboveVDD_', 1}),
+        ?MAP_FIELD(OWOff4, {'OWOff_', 4}),
+        ?MAP_FIELD(OWOff3, {'OWOff_', 3}),
+        ?MAP_FIELD(OWOff2, {'OWOff_', 2}),
+        ?MAP_FIELD(OWOff1, {'OWOff_', 1})
     };
 reg(decode, 'ShtVDDChF', Content) ->
     <<
@@ -378,14 +393,14 @@ reg(decode, 'ShtVDDChF', Content) ->
         SHVDD1:1
     >> = Content,
     #{
-        ?MAP_FIELD(VDDOV4),
-        ?MAP_FIELD(VDDOV3),
-        ?MAP_FIELD(VDDOV2),
-        ?MAP_FIELD(VDDOV1),
-        ?MAP_FIELD(SHVDD4),
-        ?MAP_FIELD(SHVDD3),
-        ?MAP_FIELD(SHVDD2),
-        ?MAP_FIELD(SHVDD1)
+        ?MAP_FIELD(VDDOV4, {'VDDOV_', 4}),
+        ?MAP_FIELD(VDDOV3, {'VDDOV_', 3}),
+        ?MAP_FIELD(VDDOV2, {'VDDOV_', 2}),
+        ?MAP_FIELD(VDDOV1, {'VDDOV_', 1}),
+        ?MAP_FIELD(SHVDD4, {'SHVDD_', 4}),
+        ?MAP_FIELD(SHVDD3, {'SHVDD_', 3}),
+        ?MAP_FIELD(SHVDD2, {'SHVDD_', 2}),
+        ?MAP_FIELD(SHVDD1, {'SHVDD_', 1})
     };
 reg(decode, 'GlobalErr', Content) ->
     <<
@@ -427,16 +442,15 @@ reg(decode, 'Config1', Content) when is_binary(Content) ->
         ?MAP_FIELD(SLEDSet),
         ?MAP_FIELD(FLEDSet)
     };
-reg(encode, 'Config1', Content) when is_map(Content) ->
-    #{
-        'LedCurrLim' := LedCurrLim,
-        'FLatchEn' := FLatchEn,
-        'FilterLong' := FilterLong,
-        'FFilterEn' := FFilterEn,
-        'FLEDStretch' := FLEDStretch,
-        'SLEDSet' := SLEDSet,
-        'FLEDSet' := FLEDSet
-    } = Content,
+reg(encode, 'Config1', #{
+    'LedCurrLim' := LedCurrLim,
+    'FLatchEn' := FLatchEn,
+    'FilterLong' := FilterLong,
+    'FFilterEn' := FFilterEn,
+    'FLEDStretch' := FLEDStretch,
+    'SLEDSet' := SLEDSet,
+    'FLEDSet' := FLEDSet
+}) ->
     <<
         ?BIN_FIELD(LedCurrLim):1,
         ?BIN_FIELD(FLatchEn):1,
@@ -461,14 +475,13 @@ reg(decode, 'Config2', Content) when is_binary(Content) ->
         ?MAP_FIELD(SynchWDEn),
         ?MAP_FIELD(VDDOnThr)
     };
-reg(encode, 'Config2', Content) when is_map(Content) ->
-    #{
-        'WDTo' := WDTo,
-        'OWOffCs' := OWOffCs,
-        'ShtVddThr' := ShtVddThr,
-        'SynchWDEn' := SynchWDEn,
-        'VDDOnThr' := VDDOnThr
-    } = Content,
+reg(encode, 'Config2', #{
+    'WDTo' := WDTo,
+    'OWOffCs' := OWOffCs,
+    'ShtVddThr' := ShtVddThr,
+    'SynchWDEn' := SynchWDEn,
+    'VDDOnThr' := VDDOnThr
+}) ->
     <<
         ?BIN_FIELD(WDTo):2,
         ?BIN_FIELD(OWOffCs):2,
@@ -495,15 +508,14 @@ reg(decode, 'ConfigDI', Content) when is_binary(Content) ->
         ?MAP_FIELD(OVLStretchEn),
         ?MAP_FIELD(OVLBlank)
     };
-reg(encode, 'ConfigDI', Content) when is_map(Content) ->
-    #{
-        'Typ2Di' := Typ2Di,
-        'VDDFaultDis' := VDDFaultDis,
-        'VDDFaultSel' := VDDFaultSel,
-        'AboveVDDProtEn' := AboveVDDProtEn,
-        'OVLStretchEn' := OVLStretchEn,
-        'OVLBlank' := OVLBlank
-    } = Content,
+reg(encode, 'ConfigDI', #{
+    'Typ2Di' := Typ2Di,
+    'VDDFaultDis' := VDDFaultDis,
+    'VDDFaultSel' := VDDFaultSel,
+    'AboveVDDProtEn' := AboveVDDProtEn,
+    'OVLStretchEn' := OVLStretchEn,
+    'OVLBlank' := OVLBlank
+}) ->
     <<
         ?BIN_FIELD(Typ2Di):1,
         % Reserved
@@ -522,23 +534,22 @@ reg(decode, 'ConfigDO', Content) when is_binary(Content) ->
         DoMode1:2
     >> = Content,
     #{
-        ?MAP_FIELD(DoMode4),
-        ?MAP_FIELD(DoMode3),
-        ?MAP_FIELD(DoMode2),
-        ?MAP_FIELD(DoMode1)
+        ?MAP_FIELD(DoMode4, {'DoMode_', 4}),
+        ?MAP_FIELD(DoMode3, {'DoMode_', 3}),
+        ?MAP_FIELD(DoMode2, {'DoMode_', 2}),
+        ?MAP_FIELD(DoMode1, {'DoMode_', 1})
     };
-reg(encode, 'ConfigDO', Content) when is_map(Content) ->
-    #{
-        'DoMode4' := DoMode4,
-        'DoMode3' := DoMode3,
-        'DoMode2' := DoMode2,
-        'DoMode1' := DoMode1
-    } = Content,
+reg(encode, 'ConfigDO', #{
+    {'DoMode_', 4} := DoMode4,
+    {'DoMode_', 3} := DoMode3,
+    {'DoMode_', 2} := DoMode2,
+    {'DoMode_', 1} := DoMode1
+}) ->
     <<
-        ?BIN_FIELD(DoMode4):2,
-        ?BIN_FIELD(DoMode3):2,
-        ?BIN_FIELD(DoMode2):2,
-        ?BIN_FIELD(DoMode1):2
+        ?BIN_FIELD(DoMode4, {'DoMode_', 4}):2,
+        ?BIN_FIELD(DoMode3, {'DoMode_', 3}):2,
+        ?BIN_FIELD(DoMode2, {'DoMode_', 2}):2,
+        ?BIN_FIELD(DoMode1, {'DoMode_', 1}):2
     >>;
 reg(decode, 'CurrLim', Content) when is_binary(Content) ->
     <<
@@ -548,23 +559,22 @@ reg(decode, 'CurrLim', Content) when is_binary(Content) ->
         CL1:2
     >> = Content,
     #{
-        ?MAP_FIELD(CL4),
-        ?MAP_FIELD(CL3),
-        ?MAP_FIELD(CL2),
-        ?MAP_FIELD(CL1)
+        ?MAP_FIELD(CL4, {'CL_', 4}),
+        ?MAP_FIELD(CL3, {'CL_', 3}),
+        ?MAP_FIELD(CL2, {'CL_', 2}),
+        ?MAP_FIELD(CL1, {'CL_', 1})
     };
-reg(encode, 'CurrLim', Content) when is_map(Content) ->
-    #{
-        'CL4' := CL4,
-        'CL3' := CL3,
-        'CL2' := CL2,
-        'CL1' := CL1
-    } = Content,
+reg(encode, 'CurrLim', #{
+    {'CL_', 4} := CL4,
+    {'CL_', 3} := CL3,
+    {'CL_', 2} := CL2,
+    {'CL_', 1} := CL1
+}) ->
     <<
-        ?BIN_FIELD(CL4):2,
-        ?BIN_FIELD(CL3):2,
-        ?BIN_FIELD(CL2):2,
-        ?BIN_FIELD(CL1):2
+        ?BIN_FIELD(CL4, {'CL_', 4}):2,
+        ?BIN_FIELD(CL3, {'CL_', 3}):2,
+        ?BIN_FIELD(CL2, {'CL_', 2}):2,
+        ?BIN_FIELD(CL1, {'CL_', 1}):2
     >>;
 reg(decode, 'Mask', Content) when is_binary(Content) ->
     <<
@@ -587,17 +597,16 @@ reg(decode, 'Mask', Content) when is_binary(Content) ->
         ?MAP_FIELD(CurrLimM),
         ?MAP_FIELD(OverLdM)
     };
-reg(encode, 'Mask', Content) when is_map(Content) ->
-    #{
-        'CommErrM' := CommErrM,
-        'SupplyErrM' := SupplyErrM,
-        'VddOKM' := VddOKM,
-        'ShtVddM' := ShtVddM,
-        'AboveVDDM' := AboveVDDM,
-        'OWOffM' := OWOffM,
-        'CurrLimM' := CurrLimM,
-        'OverLdM' := OverLdM
-    } = Content,
+reg(encode, 'Mask', #{
+    'CommErrM' := CommErrM,
+    'SupplyErrM' := SupplyErrM,
+    'VddOKM' := VddOKM,
+    'ShtVddM' := ShtVddM,
+    'AboveVDDM' := AboveVDDM,
+    'OWOffM' := OWOffM,
+    'CurrLimM' := CurrLimM,
+    'OverLdM' := OverLdM
+}) ->
     <<
         ?BIN_FIELD(CommErrM):1,
         ?BIN_FIELD(SupplyErrM):1,
@@ -609,154 +618,94 @@ reg(encode, 'Mask', Content) when is_map(Content) ->
         ?BIN_FIELD(OverLdM):1
     >>;
 reg(decode, _Reg, Content) ->
-    Content.
+    Content;
+reg(encode, Reg, Content) ->
+    error({invalid_content, Reg, Content}).
 
-field(decode, 'FLEDStretch', Value) ->
-    pick(Value, {
-        false,
-        {millisecond, 1_000},
-        {millisecond, 2_000},
-        {millisecond, 3_000}
-    });
-field(encode, 'FLEDStretch', false) ->
-    0;
-field(encode, 'FLEDStretch', {millisecond, 1_000}) ->
-    1;
-field(encode, 'FLEDStretch', {millisecond, 2_000}) ->
-    2;
-field(encode, 'FLEDStretch', {millisecond, 3_000}) ->
-    3;
-field(decode, 'WDTo', Value) ->
-    pick(Value, {
-        false,
-        {millisecond, 200},
-        {millisecond, 600},
-        {millisecond, 1_200}
-    });
-field(encode, 'WDTo', false) ->
-    0;
-field(encode, 'WDTo', {millisecond, 200}) ->
-    1;
-field(encode, 'WDTo', {millisecond, 600}) ->
-    2;
-field(encode, 'WDTo', {millisecond, 1_200}) ->
-    3;
-field(decode, 'OWOffCs', Value) ->
-    {microampere, pick(Value, {60, 100, 300, 600})};
-field(encode, 'OWOffCs', {microampere, 60}) ->
-    0;
-field(encode, 'OWOffCs', {microampere, 100}) ->
-    1;
-field(encode, 'OWOffCs', {microampere, 300}) ->
-    2;
-field(encode, 'OWOffCs', {micro_apmere, 600}) ->
-    3;
-field(decode, 'ShtVDDThr', Value) ->
-    {volt, pick(Value, {9, 10, 12, 14})};
-field(encode, 'ShtVDDThr', {volt, 9}) ->
-    0;
-field(encode, 'ShtVDDThr', {volt, 10}) ->
-    1;
-field(encode, 'ShtVDDThr', {volt, 12}) ->
-    2;
-field(encode, 'ShtVDDThr', {volt, 14}) ->
-    3;
-field(decode, 'Typ2Di', 0) ->
-    type_1_3;
-field(decode, 'Typ2Di', 1) ->
-    type_2;
-field(encode, 'Typ2Di', type_1_3) ->
-    0;
-field(encode, 'Typ2Di', type_2) ->
-    1;
-field(decode, 'OVLBlack', Value) ->
-    pick(Value, {
-        false,
-        {millisecond, 8},
-        {millisecond, 50},
-        {millisecond, 300}
-    });
-field(encode, 'OVLBlack', false) ->
-    0;
-field(encode, 'OVLBlack', {millisecond, 8}) ->
-    1;
-field(encode, 'OVLBlack', {millisecond, 50}) ->
-    2;
-field(encode, 'OVLBlack', {millisecond, 300}) ->
-    3;
-field(decode, Reg, Value) when
-    Reg == 'DoMode4'; Reg == 'DoMode3'; Reg == 'DoMode2'; Reg == 'DoMode1'
-->
-    pick(Value, {
-        high_side,
-        high_side_2x,
-        active_clamp_push_pull,
-        simple_push_pull
-    });
-field(encode, Reg, high_side) when
-    Reg == 'DoMode4'; Reg == 'DoMode3'; Reg == 'DoMode2'; Reg == 'DoMode1'
-->
+%% erlfmt-ignore
+-define(field_enc_dec(Field, Enc, Dec),
+    field(decode, Field, Enc) -> Dec;
+    field(encode, Field, Dec) -> Enc
+).
+-define(field(Field, Enc0, Dec0, Enc1, Dec1),
+    ?field_enc_dec(Field, Enc0, Dec0);
+    ?field_enc_dec(Field, Enc1, Dec1)
+).
+-define(field(Field, Enc0, Dec0, Enc1, Dec1, Enc2, Dec2, Enc3, Dec3),
+    ?field_enc_dec(Field, Enc0, Dec0);
+    ?field_enc_dec(Field, Enc1, Dec1);
+    ?field_enc_dec(Field, Enc2, Dec2);
+    ?field_enc_dec(Field, Enc3, Dec3)
+).
+
+%% erlfmt-ignore
+?field({'DiLvl_', _}, 0, 0, 1, 1);
+?field({'DoiLevel_/VDDOKFault_', _}, 0, 0, 1, 1);
+?field({'SetDi_', _}, 0, output, 1, input);
+?field({'HighO_', _}, 0, open, 1, closed);
+?field({'FLED_', _}, 0, off, 1, on);
+?field({'SLED_', _}, 0, off, 1, on);
+?field('FLEDStretch',
+    0, false,
+    1, {millisecond, 1_000},
+    2, {millisecond, 2_000},
+    3, {millisecond, 3_000}
+);
+?field('WDTo',
+    0, false,
+    1, {millisecond, 200},
+    2, {millisecond, 600},
+    3, {millisecond, 1_200}
+);
+?field('OWOffCs',
+    0, {microampere, 60},
+    1, {microampere, 100},
+    2, {microampere, 300},
+    3, {microampere, 600}
+);
+?field('ShtVDDThr',
+    0, {volt, 9},
+    1, {volt, 10},
+    2, {volt, 12},
+    3, {volt, 14}
+);
+?field('Typ2Di', 0, type_1_3, 1, type_2);
+?field('OVLBlack',
+    0, false,
+    1, {millisecond, 8},
+    2, {millisecond, 50},
+    3, {millisecond, 300}
+);
+?field({'DoMode_', _},
+    16#00, {high_side, {inrush_multiplier, 1}},
+    16#01, {high_side, {inrush_multiplier, 2}},
+    16#10, {push_pull, active_clamp},
+    16#11, {push_pull, simple}
+);
+field(decode, {'CL_', _}, 16#00) ->
+    #{current_limit => {milliampere, 600}, inrush => {millisecond, 20}};
+field(decode, {'CL_', _}, 16#01) ->
+    #{current_limit => {milliampere, 130}, inrush => {millisecond, 50}};
+field(decode, {'CL_', _}, 16#10) ->
+    #{current_limit => {milliampere, 300}, inrush => {millisecond, 40}};
+field(decode, {'CL_', _}, 16#11) ->
+    #{current_limit => {milliampere, 1200}, inrush => {millisecond, 10}};
+field(encode, {'CL_', _},
+    #{current_limit := {milliampere, 600}, inrush := {millisecond, 20}}
+) ->
     16#00;
-field(encode, Reg, high_side_2x) when
-    Reg == 'DoMode4'; Reg == 'DoMode3'; Reg == 'DoMode2'; Reg == 'DoMode1'
-->
+field(encode, {'CL_', _},
+    #{current_limit := {milliampere, 130}, inrush := {millisecond, 50}}
+) ->
     16#01;
-field(encode, Reg, active_clamp_push_pull) when
-    Reg == 'DoMode4'; Reg == 'DoMode3'; Reg == 'DoMode2'; Reg == 'DoMode1'
-->
+field(encode, {'CL_', _},
+    #{current_limit := {milliampere, 300}, inrush := {millisecond, 40}}
+) ->
     16#10;
-field(encode, Reg, simple_push_pull) when
-    Reg == 'DoMode4'; Reg == 'DoMode3'; Reg == 'DoMode2'; Reg == 'DoMode1'
-->
+field(encode, {'CL_', _},
+    #{current_limit := {milliampere, 1200}, inrush := {millisecond, 10}}
+) ->
     16#11;
-field(decode, Reg, Value) when
-    Reg == 'CL4'; Reg == 'CL3'; Reg == 'CL2'; Reg == 'CL1'
-->
-    pick(
-        Value,
-        {
-            #{current_limit => {milliampere, 600}, inrush => {millisecond, 20}},
-            #{current_limit => {milliampere, 130}, inrush => {millisecond, 50}},
-            #{current_limit => {milliampere, 300}, inrush => {millisecond, 40}},
-            #{current_limit => {milliampere, 1200}, inrush => {millisecond, 10}}
-        }
-    );
-field(encode, Reg, #{
-    current_limit := {milliampere, 600}, inrush := {millisecond, 20}
-}) when
-    Reg == 'CL4'; Reg == 'CL3'; Reg == 'CL2'; Reg == 'CL1'
-->
-    16#00;
-field(encode, Reg, #{
-    current_limit := {milliampere, 130}, inrush := {millisecond, 50}
-}) when
-    Reg == 'CL4'; Reg == 'CL3'; Reg == 'CL2'; Reg == 'CL1'
-->
-    16#01;
-field(encode, Reg, #{
-    current_limit := {milliampere, 300}, inrush := {millisecond, 40}
-}) when
-    Reg == 'CL4'; Reg == 'CL3'; Reg == 'CL2'; Reg == 'CL1'
-->
-    16#10;
-field(encode, Reg, #{
-    current_limit := {milliampere, 1200}, inrush := {millisecond, 10}
-}) when
-    Reg == 'CL4'; Reg == 'CL3'; Reg == 'CL2'; Reg == 'CL1'
-->
-    16#11;
-field(decode, _Name, 0) ->
-    false;
-field(decode, _Name, 1) ->
-    true;
-field(encode, _Name, false) ->
-    0;
-field(encode, _Name, true) ->
-    1;
+?field(_Name, 0, false, 1, true);
 field(encode, Name, Value) ->
     error({invalid_field_value, Name, Value}).
-
-boolean(0) -> false;
-boolean(1) -> true.
-
-pick(Index, Values) -> element(Index + 1, Values).

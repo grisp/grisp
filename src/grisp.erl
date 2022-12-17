@@ -25,6 +25,17 @@
 -opaque device() :: #device{}.
 % An object representing the running device.
 
+-type opts() :: #{access => public | exclusive, _ => _}.
+% Device driver options.
+%
+% Common options for all drivers:
+% <ul>
+%   <li>`access' controls whether only the owner process can interact with the
+%       driver.</li>
+% </ul>
+%
+% All other options are passed to the driver module.
+
 %--- API -----------------------------------------------------------------------
 
 % @doc See {@link add_device/3}.
@@ -41,10 +52,16 @@ add_device(Slot, Driver) -> add_device(Slot, Driver, #{}).
 % check for specific device IDs and other similar characteristics which will
 % fail if no device or the wrong device is connected.
 %
-% The set of options is passed to the driver and is specific to each driver.
+% The process that adds the device will become the owner process. Access is
+% controlled by setting the `access' option to either `public' or `exclusive'
+% (default is `public'). If `access' is set to `exclusive', only the owner is
+% allowed to interact with the driver.
+%
+% All other options is passed to the driver and is specific to each driver.
+% See the documentation of the specific driver module.
 %
 % Returns the created device instance.
--spec add_device(slot(), module(), map()) -> device().
+-spec add_device(slot(), module(), opts()) -> device().
 add_device(Slot, Driver, Opts) -> grisp_devices:add_device(Slot, Driver, Opts).
 
 % @doc Remove and stop the device instance for a device.
