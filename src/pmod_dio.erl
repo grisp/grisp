@@ -5,6 +5,7 @@
 
 % API
 -export([start_link/2]).
+-export([chips/1]).
 -export([read/2]).
 -export([read/3]).
 -export([read_burst/2]).
@@ -25,44 +26,58 @@
 
 -include("grisp_internal.hrl").
 
+-record(req, {chip, type = single, op = read, reg, value}).
+
 %--- API -----------------------------------------------------------------------
 
-start_link(Slot, _Opts) -> gen_server:start_link(?MODULE, Slot, []).
+start_link(Slot, UserOpts) ->
+    Opts = opts(maps:merge(#{chips => [1]}, UserOpts)),
+    gen_server:start_link(?MODULE, Opts#{slot => Slot}, []).
+
+chips(Slot) -> call(Slot, chips).
 
 read(Chip, Reg) -> read(default, Chip, Reg).
 
 read(Slot, Chip, Reg) ->
-    Value = <<0>>,
-    call(Slot, {request, {Chip, single, read, Reg, Value}}).
+    call(Slot, #req{chip = Chip, reg = Reg, value = <<0>>}).
 
 read_burst(Chip, Reg) -> read_burst(default, Chip, Reg).
 
-read_burst(Slot, Chip, 'DoiLevel') ->
+read_burst(Slot, Chip, 'DoiLevel' = Reg) ->
     Value = <<0, 0, 0, 0, 0, 0>>,
-    call(Slot, {request, {Chip, burst, read, 'DoiLevel', Value}});
+    call(Slot, #req{chip = Chip, type = burst, reg = Reg, value = Value});
 read_burst(_Slot, _Chip, Reg) ->
     error({invalid_burst_register, Reg}).
 
 write(Chip, Reg, Value) -> write(default, Chip, Reg, Value).
 
 write(Slot, Chip, Reg, Value) ->
-    call(Slot, {request, {Chip, single, write, Reg, Value}}).
+    call(Slot, #req{chip = Chip, op = write, reg = Reg, value = Value}).
 
 %--- Callbacks -----------------------------------------------------------------
 
-init(Slot) ->
+init(#{slot := Slot} = Opts) ->
     grisp_devices:register(Slot, ?MODULE),
     Bus = grisp_spi:open(Slot),
-    {ok, #{bus => Bus}}.
+    {ok, Opts#{bus => Bus}}.
 
-handle_call({request, Request}, _From, #{bus := Bus} = State) ->
-    {reply, send_request(Bus, Request), State};
-handle_call(Request, From, _State) ->
-    error({unknown_call, Request, From}).
+handle_call(chips, _From, #{chips := Chips} = State) ->
+    {reply, maps:keys(Chips), State};
+handle_call(Req, _From, #{chips := Chips} = State) when
+    is_map_key(Req#req.chip, Chips)
+->
+    {reply, send_request(State, Req), State};
+handle_call(#req{} = Req, _From, State) ->
+    {reply, {error, {unknown_chip, Req#req.chip}}, State};
+handle_call(Req, From, _State) ->
+    error({unknown_call, Req, From}).
 
-handle_cast(Request, _State) -> error({unknown_cast, Request}).
+handle_cast(Req, _State) -> error({unknown_cast, Req}).
 
 %--- Internal ------------------------------------------------------------------
+
+opts(#{chips := Chips} = Opts) ->
+    Opts#{chips := maps:from_list([{C, true} || C <- Chips])}.
 
 call(default, Call) ->
     Dev = grisp_devices:default(?MODULE),
@@ -71,14 +86,14 @@ call(Slot, Call) ->
     Dev = grisp_devices:slot(Slot),
     gen_server:call(Dev#device.pid, Call).
 
-send_request(Bus, {Chip, Type, Op, Reg, Value}) ->
-    Addr = Chip - 1,
-    Encoded = encode_request(Reg, Value),
-    Request = request(Type, Op, Addr, Reg, Encoded),
+send_request(#{bus := Bus}, #req{op = Op, reg = Reg} = Req) ->
+    Addr = Req#req.chip - 1,
+    Encoded = encode_request(Req),
+    Request = request(Req, Addr, Encoded),
     [Response] = grisp_spi:transfer(Bus, [{?SPI_MODE, Request}]),
     decode_response(Op, Addr, Reg, bit_size(Encoded), Response).
 
-request(Type, Op, Addr, Reg, Value) ->
+request(#req{type = Type, reg = Reg, op = Op}, Addr, Value) ->
     Req =
         <<Addr:2, (type(Type)):1, (reg(Reg)):4, (rw(Op)):1, Value/binary,
             2#000:3>>,
@@ -91,8 +106,7 @@ type(burst) -> 1.
 rw(read) -> 0;
 rw(write) -> 1.
 
-crc5(Bitstring) ->
-    crc5(Bitstring, ?CRC5_START).
+crc5(Bitstring) -> crc5(Bitstring, ?CRC5_START).
 
 crc5(<<Bit:1, Bin/bitstring>>, R) ->
     R2 =
@@ -104,10 +118,8 @@ crc5(<<Bit:1, Bin/bitstring>>, R) ->
 crc5(<<>>, R) ->
     R.
 
-encode_request(_Reg, Value) when is_binary(Value) ->
-    Value;
-encode_request(Reg, Value) ->
-    reg(encode, Reg, Value).
+encode_request(#req{value = Value}) when is_binary(Value) -> Value;
+encode_request(#req{reg = Reg, value = Value}) -> reg(encode, Reg, Value).
 
 -define(MAP_FIELD(Name),
     list_to_atom(??Name) => field(decode, list_to_atom(??Name), Name)
