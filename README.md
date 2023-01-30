@@ -1,6 +1,6 @@
 <p>
   <a href="#readme">
-    <img alt="GRiSP Erlang Runtime" src="images/GRiSP_Logotype_positiv.svg"/ style="width: 80%;">
+    <img alt="GRiSP Erlang Runtime" src="assets/GRiSP_Logotype_positiv.svg"/ style="width: 80%;">
   </a>
 </p>
 
@@ -30,7 +30,7 @@
 </p><br/>
 
 <p align="center">
-  <img alt="GRiSP 2 board on wood" src="images/code.png"/ style="width: 80%;" align="center">
+  <img alt="GRiSP 2 board on wood" src="assets/code.png"/ style="width: 80%;" align="center">
 </p>
 
 Create amazing Internet of Things designs without soldering or dropping down to
@@ -79,7 +79,7 @@ pins directly.
 
 ## GRiSP 2 (`grisp2`)
 
-<img alt="GRiSP 2 hardware" src="images/GRiSP2v1.2@0.25x.jpg" style="width: 50%" align="right"/>
+<img alt="GRiSP 2 hardware" src="assets/GRiSP2v1.2@0.25x.jpg" style="width: 50%" align="right"/>
 
 GRiSP 2 ships with the following features:
 
@@ -99,7 +99,7 @@ GRiSP 2 ships with the following features:
 
 ## GRiSP 1 (`grisp_base`)
 
-<img alt="GRiSP 1 hardware" src="images/GRiSP_basev1.2@0.25x.jpg" style="width: 40%" align="right"/>
+<img alt="GRiSP 1 hardware" src="assets/GRiSP_basev1.2@0.25x.jpg" style="width: 40%" align="right"/>
 
 GRiSP 1 ships with the following features:
 
