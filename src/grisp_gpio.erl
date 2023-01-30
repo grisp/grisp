@@ -246,15 +246,15 @@ get(Pin) -> gpio_get_nif(Pin).
 %--- Callbacks -----------------------------------------------------------------
 
 % @private
-on_load() -> ok = erlang:load_nif(atom_to_list(?MODULE), 0).
+on_load() -> ?NIF_LOAD.
 
 %--- Internal ------------------------------------------------------------------
 
-gpio_open_nif(_Attributes, _Mode) -> ?NIF_STUB.
+gpio_open_nif(Attributes, Mode) -> ?NIF_STUB([Attributes, Mode]).
 
-gpio_set_nif(_Pin, _Value) -> ?NIF_STUB.
+gpio_set_nif(Pin, Value) -> ?NIF_STUB([Pin, Value]).
 
-gpio_get_nif(_Pin) -> ?NIF_STUB.
+gpio_get_nif(Pin) -> ?NIF_STUB([Pin]).
 
 pin(Pin) -> pin(grisp_hw:platform(), Pin).
 

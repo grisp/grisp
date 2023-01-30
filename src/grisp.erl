@@ -68,4 +68,4 @@ devices() -> grisp_devices:list().
 %   <li>`{no_device_connected, Slot}'.</li>
 % </ul>
 -spec device(slot()) -> device().
-device(Slot) -> grisp_devices:slot(Slot).
+device(Slot) -> grisp_devices:instance(Slot).
