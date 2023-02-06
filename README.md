@@ -27,7 +27,7 @@
   <a href="https://erlangforums.com/c/erlang-platforms/grisp-forum/67">
     Forums
   </a>
-</p><br/>
+</p>
 
 <p align="center">
   <img alt="GRiSP 2 board on wood" src="assets/code.png"/ style="width: 80%;" align="center">

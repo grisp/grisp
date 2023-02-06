@@ -141,8 +141,9 @@
 -export([get/1]).
 
 % Callbacks
--export([on_load/0]).
+-ifndef(DOC).
 -on_load(on_load/0).
+-endif.
 
 % Macros
 -define(DEFAULT_OPTS, #{mode => {output, 0}}).

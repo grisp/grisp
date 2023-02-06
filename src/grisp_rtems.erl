@@ -16,8 +16,9 @@
 -export([pwrite/3]).
 
 % Callbacks
--export([on_load/0]).
+-ifndef(DOC).
 -on_load(on_load/0).
+-endif.
 
 -define(DEFAULT_READ_CHUNK_SIZE,  4 * 1024 * 1024). %% 4MiB
 -define(DEFAULT_WRITE_CHUNK_SIZE, 4 * 1024 * 1024). %% 4MiB

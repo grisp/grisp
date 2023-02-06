@@ -15,8 +15,9 @@
 -export([crc16/1]).
 
 % Callbacks
--export([on_load/0]).
+-ifndef(DOC).
 -on_load(on_load/0).
+-endif.
 
 %--- API -----------------------------------------------------------------------
 
