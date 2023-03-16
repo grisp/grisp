@@ -22,7 +22,7 @@
     case ?EMULATION of
         disabled ->
             erlang:nif_error(nif_not_loaded);
-        {Platform, Module} = Emulation ->
+        {Platform, Module} ->
             Module:call(Platform, ?MODULE, ?FUNCTION_NAME, Args)
     end
 ).
