@@ -23,7 +23,6 @@
         disabled ->
             erlang:nif_error(nif_not_loaded);
         {Platform, Module} = Emulation ->
-            persistent_term:put(grisp_emulation, Emulation),
             Module:call(Platform, ?MODULE, ?FUNCTION_NAME, Args)
     end
 ).
