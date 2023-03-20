@@ -41,5 +41,8 @@ jobs:
       - name: Compile
         run: rebar3 do clean, compile
 
+      - name: Test
+        run: rebar3 eunit
+
       - name: Analyze
         run: rebar3 dialyzer
