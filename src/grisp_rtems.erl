@@ -102,7 +102,7 @@ pwrite(DevicePath, Buffer, Offset) ->
 %--- Callbacks -----------------------------------------------------------------
 
 % @private
-on_load() -> ok = erlang:load_nif(atom_to_list(?MODULE), 0).
+on_load() -> ?NIF_LOAD.
 
 %--- Internal ------------------------------------------------------------------
 

@@ -18,7 +18,6 @@ nav_test_() ->
 
 setup() ->
     error_logger:tty(false),
-    application:set_env(grisp, devices, [{spi2, pmod_nav}]),
     {ok, _} = application:ensure_all_started(grisp_emulation),
     {ok, Apps} = application:ensure_all_started(grisp),
     Apps.
