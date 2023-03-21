@@ -80,11 +80,11 @@ eeprom_reset_crc() ->
 
 %--- Callbacks -----------------------------------------------------------------
 
-on_load() -> ok = erlang:load_nif(atom_to_list(?MODULE), 0).
+on_load() -> ?NIF_LOAD.
 
 %--- Internal ------------------------------------------------------------------
 
-hw_platform_nif() -> ?NIF_STUB.
+hw_platform_nif() -> ?NIF_STUB([]).
 
 % @private
 crc16(Cp) ->

@@ -18,14 +18,7 @@ nav_test_() ->
 
 setup() ->
     error_logger:tty(false),
-    application:set_env(grisp, drivers, [
-        {spi, grisp_emulation_spi_drv},
-        {gpio, grisp_emulation_gpio_drv},
-        {i2c, grisp_emulation_i2c_drv}
-    ]),
-    application:set_env(grisp, devices, [
-        {spi1, pmod_nav}
-    ]),
+    {ok, _} = application:ensure_all_started(grisp_emulation),
     {ok, Apps} = application:ensure_all_started(grisp),
     Apps.
 

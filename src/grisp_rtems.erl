@@ -102,18 +102,18 @@ pwrite(DevicePath, Buffer, Offset) ->
 %--- Callbacks -----------------------------------------------------------------
 
 % @private
-on_load() -> ok = erlang:load_nif(atom_to_list(?MODULE), 0).
+on_load() -> ?NIF_LOAD.
 
 %--- Internal ------------------------------------------------------------------
 
-clock_set_nif(_TimeOfDay) -> ?NIF_STUB.
+clock_set_nif(TimeOfDay) -> ?NIF_STUB([TimeOfDay]).
 
-clock_get_tod_nif() -> ?NIF_STUB.
+clock_get_tod_nif() -> ?NIF_STUB([]).
 
-unmount_nif(_Path) -> ?NIF_STUB.
+unmount_nif(Path) -> ?NIF_STUB([Path]).
 
-pwrite_nif(_DevicePath, _Buffer, _Offset) -> ?NIF_STUB.
-
+pwrite_nif(DevicePath, Buffer, Offset) ->
+    ?NIF_STUB([DevicePath, Buffer, Offset]).
 
 read_write_loop(Fd, DevicePath, ReadChunkSize, WriteChunkSize, BytesReadTotal) ->
     case file:read(Fd, ReadChunkSize) of

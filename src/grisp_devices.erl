@@ -9,7 +9,7 @@
 -export([add_device/3]).
 -export([remove_device/1]).
 -export([list/0]).
--export([slot/1]).
+-export([instance/1]).
 -export([default/1]).
 -export([register/2]).
 
@@ -35,7 +35,7 @@ setup() ->
 
 add_device(Slot, Driver, Opts) ->
     grisp_devices_sup:start_child(Slot, Driver, Opts),
-    slot(Slot).
+    instance(Slot).
 
 remove_device(Device) ->
     grisp_devices_sup:terminate_child(Device).
@@ -43,7 +43,7 @@ remove_device(Device) ->
 list() ->
     ets:tab2list(?MODULE).
 
-slot(Slot) ->
+instance(Slot) ->
     case ets:lookup(?MODULE, Slot) of
         [] -> error({no_device_connected, Slot});
         [Device] -> Device

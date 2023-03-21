@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix emulation for grisp 2 [grisp/#117](https://github.com/grisp/grisp/pull/117)
+
 ## [2.3.0] - 2022-07-27
 
 ### Added

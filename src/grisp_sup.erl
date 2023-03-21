@@ -14,14 +14,16 @@
 
 start_link() ->
     ExtraInternalWorkers = case grisp_hw:platform() of
-        grisp2 -> [
-            worker(grisp_onewire, []),
-            worker(grisp_eeprom_som, grisp_eeprom, [som]),
-            worker(grisp_eeprom_board, grisp_eeprom, [board]),
-            worker(grisp_barebox, [som])
-        ];
-        grisp_base -> [
-        ]
+        Platform when Platform == grisp2; Platform == emulation ->
+            [
+                worker(grisp_onewire, []),
+                worker(grisp_eeprom_som, grisp_eeprom, [som]),
+                worker(grisp_eeprom_board, grisp_eeprom, [board]),
+                worker(grisp_barebox, [som])
+            ];
+        _Other ->
+            []
+
     end,
     Children = [
         supervisor(grisp_devices_sup, grisp_devices_sup, []),

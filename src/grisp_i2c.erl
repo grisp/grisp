@@ -157,13 +157,13 @@ transfer(Bus, Messages) -> i2c_transfer_nif(Bus, Messages).
 %--- Callbacks -----------------------------------------------------------------
 
 % @private
-on_load() -> ok = erlang:load_nif(atom_to_list(?MODULE), 0).
+on_load() -> ?NIF_LOAD.
 
 %--- Internal ------------------------------------------------------------------
 
-i2c_open_nif(_Bus) -> ?NIF_STUB.
+i2c_open_nif(Bus) -> ?NIF_STUB([Bus]).
 
-i2c_transfer_nif(_Bus, _Messages) -> ?NIF_STUB.
+i2c_transfer_nif(Bus, Messages) -> ?NIF_STUB([Bus, Messages]).
 
 null(Bin) -> [Bin, 0].
 

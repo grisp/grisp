@@ -159,7 +159,7 @@ transfer(Ref, Messages) -> [message(Ref, M) || M <- Messages].
 %--- Callbacks -----------------------------------------------------------------
 
 % @private
-on_load() -> erlang:load_nif(atom_to_list(?MODULE), 0).
+on_load() -> ?NIF_LOAD.
 
 %--- Internal ------------------------------------------------------------------
 
@@ -202,6 +202,6 @@ mode(#{clock := {low, trailing}}) -> ?CPHA_TRAILING;
 mode(#{clock := {high, leading}}) -> ?CPOL_HIGH;
 mode(#{clock := {high, trailing}}) -> ?CPOL_HIGH bor ?CPHA_TRAILING.
 
-open_nif() -> ?NIF_STUB.
+open_nif() -> ?NIF_STUB([]).
 
-ioctl_nif(_Obj, _CS, _Mode, _Msg) -> ?NIF_STUB.
+ioctl_nif(Obj, CS, Mode, Msg) -> ?NIF_STUB([Obj, CS, Mode, Msg]).
