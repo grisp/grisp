@@ -1,0 +1,2077 @@
+diff --git a/.gitignore b/.gitignore
+index 94664b47c8..f926f28d68 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -52,6 +52,11 @@ x86_64-unknown-freebsd[0-9]*.[0-9]*
+ x86_64-unknown-openbsd[0-9]*.[0-9]*
+ powerpc-unknown-linux-gnu
+ aarch64-unknown-linux-gnu
++arm-unknown-rtems[0-9]*.[0-9]*
++powerpc-unknown-rtems[0-9]*.[0-9]*
++
++# Compilation/linking artifacts
++linker.map
+ 
+ # Mac OS X
+ a.out.dSYM/
+diff --git a/Makefile.in b/Makefile.in
+index 72ae67524a..2ee5a55f9a 100644
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -883,7 +883,11 @@ $(TEST_DIRS):
+ #
+ # Order is important here, don't change it!
+ #
++ifeq ($(findstring rtems,$(TARGET)),rtems)
++INST_DEP += install.dirs install.emulator install.libs install.Install install.otp_version
++else
+ INST_DEP += install.dirs install.emulator install.libs install.Install install.otp_version install.bin
++endif
+ 
+ install: $(INST_DEP)
+ 
+diff --git a/erts/Makefile b/erts/Makefile
+index 99f4ee3a38..a1269198e4 100644
+--- a/erts/Makefile
++++ b/erts/Makefile
+@@ -27,7 +27,11 @@ include $(ERL_TOP)/make/$(TARGET)/otp.mk
+ # ----------------------------------------------------------------------
+ 
+ # Other erts dirs than the emulator dir...
++ifeq ($(findstring rtems, $(TARGET)), rtems)
++ERTSDIRS = etc lib_src
++else
+ ERTSDIRS = etc epmd lib_src
++endif
+ XINSTDIRS = preloaded
+ ifeq ($(NO_START_SCRIPTS),)
+ ERTSDIRS += start_scripts
+diff --git a/erts/emulator/Makefile.in b/erts/emulator/Makefile.in
+index 5451bdf804..2ee6646a81 100644
+--- a/erts/emulator/Makefile.in
++++ b/erts/emulator/Makefile.in
+@@ -474,8 +474,10 @@ endif
+ 
+ UNIX_ONLY_BUILDS =
+ ifeq ($(ERLANG_OSTYPE), unix)
++ifneq ($(findstring rtems, $(TARGET)), rtems)
+ UNIX_ONLY_BUILDS =	$(BINDIR)/$(CS_EXECUTABLE)
+ endif
++endif
+ 
+ .PHONY: all
+ ifdef VOID_EMULATOR
+@@ -544,9 +546,11 @@ ifeq ($(RELEASE_LIBBEAM),yes)
+ 	$(INSTALL_PROGRAM) $(BINDIR)/$(EMULATOR_LIB) "$(RELSYSDIR)/lib"
+ endif
+ ifeq ($(ERLANG_OSTYPE), unix)
++ifneq ($(findstring rtems, $(TARGET)), rtems)
+ 	$(INSTALL_PROGRAM) $(BINDIR)/$(CS_EXECUTABLE) "$(RELSYSDIR)/bin"
+ endif
+ endif
++endif
+ 
+ .PHONY: release_docs_spec
+ release_docs_spec:
+diff --git a/erts/emulator/beam/io.c b/erts/emulator/beam/io.c
+index a79bce3d77..09d38afbc8 100644
+--- a/erts/emulator/beam/io.c
++++ b/erts/emulator/beam/io.c
+@@ -3009,7 +3009,7 @@ void erts_init_io(int port_tab_size,
+     init_driver(&fd_driver, &fd_driver_entry, NULL);
+     init_driver(&vanilla_driver, &vanilla_driver_entry, NULL);
+     init_driver(&spawn_driver, &spawn_driver_entry, NULL);
+-#ifndef __WIN32__
++#if !(defined(__WIN32__) || defined(__rtems__))
+     init_driver(&forker_driver, &forker_driver_entry, NULL);
+ #endif
+     erts_init_static_drivers();
+diff --git a/erts/emulator/beam/sys.h b/erts/emulator/beam/sys.h
+index c96fd618d2..b02eba9f12 100644
+--- a/erts/emulator/beam/sys.h
++++ b/erts/emulator/beam/sys.h
+@@ -184,7 +184,7 @@ typedef ERTS_SYS_FD_TYPE ErtsSysFdType;
+ #if (defined(__APPLE__) && defined(__MACH__)) || defined(__DARWIN__)
+ #  define ERTS_WRITE_UNLIKELY(X) X __attribute__ ((section ("__DATA,ERTS_LOW_WRITE") ))
+ #else
+-#  define ERTS_WRITE_UNLIKELY(X) X __attribute__ ((section ("ERTS_LOW_WRITE") ))
++#  define ERTS_WRITE_UNLIKELY(X) X __attribute__ ((section (".data.read_mostly") ))
+ #endif
+ #else
+ #  define ERTS_WRITE_UNLIKELY(X) X
+diff --git a/erts/emulator/nifs/common/prim_socket_nif.c b/erts/emulator/nifs/common/prim_socket_nif.c
+index 93d3f7950c..3153dabc6e 100644
+--- a/erts/emulator/nifs/common/prim_socket_nif.c
++++ b/erts/emulator/nifs/common/prim_socket_nif.c
+@@ -13225,6 +13225,11 @@ int on_load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
+ 
+ 
+     data.iov_max =
++#if defined(__rtems__)
++        /* sysconf should be working on RTEMS, but for some unknown reasons
++           it returns -1 for _SC_IOV_MAX, so we hardcode the value for now */
++        1024
++#else
+ #if defined(NO_SYSCONF) || (! defined(_SC_IOV_MAX))
+ #   ifdef IOV_MAX
+         IOV_MAX
+@@ -13233,6 +13238,7 @@ int on_load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
+ #   endif
+ #else
+         sysconf(_SC_IOV_MAX)
++#endif
+ #endif
+         ;
+     ESOCK_ASSERT( data.iov_max > 0 );
+diff --git a/erts/emulator/sys/unix/sys.c b/erts/emulator/sys/unix/sys.c
+index 210d7a5543..84cf6d3575 100644
+--- a/erts/emulator/sys/unix/sys.c
++++ b/erts/emulator/sys/unix/sys.c
+@@ -407,6 +407,7 @@ erts_sys_is_area_readable(char *start, char *stop) {
+ static ERTS_INLINE int
+ prepare_crash_dump(int secs)
+ {
++#ifndef __rtems__
+ #define NUFBUF (3)
+     int i;
+     char env[21]; /* enough to hold any 64-bit integer */
+@@ -468,6 +469,9 @@ prepare_crash_dump(int secs)
+     UnUseTmpHeapNoproc(NUFBUF);
+ #undef NUFBUF
+     return has_heart;
++#else  /* __rtems__ */
++    return 0;
++#endif /* __rtems__ */
+ }
+ 
+ int erts_sys_prepare_crash_dump(int secs)
+diff --git a/erts/etc/common/Makefile.in b/erts/etc/common/Makefile.in
+index 3c5a5cee64..65afe664bb 100644
+--- a/erts/etc/common/Makefile.in
++++ b/erts/etc/common/Makefile.in
+@@ -181,6 +181,26 @@ endif
+ PORT_ENTRY_POINT=erl_port_entry
+ ENTRY_LDFLAGS=-entry:$(PORT_ENTRY_POINT)
+ 
++else # UNIX (!win32)
++ifeq ($(findstring rtems,$(TARGET)), rtems)
++ENTRY_LDFLAGS=
++ENTRY_OBJ=
++ERLSRV_OBJECTS=
++MC_OUTPUTS=
++INET_GETHOST=$(BINDIR)/inet_gethost@EXEEXT@
++INSTALL_EMBEDDED_PROGS=
++INSTALL_EMBEDDED_DATA=../unix/start.src ../unix/start_erl.src
++INSTALL_TOP=Install
++INSTALL_TOP_BIN=
++INSTALL_MISC=
++INSTALL_SRC=
++ERLEXECDIR=
++INSTALL_LIBS=
++INSTALL_OBJS=
++INSTALL_INCLUDES=
++TEXTFILES=Install erl.src
++INSTALL_PROGS=
++
+ else
+ ENTRY_LDFLAGS=
+ ENTRY_OBJ=
+@@ -214,6 +234,7 @@ INSTALL_PROGS =              \
+ 	$(BINDIR)/$(ERLEXEC) \
+ 	$(INSTALL_EMBEDDED_PROGS)
+ endif
++endif
+ 
+ CREATE_DIRS=$(OBJDIR) $(BINDIR)
+ 
+@@ -488,11 +509,13 @@ $(BINDIR)/typer@EXEEXT@: $(OBJDIR)/typer.o $(ERTS_LIB)
+ $(OBJDIR)/typer.o: typer.c $(RC_GENERATED)
+ 	$(V_CC) $(CFLAGS) -o $@ -c typer.c
+ 
++ifneq ($(findstring rtems,$(TARGET)), rtems)
+ $(BINDIR)/escript@EXEEXT@: $(OBJDIR)/escript.o $(ERTS_LIB)
+ 	$(ld_verbose) $(LD) $(LDFLAGS) -o $@ $(OBJDIR)/escript.o -L$(OBJDIR) $(LIBS) $(ERTS_INTERNAL_LIBS)
+ 
+ $(OBJDIR)/escript.o: escript.c $(RC_GENERATED)
+ 	$(V_CC) $(CFLAGS) -o $@ -c escript.c
++endif
+ 
+ $(BINDIR)/ct_run@EXEEXT@: $(OBJDIR)/ct_run.o $(ERTS_LIB)
+ 	$(ld_verbose) $(LD) $(LDFLAGS) -o $@ $(OBJDIR)/ct_run.o -L$(OBJDIR) $(LIBS) $(ERTS_INTERNAL_LIBS)
+diff --git a/erts/etc/unix/Install.src b/erts/etc/unix/Install.src
+index b00dd09f1a..426cd1b1f5 100644
+--- a/erts/etc/unix/Install.src
++++ b/erts/etc/unix/Install.src
+@@ -88,13 +88,34 @@ chmod 755 erl
+ 
+ cd "$ERL_ROOT/bin"
+ 
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erl" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erlc" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erl_call" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/dialyzer" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/typer" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/ct_run" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/escript" .
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/erl" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erl" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/erlc" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erlc" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/erl_call" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erl_call" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/dialyzer" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/dialyzer" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/typer" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/typer" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/ct_run" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/ct_run" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/escript" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/escript" .
++fi
+ 
+ #
+ # Set a soft link to epmd
+@@ -108,9 +129,19 @@ fi
+ 
+ ln -s ../erts-%I_VSN%/bin/epmd epmd
+ 
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/run_erl" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/to_erl" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/start" .
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/run_erl" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/run_erl" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/to_erl" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/to_erl" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/start" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/start" .
++fi
++
+ sed -e "s;%EMU%;%EMULATOR%%EMULATOR_NUMBER%;" "$ERL_ROOT/erts-%I_VSN%/bin/start_erl.src" > start_erl
+ chmod 755 start_erl
+ 
+diff --git a/erts/lib_src/Makefile.in b/erts/lib_src/Makefile.in
+index 392d10f493..cf9e73b7be 100644
+--- a/erts/lib_src/Makefile.in
++++ b/erts/lib_src/Makefile.in
+@@ -39,6 +39,7 @@ INSTALL=@INSTALL@
+ INSTALL_DIR=@INSTALL_DIR@
+ INSTALL_DATA=@INSTALL_DATA@
+ INSTALL_PROGRAM=@INSTALL_PROGRAM@
++CROSS_COMPILING = @CROSS_COMPILING@
+ 
+ ERLANG_OSTYPE=@ERLANG_OSTYPE@
+ 
+@@ -313,7 +314,13 @@ YCF_SOURCE_DIR=$(ERL_TOP)/erts/lib_src/yielding_c_fun
+ 
+ include $(YCF_SOURCE_DIR)/main_target.mk
+ 
++ifeq ($(CROSS_COMPILING),no)
++# TODO: Move this to a proper flag in erts/configure.in
++#       (erl_xcomp_build_ycf=true|false)
+ $(OBJ_DIR)/MADE: $(YCF_EXECUTABLE) $(ETHREAD_LIB) $(ERTS_INTERNAL_LIBS)
++else
++$(OBJ_DIR)/MADE: $(ETHREAD_LIB) $(ERTS_INTERNAL_LIBS)
++endif
+ 	$(gen_verbose)
+ 	$(V_at)echo $? > $(OBJ_DIR)/MADE
+ 
+@@ -454,7 +461,11 @@ INTERNAL_RELEASE_LIBS= \
+ 
+ .PHONY: release_spec
+ release_spec: all
++ifeq ($(CROSS_COMPILING),no)
++# TODO: Move this to a proper flag in erts/configure.in
++#       (erl_xcomp_build_ycf=true|false)
+ 	$(INSTALL_PROGRAM) $(YCF_EXECUTABLE) "$(RELSYSDIR)/bin"
++endif
+ ifneq ($(strip $(RELEASE_INCLUDES)),)
+ 	$(INSTALL_DIR) "$(RELSYSDIR)/include"
+ 	$(INSTALL_DIR) "$(RELEASE_PATH)/usr/include"
+diff --git a/erts/lib_src/pthread/ethread.c b/erts/lib_src/pthread/ethread.c
+index da4f1af11d..efa50c53aa 100644
+--- a/erts/lib_src/pthread/ethread.c
++++ b/erts/lib_src/pthread/ethread.c
+@@ -149,6 +149,7 @@ ppc_init__(void)
+     /* If anything what so ever fails we assume no lwsync for safety */
+     ethr_runtime__.conf.have_lwsync = 0;
+ 
++#ifndef __rtems__
+     /*
+      * We perform the lwsync test (which might cause an illegal
+      * instruction signal) in a separate process in order to be
+@@ -180,6 +181,8 @@ ppc_init__(void)
+ 	    }
+ 	}
+     }
++#endif
++
+     return 0;
+ }
+ 
+diff --git a/lib/Makefile b/lib/Makefile
+index 465e1073e9..7851b32809 100644
+--- a/lib/Makefile
++++ b/lib/Makefile
+@@ -66,7 +66,7 @@ endif
+ 
+ # Any applications listed in SKIP-APPLICATIONS should be skipped
+ SKIP_FILE := $(wildcard SKIP-APPLICATIONS)
+-SKIP_APPLICATIONS := $(if $(SKIP_FILE),$(shell cat $(SKIP_FILE)))
++SKIP_APPLICATIONS += $(if $(SKIP_FILE),$(shell cat $(SKIP_FILE)))
+ SUB_DIRECTORIES := $(filter-out $(SKIP_APPLICATIONS),$(SUB_DIRECTORIES))
+ 
+ # ----------------------------------------------------------------------
+diff --git a/lib/asn1/c_src/Makefile b/lib/asn1/c_src/Makefile
+index 82a6b6e87a..5fbba859c3 100644
+--- a/lib/asn1/c_src/Makefile
++++ b/lib/asn1/c_src/Makefile
+@@ -69,7 +69,9 @@ NIF_LIB_FILE = $(LIBDIR)/asn1rt_nif.lib
+ CLIB_FLAGS =
+ LN=cp
+ else
++ifneq ($(findstring rtems,$(TARGET)),rtems)
+ NIF_SHARED_OBJ_FILE = $(LIBDIR)/asn1rt_nif.so
++endif
+ NIF_LIB_FILE = $(LIBDIR)/asn1rt_nif.a
+ CLIB_FLAGS =
+ LN= ln -s
+@@ -136,7 +138,9 @@ include $(ERL_TOP)/make/otp_release_targets.mk
+ 
+ release_spec: opt
+ 	$(INSTALL_DIR) "$(RELSYSDIR)/priv/lib"
++ifneq ($(findstring rtems,$(TARGET)),rtems)
+ 	$(INSTALL_PROGRAM) $(NIF_SHARED_OBJ_FILE) "$(RELSYSDIR)/priv/lib"
++endif
+ 	$(INSTALL_DIR) "$(RELSYSDIR)/c_src"
+ 	$(INSTALL_DATA) *.c "$(RELSYSDIR)/c_src"
+ 
+diff --git a/lib/crypto/c_src/Makefile.in b/lib/crypto/c_src/Makefile.in
+index 25167a8a3a..2b82864107 100644
+--- a/lib/crypto/c_src/Makefile.in
++++ b/lib/crypto/c_src/Makefile.in
+@@ -121,10 +121,18 @@ CRYPTO_STATIC_OBJS = $(patsubst $(OBJDIR)/%$(TYPEMARKER).o,$(OBJDIR)/%_static$(T
+ 
+ NIF_ARCHIVE = $(LIBDIR)/crypto$(TYPEMARKER).a
+ 
++NIF_LIB =
++CALLBACK_LIB =
++ifneq ($(findstring rtems, $(TARGET)), rtems)
+ NIF_LIB = $(LIBDIR)/crypto$(TYPEMARKER).@DED_EXT@
+ CALLBACK_LIB = $(LIBDIR)/crypto_callback$(TYPEMARKER).@DED_EXT@
++endif
+ 
++ifneq ($(findstring rtems, $(TARGET)), rtems)
+ DISABLE_OTP_TEST_ENGINE = @DISABLE_OTP_TEST_ENGINE@
++else
++DISABLE_OTP_TEST_ENGINE = yes
++endif
+ ifeq ($(DISABLE_OTP_TEST_ENGINE),yes)
+ TEST_ENGINE_LIB =
+ TEST_ENGINE_OBJS =
+@@ -266,7 +274,9 @@ include $(ERL_TOP)/make/otp_release_targets.mk
+ 
+ release_spec: opt
+ 	$(INSTALL_DIR) "$(RELSYSDIR)/priv/lib"
++ifneq ($(findstring rtems, $(TARGET)), rtems)
+ 	$(INSTALL_PROGRAM) $(NIF_LIB) "$(RELSYSDIR)/priv/lib"
++endif
+ ifeq ($(DYNAMIC_OR_WIN_CRYPTO_LIB),yes)
+ 	$(INSTALL_PROGRAM) $(CALLBACK_LIB) "$(RELSYSDIR)/priv/lib"
+ endif
+diff --git a/lib/crypto/configure b/lib/crypto/configure
+index 14e09d20fb..266c8e3525 100755
+--- a/lib/crypto/configure
++++ b/lib/crypto/configure
+@@ -774,6 +774,7 @@ ac_user_opts='
+ enable_option_checking
+ with_ssl
+ with_ssl_lib_subdir
++with_ssl_lib
+ with_ssl_incl
+ with_ssl_zlib
+ with_ssl_rpath
+@@ -1468,6 +1469,8 @@ Optional Packages:
+   --with-ssl-lib-subdir=RELATIVE_PATH
+                           specify extra OpenSSL lib sub-directory to search in
+                           (relative to base directory)
++  --with-ssl-lib=PATH     location of the library containing OpenSSL, if not
++                          standard
+   --with-ssl-incl=PATH    base location of OpenSSL include dir (if different
+                           than base location specified by --with-ssl=PATH)
+   --with-ssl-zlib=PATH    Path to static zlib library to link the crypto NIF
+@@ -5637,6 +5640,14 @@ fi
+  #default
+ 
+ 
++# Check whether --with-ssl-lib was given.
++if test ${with_ssl_lib+y}
++then :
++  withval=$with_ssl_lib;
++fi
++
++
++
+ # Check whether --with-ssl-incl was given.
+ if test ${with_ssl_incl+y}
+ then :
+@@ -6082,8 +6093,8 @@ printf "%s\n" "$ac_cv_path_EGREP" >&6; }
+  EGREP="$ac_cv_path_EGREP"
+ 
+ 
+-case "$erl_xcomp_without_sysroot-$with_ssl" in #(
+-  yes-* | no-no) :
++case "$erl_xcomp_without_sysroot-$with_ssl-$with_ssl_lib" in #(
++  yes-* | no-no-*) :
+ 
+             SSL_APP=
+             CRYPTO_APP=
+@@ -6095,7 +6106,7 @@ case "$erl_xcomp_without_sysroot-$with_ssl" in #(
+                 echo "$skip" > $ERL_TOP/lib/$a/SKIP
+                 done
+          ;; #(
+-  no-yes | no-) :
++  no-yes- | no--) :
+ 
+             # We search for OpenSSL in the common OS standard locations.
+             SSL_APP=ssl
+@@ -6216,7 +6227,14 @@ rm -rf conftest*
+ 
+     CPPFLAGS="$save_CPPFLAGS"
+ 
+-    if test $valid_include != yes
++    if test -f "$with_ssl_lib"
++then :
++
++              found_dynlib=no
++              found_static_lib=yes
++              static_ext=.a
++
++elif test $valid_include != yes
+ then :
+ 
+               # Not a valid include...
+@@ -6622,7 +6640,7 @@ esac
+ 
+ fi
+          ;; #(
+-  *) :
++  *-*-) :
+ 
+             # Option given with PATH to package
+             if test ! -d "$with_ssl"
+@@ -6730,7 +6748,14 @@ rm -rf conftest*
+ 
+     CPPFLAGS="$save_CPPFLAGS"
+ 
+-    if test $valid_include != yes
++    if test -f "$with_ssl_lib"
++then :
++
++              found_dynlib=no
++              found_static_lib=yes
++              static_ext=.a
++
++elif test $valid_include != yes
+ then :
+ 
+               # Not a valid include...
+@@ -7096,7 +7121,827 @@ else $as_nop
+                       SSL_RUNTIME_LIBDIR="$SSL_LIBDIR"
+ 
+ fi
+-         ;;
++         ;; #(
++  *) :
++
++            # Non-standard library specified by PATH
++            if test ! -f "$with_ssl_lib" ; then
++                as_fn_error $? "Invalid path to option --with-ssl-lib=PATH" "$LINENO" 5
++            fi
++
++            SSL_APP=ssl
++            CRYPTO_APP=crypto
++            SSH_APP=ssh
++
++            if test -d "$with_ssl_incl" ; then
++                if test ! -f "$with_ssl_incl/include/openssl/opensslv.h"; then
++                    as_fn_error $? "\"$with_ssl_incl/include/openssl/opensslv.h not found\"" "$LINENO" 5
++                fi
++                SSL_INCDIR="$with_ssl_incl"
++                SSL_INCLUDE="-I$SSL_INCDIR/include"
++
++    # Check for static and dynamic crypto library in the directory
++    # given as argument...
++    #
++    # Written as a macro in order to avoid writing the tests twice...
++    idir="$with_ssl_incl"
++    prfx=""
++    rdir="$with_ssl"
++    dir="$prfx$rdir"
++    static_crypto_lib_name=crypto
++    static_ssl_lib_name=ssl
++    static_extra_libs="$forced_static_zlib"
++    static_lib_dir=
++    dynamic_crypto_lib_name=crypto
++    dynamic_ssl_lib_name=ssl
++    dynamic_extra_libs="$forced_static_zlib"
++    dynamic_lib_dir=
++    dynamic_runtime_lib_dir=
++    found_static_lib=no
++    found_dynamic_lib=no
++
++    save_CPPFLAGS=$CPPFLAGS
++    CPPFLAGS="-I$idir/include"
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++#include <openssl/opensslv.h>
++#if OPENSSL_VERSION_NUMBER >= 0x0090803fL
++yes
++#endif
++
++_ACEOF
++if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
++  $EGREP "^yes.?$" >/dev/null 2>&1
++then :
++  valid_include=yes
++else $as_nop
++  valid_include=no
++fi
++rm -rf conftest*
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++#include <openssl/opensslv.h>
++#if OPENSSL_VERSION_MAJOR == 3
++yes
++#endif
++
++_ACEOF
++if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
++  $EGREP "^yes.?$" >/dev/null 2>&1
++then :
++  v3_include=yes
++else $as_nop
++  v3_include=no
++fi
++rm -rf conftest*
++
++
++
++    if test "x$DISABLE_OTP_TEST_ENGINE" = "xdefault"; then
++# Get default value for the --disable-otp-test-engine. Depends on cryptolib version
++          cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++#include <openssl/opensslv.h>
++#if LIBRESSL_VERSION_NUMBER >= 0x3050000fL
++yes
++#endif
++
++_ACEOF
++if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
++  $EGREP "^yes.?$" >/dev/null 2>&1
++then :
++  DISABLE_OTP_TEST_ENGINE=yes
++else $as_nop
++  DISABLE_OTP_TEST_ENGINE=no
++fi
++rm -rf conftest*
++
++    fi
++
++    CPPFLAGS="$save_CPPFLAGS"
++
++    if test -f "$with_ssl_lib"
++then :
++
++              found_dynlib=no
++              found_static_lib=yes
++              static_ext=.a
++
++elif test $valid_include != yes
++then :
++
++              # Not a valid include...
++              static_crypto_lib_name=
++              static_ssl_lib_name=
++              static_extra_libs=
++              static_lib_dir=
++              dynamic_crypto_lib_name=
++              dynamic_ssl_lib_name=
++              dynamic_extra_libs=
++              dynamic_lib_dir=
++              dynamic_runtime_lib_dir=
++
++elif test "$host_os" = "win32"
++then :
++
++              # Windows...
++              if test -f "$dir/lib/VC/static/libcrypto${lib_bits}MD.lib"
++then :
++
++                        static_crypto_lib_name=libcrypto${lib_bits}MD
++                        static_ssl_lib_name="libssl${lib_bits}MD"
++                        static_extra_libs="$static_extra_libs -lCRYPT32 -lWS2_32"
++                        static_lib_dir="$dir/lib/VC/static"
++                        found_static_lib=yes
++
++fi
++              if test -f "$dir/lib/VC/libcrypto${lib_bits}MD.lib"
++then :
++
++                        dynamic_crypto_lib_name=libcrypto${lib_bits}MD
++                        dynamic_ssl_lib_name="libssl${lib_bits}MD"
++                        dynamic_runtime_lib_dir="$rdir/lib/VC"
++                        dynamic_lib_dir="$dir/lib/VC"
++                        found_dynamic_lib=yes
++
++fi
++
++else $as_nop
++
++              # Not windows...
++              case "$host_os" in #(
++  darwin*) :
++
++                          static_ext=.a
++                          dynamic_ext=.dylib
++                       ;; #(
++  *) :
++
++                          static_ext=.a
++                          dynamic_ext=.so
++                       ;;
++esac
++              for sdir in $search_subdirs; do
++                  if test -f "$dir/$sdir/lib$dynamic_crypto_lib_name$dynamic_ext"
++then :
++
++                            found_dynlib=yes
++
++else $as_nop
++
++                            found_dynlib=no
++                            case $host_os in #(
++  openbsd*) :
++
++                                        # libcrypto.so got a suffix on (at least some) openbsd.
++                                        # If we find libcrypto.so with suffix, we try to link
++                                        # to it using -lcrypto ...
++                                        for f in "$dir/$sdir/lib$dynamic_crypto_lib_name$dynamic_ext"*; do
++                                               if test -f "$f"
++then :
++  found_dynlib=yes; break
++fi
++                                        done
++                                     ;; #(
++  *) :
++     ;;
++esac
++
++fi
++                  if test $found_dynlib = yes
++then :
++
++                            # Found dynamic library; check if it links...
++                            dynamic_lib_dir="$dir/$sdir"
++                            dynamic_runtime_lib_dir="$rdir/$sdir"
++
++    test_cflags="-I$idir/include"
++    test_ldflags="-L$dynamic_lib_dir"
++    test_libs="-l$dynamic_crypto_lib_name $dynamic_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main (void)
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"
++then :
++
++	    found_dynamic_lib=yes
++
++else $as_nop
++
++	    found_dynamic_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext conftest.beam \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++                            if test $found_dynamic_lib = no -a $static_zlib != no
++then :
++
++                                      # No, but linking with zlib as well might help...
++                                      dynamic_extra_libs="$dynamic_extra_libs $static_zlib"
++
++    test_cflags="-I$idir/include"
++    test_ldflags="-L$dynamic_lib_dir"
++    test_libs="-l$dynamic_crypto_lib_name $dynamic_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main (void)
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"
++then :
++
++	    found_dynamic_lib=yes
++
++else $as_nop
++
++	    found_dynamic_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext conftest.beam \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++
++fi
++
++fi
++                  if test -f "$dir/$sdir/lib$static_crypto_lib_name$static_ext"
++then :
++
++                            # Found static library; check if it links...
++                            static_lib_dir="$dir/$sdir"
++
++    test_cflags="-I$idir/include"
++    test_ldflags=
++    test_libs="$dir/$sdir/lib$static_crypto_lib_name$static_ext $static_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main (void)
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"
++then :
++
++	    found_static_lib=yes
++
++else $as_nop
++
++	    found_static_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext conftest.beam \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++                            if test $found_static_lib = no -a $static_zlib != no
++then :
++
++                                      # No, but inking with zlib as well might help...
++                                      static_extra_libs="$static_extra_libs $static_zlib"
++
++    test_cflags="-I$idir/include"
++    test_ldflags=
++    test_libs="$dir/$sdir/lib$static_crypto_lib_name$static_ext $static_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main (void)
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"
++then :
++
++	    found_static_lib=yes
++
++else $as_nop
++
++	    found_static_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext conftest.beam \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++
++fi
++
++fi
++                  if test $found_static_lib = yes -o $found_dynamic_lib = yes
++then :
++  break
++fi
++              done
++
++fi
++
++              else
++                if test ! -f "$erl_xcomp_isysroot$rdir/include/openssl/opensslv.h"; then
++                    as_fn_error $? "\"$erl_xcomp_isysroot$rdir/include/openssl/opensslv.h not found\"" "$LINENO" 5
++                fi
++                SSL_INCDIR="$erl_xcomp_isysroot$rdir"
++                SSL_INCLUDE="-I$SSL_INCDIR/include"
++
++    # Check for static and dynamic crypto library in the directory
++    # given as argument...
++    #
++    # Written as a macro in order to avoid writing the tests twice...
++    idir="$SSL_INCDIR"
++    prfx="$erl_xcomp_sysroot"
++    rdir="$rdir"
++    dir="$prfx$rdir"
++    static_crypto_lib_name=crypto
++    static_ssl_lib_name=ssl
++    static_extra_libs="$forced_static_zlib"
++    static_lib_dir=
++    dynamic_crypto_lib_name=crypto
++    dynamic_ssl_lib_name=ssl
++    dynamic_extra_libs="$forced_static_zlib"
++    dynamic_lib_dir=
++    dynamic_runtime_lib_dir=
++    found_static_lib=no
++    found_dynamic_lib=no
++
++    save_CPPFLAGS=$CPPFLAGS
++    CPPFLAGS="-I$idir/include"
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++#include <openssl/opensslv.h>
++#if OPENSSL_VERSION_NUMBER >= 0x0090803fL
++yes
++#endif
++
++_ACEOF
++if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
++  $EGREP "^yes.?$" >/dev/null 2>&1
++then :
++  valid_include=yes
++else $as_nop
++  valid_include=no
++fi
++rm -rf conftest*
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++#include <openssl/opensslv.h>
++#if OPENSSL_VERSION_MAJOR == 3
++yes
++#endif
++
++_ACEOF
++if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
++  $EGREP "^yes.?$" >/dev/null 2>&1
++then :
++  v3_include=yes
++else $as_nop
++  v3_include=no
++fi
++rm -rf conftest*
++
++
++
++    if test "x$DISABLE_OTP_TEST_ENGINE" = "xdefault"; then
++# Get default value for the --disable-otp-test-engine. Depends on cryptolib version
++          cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++#include <openssl/opensslv.h>
++#if LIBRESSL_VERSION_NUMBER >= 0x3050000fL
++yes
++#endif
++
++_ACEOF
++if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
++  $EGREP "^yes.?$" >/dev/null 2>&1
++then :
++  DISABLE_OTP_TEST_ENGINE=yes
++else $as_nop
++  DISABLE_OTP_TEST_ENGINE=no
++fi
++rm -rf conftest*
++
++    fi
++
++    CPPFLAGS="$save_CPPFLAGS"
++
++    if test -f "$with_ssl_lib"
++then :
++
++              found_dynlib=no
++              found_static_lib=yes
++              static_ext=.a
++
++elif test $valid_include != yes
++then :
++
++              # Not a valid include...
++              static_crypto_lib_name=
++              static_ssl_lib_name=
++              static_extra_libs=
++              static_lib_dir=
++              dynamic_crypto_lib_name=
++              dynamic_ssl_lib_name=
++              dynamic_extra_libs=
++              dynamic_lib_dir=
++              dynamic_runtime_lib_dir=
++
++elif test "$host_os" = "win32"
++then :
++
++              # Windows...
++              if test -f "$dir/lib/VC/static/libcrypto${lib_bits}MD.lib"
++then :
++
++                        static_crypto_lib_name=libcrypto${lib_bits}MD
++                        static_ssl_lib_name="libssl${lib_bits}MD"
++                        static_extra_libs="$static_extra_libs -lCRYPT32 -lWS2_32"
++                        static_lib_dir="$dir/lib/VC/static"
++                        found_static_lib=yes
++
++fi
++              if test -f "$dir/lib/VC/libcrypto${lib_bits}MD.lib"
++then :
++
++                        dynamic_crypto_lib_name=libcrypto${lib_bits}MD
++                        dynamic_ssl_lib_name="libssl${lib_bits}MD"
++                        dynamic_runtime_lib_dir="$rdir/lib/VC"
++                        dynamic_lib_dir="$dir/lib/VC"
++                        found_dynamic_lib=yes
++
++fi
++
++else $as_nop
++
++              # Not windows...
++              case "$host_os" in #(
++  darwin*) :
++
++                          static_ext=.a
++                          dynamic_ext=.dylib
++                       ;; #(
++  *) :
++
++                          static_ext=.a
++                          dynamic_ext=.so
++                       ;;
++esac
++              for sdir in $search_subdirs; do
++                  if test -f "$dir/$sdir/lib$dynamic_crypto_lib_name$dynamic_ext"
++then :
++
++                            found_dynlib=yes
++
++else $as_nop
++
++                            found_dynlib=no
++                            case $host_os in #(
++  openbsd*) :
++
++                                        # libcrypto.so got a suffix on (at least some) openbsd.
++                                        # If we find libcrypto.so with suffix, we try to link
++                                        # to it using -lcrypto ...
++                                        for f in "$dir/$sdir/lib$dynamic_crypto_lib_name$dynamic_ext"*; do
++                                               if test -f "$f"
++then :
++  found_dynlib=yes; break
++fi
++                                        done
++                                     ;; #(
++  *) :
++     ;;
++esac
++
++fi
++                  if test $found_dynlib = yes
++then :
++
++                            # Found dynamic library; check if it links...
++                            dynamic_lib_dir="$dir/$sdir"
++                            dynamic_runtime_lib_dir="$rdir/$sdir"
++
++    test_cflags="-I$idir/include"
++    test_ldflags="-L$dynamic_lib_dir"
++    test_libs="-l$dynamic_crypto_lib_name $dynamic_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main (void)
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"
++then :
++
++	    found_dynamic_lib=yes
++
++else $as_nop
++
++	    found_dynamic_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext conftest.beam \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++                            if test $found_dynamic_lib = no -a $static_zlib != no
++then :
++
++                                      # No, but linking with zlib as well might help...
++                                      dynamic_extra_libs="$dynamic_extra_libs $static_zlib"
++
++    test_cflags="-I$idir/include"
++    test_ldflags="-L$dynamic_lib_dir"
++    test_libs="-l$dynamic_crypto_lib_name $dynamic_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main (void)
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"
++then :
++
++	    found_dynamic_lib=yes
++
++else $as_nop
++
++	    found_dynamic_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext conftest.beam \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++
++fi
++
++fi
++                  if test -f "$dir/$sdir/lib$static_crypto_lib_name$static_ext"
++then :
++
++                            # Found static library; check if it links...
++                            static_lib_dir="$dir/$sdir"
++
++    test_cflags="-I$idir/include"
++    test_ldflags=
++    test_libs="$dir/$sdir/lib$static_crypto_lib_name$static_ext $static_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main (void)
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"
++then :
++
++	    found_static_lib=yes
++
++else $as_nop
++
++	    found_static_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext conftest.beam \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++                            if test $found_static_lib = no -a $static_zlib != no
++then :
++
++                                      # No, but inking with zlib as well might help...
++                                      static_extra_libs="$static_extra_libs $static_zlib"
++
++    test_cflags="-I$idir/include"
++    test_ldflags=
++    test_libs="$dir/$sdir/lib$static_crypto_lib_name$static_ext $static_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main (void)
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"
++then :
++
++	    found_static_lib=yes
++
++else $as_nop
++
++	    found_static_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext conftest.beam \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++
++fi
++
++fi
++                  if test $found_static_lib = yes -o $found_dynamic_lib = yes
++then :
++  break
++fi
++              done
++
++fi
++
++            fi
++
++            libname_with_ext=${with_ssl_lib##*lib}
++            libname_without_ext=${libname_with_ext%%.*}
++
++            SSL_CRYPTO_LIBNAME=$static_crypto_lib_name
++            SSL_SSL_LIBNAME=$libname_without_ext
++            SSL_LIBDIR=$(dirname $with_ssl_lib)
++            SSL_EXTRA_LIBS="$static_extra_libs"
++            SSL_RUNTIME_LIBDIR=
++            SSL_DYNAMIC_ONLY=no
++
++            if test ! -f "${SSL_LIBDIR}/lib${SSL_SSL_LIBNAME}.a"; then
++              as_fn_error $? "--with-ssl-lib not supported with dynamic linking" "$LINENO" 5
++            fi
++
++                     ;;
+ esac
+ SSL_DED_LD_RUNTIME_LIBRARY_PATH=
+ ded_ld_rflg="$DED_LD_FLAG_RUNTIME_LIBRARY_PATH"
+diff --git a/lib/crypto/configure.ac b/lib/crypto/configure.ac
+index c80e1cf2af..25a168073e 100644
+--- a/lib/crypto/configure.ac
++++ b/lib/crypto/configure.ac
+@@ -72,6 +72,8 @@ fi
+ dnl
+ dnl SSL, SSH and CRYPTO need the OpenSSL libraries
+ dnl
++dnl TODO: Update comments
++dnl
+ dnl Check flags --with-ssl, --without-ssl --with-ssl=PATH.
+ dnl If no option is given or --with-ssl is set without a path then we
+ dnl search for OpenSSL libraries and header files in the standard locations. 
+@@ -116,6 +118,10 @@ esac
+ ],
+ [with_ssl_lib_subdir=]) #default
+ 
++dnl TODO: Add checks regarding conflicts between --with-ssl and --with-ssl-lib
++AC_ARG_WITH(ssl-lib,
++AS_HELP_STRING([--with-ssl-lib=PATH], [location of the library containing OpenSSL, if not standard]))
++
+ AC_ARG_WITH(ssl-incl,
+ AS_HELP_STRING([--with-ssl-incl=PATH],
+ 	       [base location of OpenSSL include dir (if different than base location specified by --with-ssl=PATH)]),
+@@ -270,7 +276,13 @@ yes
+ 
+     CPPFLAGS="$save_CPPFLAGS"
+ 
+-    AS_IF([test $valid_include != yes],
++    AS_IF([test -f "$with_ssl_lib"],
++          [
++              found_dynlib=no
++              found_static_lib=yes
++              static_ext=.a
++          ],
++          [test $valid_include != yes],
+           [
+               # Not a valid include...
+               static_crypto_lib_name=
+@@ -462,8 +474,8 @@ case $enable_dynamic_ssl in
+ 	SSL_DYNAMIC_ONLY=no;;
+ esac
+ 
+-AS_CASE(["$erl_xcomp_without_sysroot-$with_ssl"],
+-        [yes-* | no-no],
++AS_CASE(["$erl_xcomp_without_sysroot-$with_ssl-$with_ssl_lib"],
++        [yes-* | no-no-*],
+         [
+             SSL_APP=
+             CRYPTO_APP=
+@@ -475,7 +487,7 @@ AS_CASE(["$erl_xcomp_without_sysroot-$with_ssl"],
+                 echo "$skip" > $ERL_TOP/lib/$a/SKIP
+                 done
+         ],
+-        [no-yes | no-],
++        [no-yes- | no--],
+         [
+             # We search for OpenSSL in the common OS standard locations.
+             SSL_APP=ssl
+@@ -586,6 +598,7 @@ AS_CASE(["$erl_xcomp_without_sysroot-$with_ssl"],
+                          done
+                   ])
+         ],
++        [*-*-],
+         [
+             # Option given with PATH to package
+             AS_IF([test ! -d "$with_ssl"],
+@@ -646,6 +659,48 @@ AS_CASE(["$erl_xcomp_without_sysroot-$with_ssl"],
+                   [
+                       SSL_RUNTIME_LIBDIR="$SSL_LIBDIR"
+                   ])
++        ],
++        [
++            # Non-standard library specified by PATH
++            if test ! -f "$with_ssl_lib" ; then
++                AC_MSG_ERROR(Invalid path to option --with-ssl-lib=PATH)
++            fi
++
++            SSL_APP=ssl
++            CRYPTO_APP=crypto
++            SSH_APP=ssh
++
++            if test -d "$with_ssl_incl" ; then
++                if test ! -f "$with_ssl_incl/include/openssl/opensslv.h"; then
++                    AC_MSG_ERROR("$with_ssl_incl/include/openssl/opensslv.h not found")
++                fi
++                SSL_INCDIR="$with_ssl_incl"
++                SSL_INCLUDE="-I$SSL_INCDIR/include"
++                ERL_CRYPTO_CHECK_LIB(["$with_ssl_incl"], [""], ["$with_ssl"])
++              else
++                if test ! -f "$erl_xcomp_isysroot$rdir/include/openssl/opensslv.h"; then
++                    AC_MSG_ERROR("$erl_xcomp_isysroot$rdir/include/openssl/opensslv.h not found")
++                fi
++                SSL_INCDIR="$erl_xcomp_isysroot$rdir"
++                SSL_INCLUDE="-I$SSL_INCDIR/include"
++                ERL_CRYPTO_CHECK_LIB(["$SSL_INCDIR"], ["$erl_xcomp_sysroot"], ["$rdir"])
++            fi
++
++            libname_with_ext=${with_ssl_lib##*lib}
++            libname_without_ext=${libname_with_ext%%.*}
++
++            SSL_CRYPTO_LIBNAME=$static_crypto_lib_name
++            SSL_SSL_LIBNAME=$libname_without_ext
++            SSL_LIBDIR=$(dirname $with_ssl_lib)
++            SSL_EXTRA_LIBS="$static_extra_libs"
++            SSL_RUNTIME_LIBDIR=
++            SSL_DYNAMIC_ONLY=no
++
++            if test ! -f "${SSL_LIBDIR}/lib${SSL_SSL_LIBNAME}.a"; then
++              AC_MSG_ERROR(--with-ssl-lib not supported with dynamic linking)
++            fi
++
++            dnl TODO: Add a check for the lib actually having OpenSSL symbols ?
+         ])dnl AS_CASE
+ 
+ SSL_DED_LD_RUNTIME_LIBRARY_PATH=
+diff --git a/lib/erl_interface/src/connect/ei_connect.c b/lib/erl_interface/src/connect/ei_connect.c
+index 3f2becde5a..a9e15d1d2f 100644
+--- a/lib/erl_interface/src/connect/ei_connect.c
++++ b/lib/erl_interface/src/connect/ei_connect.c
+@@ -2023,7 +2023,7 @@ static unsigned int gen_challenge(void)
+     uname(&s.name);
+     s.cpu  = clock();
+     s.pid  = getpid();
+-#if defined(__ANDROID__) || defined(__HAIKU__)
++#if defined(__ANDROID__) || defined(__HAIKU__) || defined(__rtems__)
+     s.hid  = 0;
+ #else
+     s.hid  = gethostid();
+diff --git a/lib/erl_interface/src/connect/ei_resolve.c b/lib/erl_interface/src/connect/ei_resolve.c
+index c3ac6023f2..bc37a7a227 100644
+--- a/lib/erl_interface/src/connect/ei_resolve.c
++++ b/lib/erl_interface/src/connect/ei_resolve.c
+@@ -398,7 +398,7 @@ struct hostent *ei_gethostbyaddr_r(const char *addr,
+   return gethostbyaddr(addr, length, type);
+ #elif !defined(HAVE_GETHOSTBYNAME_R)
+   return my_gethostbyaddr_r(addr,length,type,hostp,buffer,buflen,h_errnop);
+-#elif (defined(__GLIBC__) || defined(__linux__) || (defined(__FreeBSD_version) && (__FreeBSD_version >= 602000)) || defined(__DragonFly__))
++#elif (defined(__GLIBC__) || defined(__linux__) || (defined(__FreeBSD_version) && (__FreeBSD_version >= 602000)) || defined(__DragonFly__)) || defined(__rtems__)
+   struct hostent *result;
+ 
+   gethostbyaddr_r(addr, length, type, hostp, buffer, buflen, &result,
+@@ -421,7 +421,7 @@ struct hostent *ei_gethostbyname_r(const char *name,
+   return gethostbyname(name);
+ #elif !defined(HAVE_GETHOSTBYNAME_R)
+   return my_gethostbyname_r(name,hostp,buffer,buflen,h_errnop);
+-#elif (defined(__GLIBC__) || defined(__linux__) || (defined(__FreeBSD_version) && (__FreeBSD_version >= 602000)) || defined(__DragonFly__) || defined(__ANDROID__))
++#elif (defined(__GLIBC__) || defined(__linux__) || (defined(__FreeBSD_version) && (__FreeBSD_version >= 602000)) || defined(__DragonFly__) || defined(__ANDROID__)) || defined(__rtems__)
+   struct hostent *result;
+   int err;
+ 
+diff --git a/lib/kernel/src/erl_distribution.erl b/lib/kernel/src/erl_distribution.erl
+index 9e12ef8ad4..2f3b114bac 100644
+--- a/lib/kernel/src/erl_distribution.erl
++++ b/lib/kernel/src/erl_distribution.erl
+@@ -71,7 +71,7 @@ start_link(Opts) ->
+     supervisor:start_link({local,net_sup}, ?MODULE, [Opts]).
+ 
+ init(NetArgs) ->
+-    Epmd = 
++    Epmd =
+ 	case init:get_argument(no_epmd) of
+ 	    {ok, [[]]} ->
+ 		[];
+@@ -84,6 +84,13 @@ init(NetArgs) ->
+                    type => worker,
+                    modules => [EpmdMod]}]
+ 	end,
++    EpmdSrv = case init:get_argument(internal_epmd) of
++        {ok, [[EpmdSrvMod]]} ->
++            Esm = list_to_atom(EpmdSrvMod),
++            Esm:get_childspecs();
++        _ ->
++            []
++    end,
+     Auth = #{id => auth,
+              start => {auth,start_link,[]},
+              restart => permanent,
+@@ -100,7 +107,7 @@ init(NetArgs) ->
+     SupFlags = #{strategy => one_for_all,
+                  intensity => 0,
+                  period => 1},
+-    {ok, {SupFlags, EarlySpecs ++ Epmd ++ [Auth,Kernel]}}.
++    {ok, {SupFlags, EarlySpecs ++ EpmdSrv ++ Epmd ++ [Auth,Kernel]}}.
+ 
+ do_start_link([{Arg,Flag}|T]) ->
+     case init:get_argument(Arg) of
+diff --git a/lib/runtime_tools/c_src/Makefile.in b/lib/runtime_tools/c_src/Makefile.in
+index c6f98181be..616dd7d6a5 100644
+--- a/lib/runtime_tools/c_src/Makefile.in
++++ b/lib/runtime_tools/c_src/Makefile.in
+@@ -39,7 +39,11 @@ SHELL = /bin/sh
+ LIBS = $(DED_LIBS) @LIBS@
+ LDFLAGS += $(DED_LDFLAGS)
+ 
++ifeq ($(findstring rtems,$(TARGET)),rtems)
++TRACE_LIBNAME =
++else
+ TRACE_LIBNAME = dyntrace trace_file_drv trace_ip_drv
++endif
+ 
+ SYSINCLUDE = $(DED_SYS_INCLUDE)
+ 
+@@ -108,9 +112,13 @@ docs:
+ # ----------------------------------------------------
+ include $(ERL_TOP)/make/otp_release_targets.mk
+ 
++ifeq ($(findstring rtems,$(TARGET)),rtems)
++release_spec:
++else
+ release_spec: opt
+ 	$(INSTALL_DIR) "$(RELSYSDIR)/priv/lib"
+ 	$(INSTALL_PROGRAM) $(TRACE_LIBS) "$(RELSYSDIR)/priv/lib"
++endif
+ 
+ release_docs_spec:
+ 
+diff --git a/lib/ssl/src/ssl_config.erl b/lib/ssl/src/ssl_config.erl
+index 761a4f4315..3462598e36 100644
+--- a/lib/ssl/src/ssl_config.erl
++++ b/lib/ssl/src/ssl_config.erl
+@@ -24,7 +24,7 @@
+ 
+ -include("ssl_internal.hrl").
+ -include("ssl_connection.hrl").
+--include_lib("public_key/include/public_key.hrl"). 
++-include_lib("public_key/include/public_key.hrl").
+ 
+ -define(DEFAULT_MAX_SESSION_CACHE, 1000).
+ 
+@@ -219,8 +219,8 @@ get_internal_active_n(false) ->
+     end.
+ 
+ %%====================================================================
+-%% Internal functions 
+-%%====================================================================	     
++%% Internal functions
++%%====================================================================
+ init_manager_name(false) ->
+     put(ssl_manager, ssl_manager:name(normal)),
+     put(ssl_pem_cache, ssl_pem_cache:name(normal));
+@@ -265,6 +265,9 @@ init_certificate_file(CertFile, PemCache, Role) ->
+             file_error(CertFile, {certfile, Reason})
+     end.
+ 
++%% HACK: allow callbacks for signing using the GRiSP Secure Element
++init_private_key(#{algorithm := ecdsa, sign_fun := _SignFun} = Key, _, _) ->
++    Key;
+ init_private_key(#{algorithm := Alg} = Key, _, _PemCache)
+   when Alg =:= ecdsa; Alg =:= rsa; Alg =:= dss ->
+     case maps:is_key(engine, Key) andalso maps:is_key(key_id, Key) of
+@@ -303,7 +306,7 @@ private_key(#'PrivateKeyInfo'{privateKeyAlgorithm =
+ 				 #'PrivateKeyInfo_privateKeyAlgorithm'{algorithm = ?'id-dsa'},
+ 			     privateKey = Key}) ->
+     public_key:der_decode('DSAPrivateKey', iolist_to_binary(Key));
+-private_key(#'PrivateKeyInfo'{privateKeyAlgorithm = 
++private_key(#'PrivateKeyInfo'{privateKeyAlgorithm =
+                                   #'PrivateKeyInfo_privateKeyAlgorithm'{algorithm = ?'id-ecPublicKey',
+                                                                         parameters =  {asn1_OPENTYPE, Parameters}},
+                               privateKey = Key}) ->
+@@ -350,7 +353,7 @@ dh_file(DbHandle, DHParamFile) ->
+         end
+     catch
+         _:Reason ->
+-            file_error(DHParamFile, {dhfile, Reason}) 
++            file_error(DHParamFile, {dhfile, Reason})
+     end.
+ 
+ session_cb_init_args(client) ->
+diff --git a/lib/ssl/src/ssl_handshake.erl b/lib/ssl/src/ssl_handshake.erl
+index dbbf0a4496..1120a2db62 100644
+--- a/lib/ssl/src/ssl_handshake.erl
++++ b/lib/ssl/src/ssl_handshake.erl
+@@ -92,7 +92,7 @@
+ %% Tracing
+ -export([handle_trace/3]).
+ %%====================================================================
+-%% Create handshake messages 
++%% Create handshake messages
+ %%====================================================================
+ 
+ %%--------------------------------------------------------------------
+@@ -111,7 +111,7 @@ hello_request() ->
+ %% Description: Creates a server hello message.
+ %%--------------------------------------------------------------------
+ server_hello(SessionId, Version, ConnectionStates, Extensions) ->
+-    #{security_parameters := SecParams} = 
++    #{security_parameters := SecParams} =
+ 	ssl_record:pending_connection_state(ConnectionStates, read),
+     #server_hello{server_version = Version,
+ 		  cipher_suite = SecParams#security_parameters.cipher_suite,
+@@ -172,7 +172,7 @@ client_certificate_verify([OwnCert|_], MasterSecret, Version,
+     end.
+ 
+ %%--------------------------------------------------------------------
+--spec certificate_request(db_handle(), 
++-spec certificate_request(db_handle(),
+ 			  certdb_ref(),  #hash_sign_algos{}, ssl_record:ssl_version()) ->
+ 				 #certificate_request{}.
+ %%
+@@ -329,7 +329,7 @@ next_protocol(SelectedProtocol) ->
+   #next_protocol{selected_protocol = SelectedProtocol}.
+ 
+ %%====================================================================
+-%% Handle handshake messages 
++%% Handle handshake messages
+ %%====================================================================
+ %%--------------------------------------------------------------------
+ -spec certify(#certificate{}, db_handle(), certdb_ref(), ssl_options(), term(),
+@@ -347,7 +347,7 @@ certify(#certificate{asn1_certificates = ASN1Certs}, CertDbHandle, CertDbRef,
+ 	PathsAndAnchors  =
+ 	    ssl_certificate:trusted_cert_and_paths(ASN1Certs, CertDbHandle, CertDbRef,
+                                                    PartialChain),
+-        
++
+ 	case path_validate(PathsAndAnchors, ServerName, Role, CertDbHandle, CertDbRef, CRLDbHandle,
+                            Version, SSlOptions, CertExt) of
+ 	    {ok, {PublicKeyInfo, _}} ->
+@@ -440,7 +440,7 @@ master_secret(Version, #session{master_secret = Mastersecret},
+ master_secret(Version, PremasterSecret, ConnectionStates, Role) ->
+     #{security_parameters := SecParams} =
+ 	ssl_record:pending_connection_state(ConnectionStates, read),
+-    
++
+     #security_parameters{prf_algorithm = PrfAlgo,
+ 			 client_random = ClientRandom,
+ 			 server_random = ServerRandom} = SecParams,
+@@ -533,7 +533,7 @@ select_supported_version(ClientVersions, ServerVersions) ->
+     end.
+ 
+ %%====================================================================
+-%% Encode handshake 
++%% Encode handshake
+ %%====================================================================
+ 
+ encode_handshake(#next_protocol{selected_protocol = SelectedProtocol}, _Version) ->
+@@ -602,7 +602,7 @@ encode_hello_extensions(Extensions) ->
+ 
+ encode_extensions(Exts) ->
+     encode_extensions(Exts, <<>>).
+-    
++
+ encode_extensions([], <<>>) ->
+     <<?UINT16(0)>>;
+ encode_extensions([], Acc) ->
+@@ -641,7 +641,7 @@ encode_extensions([#supported_groups{supported_groups = SupportedGroups} | Rest]
+     ListLen = byte_size(SupportedGroupList),
+     Len = ListLen + 2,
+     encode_extensions(Rest, <<?UINT16(?ELLIPTIC_CURVES_EXT),
+-                              ?UINT16(Len), ?UINT16(ListLen), 
++                              ?UINT16(Len), ?UINT16(ListLen),
+                               SupportedGroupList/binary, Acc/binary>>);
+ encode_extensions([#ec_point_formats{ec_point_format_list = ECPointFormats} | Rest], Acc) ->
+     ECPointFormatList = list_to_binary(ECPointFormats),
+@@ -839,7 +839,7 @@ encode_cert_auths(Auths) ->
+     list_to_binary(lists:map(DNEncode, Auths)).
+ 
+ %%====================================================================
+-%% Decode handshake 
++%% Decode handshake
+ %%====================================================================
+ 
+ decode_handshake(_, ?HELLO_REQUEST, <<>>) ->
+@@ -918,7 +918,7 @@ decode_handshake(_, MessageType, _) ->
+ %%
+ %% Description: Remove length tag from TLS Vector type. Needed
+ %% for client hello when extensions in older versions may be empty.
+-%% 
++%%
+ %%--------------------------------------------------------------------
+ decode_vector(<<>>) ->
+     <<>>;
+@@ -1012,7 +1012,7 @@ available_signature_algs(undefined, _)  ->
+ available_signature_algs(SupportedHashSigns, Version) when ?TLS_GTE(Version, ?TLS_1_2) ->
+     case contains_scheme(SupportedHashSigns) of
+         true ->
+-            case Version of 
++            case Version of
+                 ?TLS_1_2 ->
+                     #hash_sign_algos{hash_sign_algos = ssl_cipher:signature_schemes_1_2(SupportedHashSigns)};
+                 _ ->
+@@ -1027,7 +1027,7 @@ available_signature_algs(_, _) ->
+ available_signature_algs(undefined, SupportedHashSigns, Version) when
+       ?TLS_GTE(Version, ?TLS_1_2) ->
+     SupportedHashSigns;
+-available_signature_algs(#hash_sign_algos{hash_sign_algos = ClientHashSigns}, SupportedHashSigns0, 
++available_signature_algs(#hash_sign_algos{hash_sign_algos = ClientHashSigns}, SupportedHashSigns0,
+                          Version) when ?TLS_GTE(Version, ?TLS_1_2) ->
+     SupportedHashSigns =
+         case (Version == ?TLS_1_2) andalso contains_scheme(SupportedHashSigns0) of
+@@ -1036,7 +1036,7 @@ available_signature_algs(#hash_sign_algos{hash_sign_algos = ClientHashSigns}, Su
+             false ->
+                 SupportedHashSigns0
+         end,
+-    sets:to_list(sets:intersection(sets:from_list(ClientHashSigns), 
++    sets:to_list(sets:intersection(sets:from_list(ClientHashSigns),
+ 				   sets:from_list(SupportedHashSigns)));
+ available_signature_algs(_, _, _) ->
+     undefined.
+@@ -1480,7 +1480,7 @@ handle_client_hello_extensions(RecordCB, Random, ClientCipherSuites,
+     MaxFragEnum = handle_mfl_extension(maps:get(max_frag_enum, Exts, undefined)),
+     ConnectionStates1 = ssl_record:set_max_fragment_length(MaxFragEnum, ConnectionStates0),
+     ConnectionStates = handle_renegotiation_extension(server, RecordCB, Version, maps:get(renegotiation_info, Exts, undefined),
+-						      Random, NegotiatedCipherSuite, 
++						      Random, NegotiatedCipherSuite,
+ 						      ClientCipherSuites, Compression,
+ 						      ConnectionStates1, Renegotiation, SecureRenegotation),
+ 
+@@ -1493,12 +1493,12 @@ handle_client_hello_extensions(RecordCB, Random, ClientCipherSuites,
+                         end,
+     ServerHelloExtensions = Empty#{renegotiation_info => renegotiation_info(RecordCB, server,
+                                                                             ConnectionStates, Renegotiation),
+-                                   ec_point_formats => server_ecc_extension(Version, 
++                                   ec_point_formats => server_ecc_extension(Version,
+                                                                             maps:get(ec_point_formats, Exts, undefined)),
+                                    use_srtp => use_srtp_ext(Opts),
+                                    max_frag_enum => ServerMaxFragEnum
+                                   },
+-    
++
+     %% If we receive an ALPN extension and have ALPN configured for this connection,
+     %% we handle it. Otherwise we check for the NPN extension.
+     ALPN = maps:get(alpn, Exts, undefined),
+@@ -1520,8 +1520,8 @@ handle_server_hello_extensions(RecordCB, Random, CipherSuite, Compression,
+ 			       #{secure_renegotiate := SecureRenegotation} =
+                                    SslOpts,
+ 			       ConnectionStates0, Renegotiation, IsNew) ->
+-    ConnectionStates = handle_renegotiation_extension(client, RecordCB, Version,  
+-                                                      maps:get(renegotiation_info, Exts, undefined), Random, 
++    ConnectionStates = handle_renegotiation_extension(client, RecordCB, Version,
++                                                      maps:get(renegotiation_info, Exts, undefined), Random,
+ 						      CipherSuite, undefined,
+ 						      Compression, ConnectionStates0,
+ 						      Renegotiation, SecureRenegotation),
+@@ -1582,7 +1582,7 @@ select_curve(#elliptic_curves{elliptic_curve_list = ClientCurves},
+             select_shared_curve(ServerCurves, ClientCurves)
+     end;
+ select_curve(undefined, _, _) ->
+-    %% Client did not send ECC extension use default curve if 
++    %% Client did not send ECC extension use default curve if
+     %% ECC cipher is negotiated
+     case tls_v1:ecc_curves([secp256r1]) of
+         [] ->
+@@ -1603,7 +1603,7 @@ select_curve({supported_groups, Groups}, Server, HonorServerOrder) ->
+     end.
+ 
+ %%--------------------------------------------------------------------
+--spec select_hashsign(#hash_sign_algos{} | undefined,  undefined | binary(), 
++-spec select_hashsign(#hash_sign_algos{} | undefined,  undefined | binary(),
+ 		      atom(), [atom()], ssl_record:ssl_version()) ->
+ 			     {atom(), atom()} | undefined  | #alert{}.
+ 
+@@ -1669,12 +1669,12 @@ select_hashsign(_, Cert, _, _, Version) ->
+     #'OTPSubjectPublicKeyInfo'{algorithm = {_,Algo, _}} = TBSCert#'OTPTBSCertificate'.subjectPublicKeyInfo,
+     select_hashsign_algs(undefined, Algo, Version).
+ %%--------------------------------------------------------------------
+--spec select_hashsign(#certificate_request{},  binary(), 
++-spec select_hashsign(#certificate_request{},  binary(),
+ 		      [atom()], ssl_record:ssl_version()) ->
+ 			     {atom(), atom()} | #alert{}.
+ 
+ %%
+-%% Description: Handles signature algorithms selection for certificate requests (client) 
++%% Description: Handles signature algorithms selection for certificate requests (client)
+ %%--------------------------------------------------------------------
+ select_hashsign(#certificate_request{
+                    hashsign_algorithms = #hash_sign_algos{
+@@ -1706,7 +1706,7 @@ select_hashsign(#certificate_request{certificate_types = Types}, Cert, _, Versio
+     end.
+ 
+ do_select_hashsign(HashSigns, PublicKeyAlgo, SupportedHashSigns) ->
+-    TLS12Scheme = 
++    TLS12Scheme =
+         fun(Scheme) ->
+                 {H, S, _} = ssl_cipher:scheme_to_components(Scheme),
+                 case S of
+@@ -1726,14 +1726,14 @@ do_select_hashsign(HashSigns, PublicKeyAlgo, SupportedHashSigns) ->
+         end,
+ 
+     case lists:filter(
+-           fun({H, rsa_pss_pss = S} = Algos) when S == PublicKeyAlgo -> 
++           fun({H, rsa_pss_pss = S} = Algos) when S == PublicKeyAlgo ->
+                    %% Backported from TLS-1.3, but only TLS-1.2 configured
+-                   is_acceptable_hash_sign(list_to_existing_atom(atom_to_list(S) ++ "_" ++ atom_to_list(H)), 
+-                                           SupportedHashSigns) orelse 
++                   is_acceptable_hash_sign(list_to_existing_atom(atom_to_list(S) ++ "_" ++ atom_to_list(H)),
++                                           SupportedHashSigns) orelse
+                        is_acceptable_hash_sign(Algos, SupportedHashSigns);
+-              ({H, rsa_pss_rsae = S} = Algos) when PublicKeyAlgo == rsa -> 
++              ({H, rsa_pss_rsae = S} = Algos) when PublicKeyAlgo == rsa ->
+                    %% Backported from TLS-1.3, but only TLS-1.2 configured
+-                   is_acceptable_hash_sign(list_to_existing_atom(atom_to_list(S) ++ "_" ++ atom_to_list(H)), 
++                   is_acceptable_hash_sign(list_to_existing_atom(atom_to_list(S) ++ "_" ++ atom_to_list(H)),
+                                            SupportedHashSigns) orelse
+                        is_acceptable_hash_sign(Algos, SupportedHashSigns);
+               ({_, S} = Algos) when S == PublicKeyAlgo ->
+@@ -1909,7 +1909,7 @@ select_hashsign_algs(undefined, ?rsaEncryption, ?TLS_1_2)  ->
+     {sha, rsa};
+ select_hashsign_algs(undefined,?'id-ecPublicKey', _) ->
+     {sha, ecdsa};
+-select_hashsign_algs(undefined, ?rsaEncryption, _) -> 
++select_hashsign_algs(undefined, ?rsaEncryption, _) ->
+     {md5sha, rsa};
+ select_hashsign_algs(undefined, ?'id-dsa', _) ->
+     {sha, dsa}.
+@@ -2061,8 +2061,8 @@ validation_fun_and_state(undefined, VerifyState, CertPath, LogLevel) ->
+ 	     ssl_certificate:validate(OtpCert,
+ 				      Extension,
+ 				      SslState);
+-	(OtpCert, VerifyResult, SslState) when (VerifyResult == valid) or 
+-                                               (VerifyResult == valid_peer) -> 
++	(OtpCert, VerifyResult, SslState) when (VerifyResult == valid) or
++                                               (VerifyResult == valid_peer) ->
+ 	     case cert_status_check(OtpCert, SslState, VerifyResult, CertPath, LogLevel) of
+ 		 valid ->
+                      ssl_certificate:validate(OtpCert, VerifyResult, SslState);
+@@ -2108,7 +2108,7 @@ apply_fun(Fun, OtpCert, ExtensionOrError, UserState, CertPath) ->
+     end.
+ 
+ maybe_check_hostname(OtpCert, valid_peer, SslState) ->
+-    case ssl_certificate:validate(OtpCert, valid_peer, SslState) of 
++    case ssl_certificate:validate(OtpCert, valid_peer, SslState) of
+         {valid, _} ->
+             valid_peer;
+         {fail, Reason} ->
+@@ -2148,6 +2148,12 @@ digitally_signed(Version, Msg, HashAlgo, PrivateKey, SignAlgo) ->
+ 	    throw(?ALERT_REC(?FATAL, ?HANDSHAKE_FAILURE, bad_key(PrivateKey)))
+     end.
+ 
++%% HACK: allow callbacks for signing using the GRiSP Secure Element
++%% We only care here for sha256 + ecdsa for TLS 1.2 and 1.3 (SSL 3.3 and 3.4)
++do_digitally_signed(?TLS_1_3, Msg, sha256, #{algorithm := ecdsa, sign_fun := {Mod, Fun}}, ecdsa) ->
++    Mod:Fun(Msg);
++do_digitally_signed(?TLS_1_2, Hash, sha256, #{algorithm := ecdsa, sign_fun := {Mod, Fun}}, ecdsa) ->
++    Mod:Fun({digest, Hash});
+ do_digitally_signed(Version, Msg, HashAlgo, {#'RSAPrivateKey'{} = Key,
+                                              #'RSASSA-PSS-params'{}}, SignAlgo) when ?TLS_GTE(Version, ?TLS_1_2) ->
+     Options = signature_options(SignAlgo, HashAlgo),
+@@ -2168,7 +2174,7 @@ do_digitally_signed(_, Msg, HashAlgo, Key, SignAlgo) ->
+     Options = signature_options(SignAlgo, HashAlgo),
+     public_key:sign(Msg, HashAlgo, Key, Options).
+ 
+-    
++
+ signature_options(SignAlgo, HashAlgo) when SignAlgo =:= rsa_pss_rsae orelse
+                                            SignAlgo =:= rsa_pss_pss ->
+     pss_options(HashAlgo);
+@@ -2225,14 +2231,14 @@ maybe_check_crl(_, #{crl_check := false}, _, _, _) ->
+     valid;
+ maybe_check_crl(_, #{crl_check := peer}, valid, _, _) -> %% Do not check CAs with this option.
+     valid;
+-maybe_check_crl(OtpCert, #{crl_check := Check, 
++maybe_check_crl(OtpCert, #{crl_check := Check,
+                      certdb := CertDbHandle,
+                      certdb_ref := CertDbRef,
+                      crl_db := {Callback, CRLDbHandle}}, _, CertPath, LogLevel) ->
+     Options = [{issuer_fun, {fun(_DP, CRL, Issuer, DBInfo) ->
+ 				     ssl_crl:trusted_cert_and_path(CRL, Issuer, CertPath,
+                                                                    DBInfo)
+-			     end, {CertDbHandle, CertDbRef}}}, 
++			     end, {CertDbHandle, CertDbRef}}},
+ 	       {update_crl, fun(DP, CRL) ->
+                                     case Callback:fresh_crl(DP, CRL) of
+                                         {logger, LogInfo, Fresh} ->
+@@ -2249,26 +2255,26 @@ maybe_check_crl(OtpCert, #{crl_check := Check,
+ 	    crl_check_same_issuer(OtpCert, Check,
+ 				  dps_and_crls(OtpCert, Callback, CRLDbHandle, same_issuer, LogLevel),
+ 				  Options);
+-	DpsAndCRLs ->  %% This DP list may be empty if relevant CRLs existed 
++	DpsAndCRLs ->  %% This DP list may be empty if relevant CRLs existed
+ 	    %% but could not be retrieved, will result in {bad_cert, revocation_status_undetermined}
+ 	    case public_key:pkix_crls_validate(OtpCert, DpsAndCRLs, Options) of
+ 		{bad_cert, {revocation_status_undetermined, _}} ->
+-		    crl_check_same_issuer(OtpCert, Check, 
+-                                          dps_and_crls(OtpCert, Callback, 
++		    crl_check_same_issuer(OtpCert, Check,
++                                          dps_and_crls(OtpCert, Callback,
+                                                        CRLDbHandle, same_issuer, LogLevel), Options);
+ 		Other ->
+ 		    Other
+ 	    end
+     end.
+ 
+-crl_check_same_issuer(OtpCert, best_effort, Dps, Options) ->		
+-    case public_key:pkix_crls_validate(OtpCert, Dps, Options) of 
++crl_check_same_issuer(OtpCert, best_effort, Dps, Options) ->
++    case public_key:pkix_crls_validate(OtpCert, Dps, Options) of
+ 	{bad_cert, {revocation_status_undetermined, _}}   ->
+ 	    valid;
+ 	Other ->
+ 	    Other
+     end;
+-crl_check_same_issuer(OtpCert, _, Dps, Options) ->    
++crl_check_same_issuer(OtpCert, _, Dps, Options) ->
+     public_key:pkix_crls_validate(OtpCert, Dps, Options).
+ 
+ dps_and_crls(OtpCert, Callback, CRLDbHandle, ext, LogLevel) ->
+@@ -2281,10 +2287,10 @@ dps_and_crls(OtpCert, Callback, CRLDbHandle, ext, LogLevel) ->
+             [{DP, {CRL, public_key:der_decode('CertificateList', CRL)}} ||  DP <- DistPoints, CRL <- CRLs]
+     end;
+ 
+-dps_and_crls(OtpCert, Callback, CRLDbHandle, same_issuer, LogLevel) ->    
+-    DP = #'DistributionPoint'{distributionPoint = {fullName, GenNames}} = 
++dps_and_crls(OtpCert, Callback, CRLDbHandle, same_issuer, LogLevel) ->
++    DP = #'DistributionPoint'{distributionPoint = {fullName, GenNames}} =
+ 	public_key:pkix_dist_point(OtpCert),
+-    CRLs = lists:flatmap(fun({directoryName, Issuer}) -> 
++    CRLs = lists:flatmap(fun({directoryName, Issuer}) ->
+ 				 case Callback:select(Issuer, CRLDbHandle) of
+                                      {logger, LogInfo, Return} ->
+                                          handle_log(LogLevel, LogInfo),
+@@ -2371,7 +2377,7 @@ setup_keys(Version, PrfAlgo, MasterSecret,
+ calc_master_secret(Version, PrfAlgo, PremasterSecret, ClientRandom, ServerRandom)
+   when ?TLS_LT(Version, ?TLS_1_3) ->
+     tls_v1:master_secret(PrfAlgo, PremasterSecret, ClientRandom, ServerRandom).
+-	
++
+ %% Update pending connection states with parameters exchanged via
+ %% hello messages
+ %% NOTE : Role is the role of the receiver of the hello message
+@@ -3094,7 +3100,7 @@ decode_extensions(<<?UINT16(?EARLY_DATA_EXT), ?UINT16(4), ?UINT32(MaxSize),
+     decode_extensions(Rest, Version, MessageType,
+                       Acc#{early_data =>
+                                #early_data_indication_nst{indication = MaxSize}});
+-decode_extensions(<<?UINT16(?CERTIFICATE_AUTHORITIES_EXT), ?UINT16(Len), 
++decode_extensions(<<?UINT16(?CERTIFICATE_AUTHORITIES_EXT), ?UINT16(Len),
+                     CertAutsExt:Len/binary, Rest/binary>>,
+                   Version, MessageType, Acc) ->
+     CertAutsLen = Len - 2,
+@@ -3379,10 +3385,10 @@ filter_hashsigns_helper(KeyExchange, HashSigns, _Version) when
+     lists:keymember(dsa, 2, HashSigns);
+ 
+ filter_hashsigns_helper(KeyExchange, _HashSigns, _Version) when
+-      KeyExchange == dh_dss; 
+-      KeyExchange == dh_rsa; 
++      KeyExchange == dh_dss;
++      KeyExchange == dh_rsa;
+       KeyExchange == dh_ecdsa;
+-      KeyExchange == ecdh_rsa;    
++      KeyExchange == ecdh_rsa;
+       KeyExchange == ecdh_ecdsa ->
+       %%  Fixed DH certificates MAY be signed with any hash/signature
+       %%  algorithm pair appearing in the hash_sign extension.  The names
+@@ -3399,20 +3405,20 @@ filter_hashsigns_helper(KeyExchange, _HashSigns, _Version) when
+     true.
+ 
+ filter_unavailable_ecc_suites(no_curve, Suites) ->
+-    ECCSuites = ssl_cipher:filter_suites(Suites, #{key_exchange_filters => [fun(ecdh_ecdsa) -> true; 
+-                                                                               (ecdhe_ecdsa) -> true; 
+-                                                                               (ecdh_rsa) -> true; 
+-                                                                               (_) -> false 
++    ECCSuites = ssl_cipher:filter_suites(Suites, #{key_exchange_filters => [fun(ecdh_ecdsa) -> true;
++                                                                               (ecdhe_ecdsa) -> true;
++                                                                               (ecdh_rsa) -> true;
++                                                                               (_) -> false
+                                                                             end],
+                                                    cipher_filters => [],
+                                                    mac_filters => [],
+                                                    prf_filters => []}),
+-    Suites -- ECCSuites;       
++    Suites -- ECCSuites;
+ filter_unavailable_ecc_suites(_, Suites) ->
+     Suites.
+ %%-------------Extension handling --------------------------------
+ 
+-handle_renegotiation_extension(Role, RecordCB, Version, Info, Random, NegotiatedCipherSuite, 
++handle_renegotiation_extension(Role, RecordCB, Version, Info, Random, NegotiatedCipherSuite,
+ 			       ClientCipherSuites, Compression,
+ 			       ConnectionStates0, Renegotiation, SecureRenegotation) ->
+     {ok, ConnectionStates} = handle_renegotiation_info(Version, RecordCB, Role, Info, ConnectionStates0,
+@@ -3517,7 +3523,7 @@ is_supported_sign({Hash, Sign}, SignatureSchemes) ->
+                            rsa_pkcs1 ->
+                                rsa;
+                            rsa_pss_rsae ->
+-                               rsa; 
++                               rsa;
+                            S ->
+                                S
+                        end,
+@@ -3725,11 +3731,11 @@ cert_curve(_, _, no_suite) ->
+     {no_curve, no_suite};
+ cert_curve(Cert, ECCCurve0, CipherSuite) ->
+     case ssl_cipher_format:suite_bin_to_map(CipherSuite) of
+-        #{key_exchange := Kex} when Kex == ecdh_ecdsa; 
++        #{key_exchange := Kex} when Kex == ecdh_ecdsa;
+                                     Kex == ecdh_rsa ->
+             OtpCert = public_key:pkix_decode_cert(Cert, otp),
+             TBSCert = OtpCert#'OTPCertificate'.tbsCertificate,
+-            #'OTPSubjectPublicKeyInfo'{algorithm = AlgInfo} 
++            #'OTPSubjectPublicKeyInfo'{algorithm = AlgInfo}
+                 = TBSCert#'OTPTBSCertificate'.subjectPublicKeyInfo,
+             {namedCurve, Oid}  = AlgInfo#'PublicKeyAlgorithm'.parameters,
+             {{namedCurve, Oid}, CipherSuite};
+@@ -3844,7 +3850,7 @@ path_validation(TrustedCert, Path, ServerName, Role, CertDbHandle, CertDbRef, CR
+                   ocsp_state := OcspState}) ->
+     SignAlgos = maps:get(signature_algs, Opts, undefined),
+     SignAlgosCert = maps:get(signature_algs_cert, Opts, undefined),
+-    ValidationFunAndState = 
++    ValidationFunAndState =
+         validation_fun_and_state(VerifyFun, #{role => Role,
+                                               certdb => CertDbHandle,
+                                               certdb_ref => CertDbRef,
+diff --git a/make/configure b/make/configure
+index 8c21940de2..f1993af0e5 100755
+--- a/make/configure
++++ b/make/configure
+@@ -782,6 +782,7 @@ with_javac
+ enable_megaco_flex_scanner_lineno
+ enable_megaco_reentrant_flex_scanner
+ with_ssl
++with_ssl_lib
+ with_ssl_incl
+ with_ssl_zlib
+ with_ssl_lib_subdir
+@@ -1515,6 +1516,8 @@ Optional Packages:
+   --with-ssl=PATH         base location of OpenSSL include and lib directories
+   --with-ssl              use SSL (default)
+   --without-ssl           don't use SSL
++  --with-ssl-lib=PATH     location of the library containing OpenSSL, if not
++                          standard
+   --with-ssl-incl=PATH    base location of OpenSSL include directory (if
+                           different than base location specified by
+                           --with-ssl=PATH)
+@@ -5616,6 +5619,14 @@ fi
+ 
+ 
+ 
++# Check whether --with-ssl-lib was given.
++if test ${with_ssl_lib+y}
++then :
++  withval=$with_ssl_lib;
++fi
++
++
++
+ # Check whether --with-ssl-incl was given.
+ if test ${with_ssl_incl+y}
+ then :
+diff --git a/make/configure.ac b/make/configure.ac
+index 654d1c0bc5..11bd4475a0 100644
+--- a/make/configure.ac
++++ b/make/configure.ac
+@@ -254,6 +254,10 @@ AS_HELP_STRING([--with-ssl=PATH], [base location of OpenSSL include and lib dire
+ AS_HELP_STRING([--with-ssl], [use SSL (default)])
+ AS_HELP_STRING([--without-ssl], [don't use SSL]))
+ 
++AC_ARG_WITH(ssl-lib,
++AS_HELP_STRING([--with-ssl-lib=PATH],
++               [location of the library containing OpenSSL, if not standard]))
++
+ AC_ARG_WITH(ssl-incl,
+ AS_HELP_STRING([--with-ssl-incl=PATH],
+ 	       [base location of OpenSSL include directory (if different than base location specified by --with-ssl=PATH)]))
