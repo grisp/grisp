@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/grisp/grisp/actions/workflows/continous_integration.yaml?query=branch%3Amaster">
-    <img alt="continous integration" src="https://img.shields.io/github/workflow/status/grisp/grisp/Continuous%20Integration?style=flat-square"/>
+    <img alt="continous integration" src="https://img.shields.io/github/actions/workflow/status/grisp/grisp/continous_integration.yaml?label=build&style=flat-square&branch=master"/>
   </a>
   <a href="https://hex.pm/packages/grisp">
     <img alt="hex.pm version" src="https://img.shields.io/hexpm/v/grisp.svg?style=flat-square"/>
