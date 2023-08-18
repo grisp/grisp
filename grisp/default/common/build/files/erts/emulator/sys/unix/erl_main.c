@@ -71,6 +71,9 @@
 #define PRIO_DHCP (RTEMS_MAXIMUM_PRIORITY - 1)
 #define PRIO_WPA (RTEMS_MAXIMUM_PRIORITY - 1)
 
+#define SHELL_STACK_SIZE (RTEMS_MINIMUM_STACK_SIZE * 4)
+#define CONSOLE_DEVICE_NAME "/dev/console"
+
 void parse_args(char *args);
 
 static int start_dhcp = 0;
@@ -79,6 +82,39 @@ static int wlan_enable = 0;
 
 static char *ip_self = "";
 static char *wlan_ip_netmask = "";
+
+/*
+ * The optional shell option can be set to either erlang, rtems or none.
+ * When setting it to rtems, the extra erlang arguments -noshell and -noinput
+ * are enforced after the -- if the first part of the option is erl.rtems.
+ *
+ * e.g
+ *
+ * To select the console shell, set the shell option in the configuration
+ * template grisp/grisp_base/files/grisp.ini.mustache
+ *
+ * Erlang shell:
+ *     By default without any shell option, the default is to use the erlang
+ *     shell, but it can be specified explcitly:
+ *
+ *         [erlang]
+ *         args = erl.rtems -- <rest of emulator flags...>
+ *         shell=erlang
+ *
+ * RTEMS shell :
+ *
+ *         [erlang]
+ *         args = erl.rtems -- <rest of emulator flags...>
+ *         shell=rtems
+ *
+ * No shell :
+ *
+ *         [erlang]
+ *         args = erl.rtems -- <rest of emulator flags...>
+ *         shell=none
+ *
+ */
+static int shell = 0;
 
 /*
  * Infrastructure mode by default.
@@ -211,6 +247,44 @@ void fatal_atexit(void) {
   }
 }
 
+char* silence_erl_console(char *args) {
+  char *pos, *new_args;
+  size_t added_length, new_len, length_before;
+
+  /* Check if the arguments are for the erlang VM */
+  if (strncmp(args, "erl.rtems", strlen("erl.rtems")) != 0) {
+      // If not, return the original string
+      return args;
+  }
+
+  /* Find the position of the "--" */
+  pos = strstr(args, "--");
+  if (!pos) {
+    /* If "--" is not found, return the original string */
+    return args;
+  }
+
+  /* Calculate the new string length */
+  added_length = strlen(" -noshell -noinput");
+  new_len = strlen(args) + added_length;
+  new_args = (char*) malloc(new_len + 1); /* +1 for the null terminator */
+  if (!new_args) {
+    /* Memory allocation failed, return the original string */
+    return args;
+  }
+
+  /* Copy the parts of the original string and insert the new strings */
+  length_before = pos - args + 2; /* +2 to include the "--" */
+  strncpy(new_args, args, length_before);
+  strcpy(new_args + length_before, " -noshell -noinput");
+  strcpy(new_args + length_before + added_length, pos + 2);
+
+  /* Release the original string */
+  free(args);
+
+  return new_args;
+}
+
 static int ini_file_handler(void *arg, const char *section, const char *name,
                             const char *value) {
   int ok = 0;
@@ -259,8 +333,20 @@ static int ini_file_handler(void *arg, const char *section, const char *name,
     }
   } else if (strcmp(section, "erlang") == 0) {
     if (strcmp(name, "args") == 0) {
+      free(erl_args);
       erl_args = strdup(value);
       ok = 1;
+    } else if (strcmp(name, "shell") == 0) {
+      if (strcmp(value, "erlang") == 0) {
+        shell = 0;
+        ok = 1;
+      } else if (strcmp(value, "rtems") == 0) {
+        shell = 1;
+        ok = 1;
+      } else if (strcmp(value, "none") == 0) {
+        shell = 2;
+        ok = 1;
+      }
     }
   } else
     ok = 1;
@@ -282,6 +368,10 @@ static void evaluate_ini_file(const char *rootdir, const char *ini_file) {
   if (rv == -1) {
     printf("[ERL] WARNING: %s not found, using defaults\n", ini_file);
   }
+
+  /* If the shell is not the Erlang console, we need to silence it. */
+  if (shell != 0)
+    erl_args = silence_erl_console(erl_args);
 }
 
 static void default_network_ifconfig_lo0(void) {
@@ -440,9 +530,10 @@ static void Init(rtems_task_argument arg) {
   strlcpy(dhcpfile, rootdir, 192);
   strlcat(dhcpfile, DHCP_CONF_FILENAME, 192);
 
-  printf("[ERL] Reading %s", inifile);
+  printf("[ERL] Reading %s\n", inifile);
   erl_args = strdup(default_erl_args);
   evaluate_ini_file(rootdir, inifile);
+
   printf("[ERL] Booting with arg: %s\n", erl_args);
   parse_args(erl_args);
 
@@ -512,7 +603,34 @@ static void Init(rtems_task_argument arg) {
     printf("[ERL] getcwd: %s\n", p);
 
   printf("[ERL] Starting BEAM\n");
-  erl_start(argc, argv);
+
+  // Erlang shell
+  if (shell == 0) {
+    printf("[ERL] Erlang shell mode\n");
+    erl_start(argc, argv);
+
+  // RTEMS shell
+  } else if (shell == 1) {
+    grisp_led_set2(false, true, false);
+    printf("[ERL] Starting RTEMS shell\n");
+
+    sc = rtems_shell_init("SHLL"  /* task name */
+        , SHELL_STACK_SIZE        /* task stack size */
+        , 10                      /* task priority */
+        , CONSOLE_DEVICE_NAME     /* device name */
+        , true                    /* run forever */
+        , false                   /* wait for shell to terminate */
+        , NULL);                  /* login check function,
+                                   use NULL to disable a login check */
+    assert(sc == RTEMS_SUCCESSFUL);
+    erl_start(argc, argv);
+
+  // No shell
+  } else if (shell == 2) {
+    printf("[ERL] No shell mode\n");
+    erl_start(argc, argv);
+  }
+
   printf("[ERL] BEAM exited\n");
   sleep(2);
   exit(0);
