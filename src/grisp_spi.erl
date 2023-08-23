@@ -75,7 +75,7 @@
 
 %--- Types ---------------------------------------------------------------------
 
--type pin() :: {cs, integer()} | {gpio, grisp_gpio:bus()}.
+-type pin() :: {cs, integer()} | {gpio, grisp_gpio:pin()}.
 -type bus() :: spi1 | spi2.
 % SPI bus identifier.
 -type clock() :: {Polarity :: low | high, Phase :: leading | trailing}.
