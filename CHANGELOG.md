@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Add
+
+- Add BLAS and LAPACK nif support [grisp/#118](https://github.com/grisp/grisp/pull/118)
+
 ### Fixed
 
 - Fix emulation for grisp 2 [grisp/#117](https://github.com/grisp/grisp/pull/117)
