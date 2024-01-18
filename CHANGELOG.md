@@ -8,9 +8,16 @@ and this project adheres to
 
 ## [Unreleased]
 
+
+## [2.4.0] - 2024-01-18
+
 ### Add
 
+- Support for OTP 26 [grisp/#121](https://github.com/grisp/grisp/pull/121)
+
 - Add BLAS and LAPACK nif support [grisp/#118](https://github.com/grisp/grisp/pull/118)
+
+- New `shell` option for grisp.ini [grisp/#125](https://github.com/grisp/grisp/pull/125)
 
 ### Fixed
 
@@ -199,7 +206,8 @@ and this project adheres to
 * Fix for \#2. Negative intervals are now treated by turning off leds [\#5](https://github.com/grisp/grisp/pull/5) ([nextl00p](https://github.com/nextl00p))
 
 
-[Unreleased]: https://github.com/grisp/grisp/compare/2.3.0...HEAD
+[Unreleased]: https://github.com/grisp/grisp/compare/2.4.0...HEAD
+[2.4.0]: https://github.com/grisp/grisp/compare/2.3.0...2.4.0
 [2.3.0]: https://github.com/grisp/grisp/compare/2.2.0...2.3.0
 [2.2.0]: https://github.com/grisp/grisp/compare/2.1.0...2.2.0
 [2.1.0]: https://github.com/grisp/grisp/compare/2.0.0...2.1.0
