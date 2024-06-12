@@ -1,8 +1,12 @@
 <p>
   <a href="#readme">
-    <img alt="GRiSP Erlang Runtime" src="doc/images/GRiSP_Logotype_positiv.svg"/ style="width: 80%;">
+    <picture width="20%" align="right">
+      <source media="(prefers-color-scheme: dark)" srcset="doc/images/GRiSP_Logotype_negativ.svg">
+      <img alt="GRiSP Erlang Runtime" src="doc/images/GRiSP_Logotype_positiv.svg"/ style="width: 80%;">
+    </picture>
   </a>
 </p>
+
 
 <p align="center">
   <a href="https://github.com/grisp/grisp/actions/workflows/continous_integration.yaml?query=branch%3Amaster">
