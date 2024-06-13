@@ -34,7 +34,6 @@
 #include <rtems/bdbuf.h>
 #include <rtems/bsd/bsd.h>
 #include <rtems/console.h>
-#include <rtems/ftpd.h>
 #include <rtems/libio.h>
 #include <rtems/malloc.h>
 #include <rtems/media.h>
@@ -45,6 +44,7 @@
 #include <assert.h>
 #include <bsp.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <sysexits.h>
 #include <unistd.h>
 
@@ -66,13 +66,15 @@
 #define INI_FILENAME "grisp.ini"
 #define DHCP_CONF_FILENAME "dhcpcd.conf"
 
-#define STACK_SIZE_INIT_TASK (64 * 1024)
+#define STACK_SIZE_INIT_TASK (512 * 1024)
 
 #define PRIO_DHCP (RTEMS_MAXIMUM_PRIORITY - 1)
 #define PRIO_WPA (RTEMS_MAXIMUM_PRIORITY - 1)
 
 #define SHELL_STACK_SIZE (RTEMS_MINIMUM_STACK_SIZE * 4)
 #define CONSOLE_DEVICE_NAME "/dev/console"
+
+#define BUFFER_SIZE 1024
 
 void parse_args(char *args);
 
@@ -195,6 +197,15 @@ static char *hostname = "grisp";
 
 static char *wpa_supplicant_conf = NULL;
 
+/*
+ * RTEMS log priority can be set to either alert, crit, debug, emerg, err, info,
+ * notice or warning. If not specified it is set to err. Example:
+ *
+ *     [rtems]
+ *     log_priority=debug
+ */
+static char *rtems_log_priority = "err";
+
 static char *erl_args;
 static const char *default_erl_args = "erl.rtems -- "
                                       "-root otp "
@@ -206,6 +217,16 @@ static const char *default_erl_args = "erl.rtems -- "
 
 static char *argv[MAX_ARGC];
 static int argc;
+
+// Function prototypes
+void fatal_extension(rtems_fatal_source source, bool is_internal, rtems_fatal_code error);
+void fatal_atexit(void);
+char* silence_erl_console(char *args);
+void set_grisp_hostname(struct grisp_eeprom *eeprom);
+void join_paths(const char *part1, const char *part2, char *result, size_t max_size);
+int copy_file(const char *src_path, const char *dst_path);
+int copy_directory(const char *src_dir, const char *dst_dir);
+void setup_etc(const char *root_dir);
 
 static char *strdupcat(const char *s1, const char *s2) {
   char *res;
@@ -229,8 +250,8 @@ int munmap(void *addr, size_t len) {
   return -1;
 }
 
-void fatal_extension(uint32_t source, uint32_t is_internal, uint32_t error) {
-  printk("\n\nfatal extension: source=%ld, is_internal=%ld, error=%ld\n",
+void fatal_extension(rtems_fatal_source source, bool is_internal, rtems_fatal_code error) {
+  printk("\n\nfatal extension: source=%d, is_internal=%d, error=%d\n",
          source, is_internal, error);
   if (source == RTEMS_FATAL_SOURCE_EXCEPTION)
     rtems_exception_frame_print((const rtems_exception_frame *)error);
@@ -348,6 +369,20 @@ static int ini_file_handler(void *arg, const char *section, const char *name,
         ok = 1;
       }
     }
+  } else if (strcmp(section, "rtems") == 0) {
+    if (strcmp(name, "log_priority") == 0) {
+      if ((strcmp(value, "alert") == 0)
+           || (strcmp(value, "crit") == 0)
+           || (strcmp(value, "debug") == 0)
+           || (strcmp(value, "emerg") == 0)
+           || (strcmp(value, "err") == 0)
+           || (strcmp(value, "info") == 0)
+           || (strcmp(value, "notice") == 0)
+           || (strcmp(value, "warning") == 0)) {
+        rtems_log_priority = strdup(value);
+        ok = 1;
+      }
+    }
   } else
     ok = 1;
 
@@ -451,8 +486,116 @@ void set_grisp_hostname(struct grisp_eeprom *eeprom) {
   hostname = dynhostname;
 }
 
+void join_paths(const char *part1, const char *part2, char *result, size_t max_size) {
+  size_t len1 = strlen(part1);
+  size_t len2 = strlen(part2);
+  size_t total_len = len1 + len2 + 1;
+
+  if (part1[len1 - 1] == '/') {
+    total_len--;
+  }
+
+  if (total_len >= max_size) {
+    len2 = max_size - len1 - 2;
+  }
+
+  strncpy(result, part1, max_size - 1);
+  result[max_size - 1] = '\0';
+
+  if (part1[len1 - 1] != '/' && len1 < max_size - 1) {
+    strncat(result, "/", max_size - strlen(result) - 1);
+  }
+
+  strncat(result, part2, max_size - strlen(result) - 1);
+}
+
+int copy_file(const char *src_path, const char *dst_path) {
+  char buffer[BUFFER_SIZE];
+  size_t bytes;
+  FILE *src_file, *dst_file;
+
+  printf("[ERL] Copying file %s to %s\n", src_path, dst_path);
+
+  src_file = fopen(src_path, "rb");
+  if (!src_file) {
+    perror("source file fopen error during file copy");
+    return -1;
+  }
+
+  dst_file = fopen(dst_path, "wb");
+  if (!dst_file) {
+    perror("destination file fopen error during file copy");
+    fclose(src_file);
+    return -1;
+  }
+
+  while ((bytes = fread(buffer, 1, BUFFER_SIZE, src_file)) > 0) {
+    fwrite(buffer, 1, bytes, dst_file);
+  }
+
+  fclose(src_file);
+  fclose(dst_file);
+
+  return 0;
+}
+
+int copy_directory(const char *src_dir, const char *dst_dir) {
+    DIR *dir;
+    struct stat st;
+    struct dirent *entry;
+    char src_path[PATH_MAX];
+    char dst_path[PATH_MAX];
+
+    printf("[ERL] Copying directory %s to %s\n", src_dir, dst_dir);
+
+    dir = opendir(src_dir);
+    if (!dir) {
+        perror("source directory opendir error during directory copy");
+        return -1;
+    }
+
+    if (stat(dst_dir, &st) == -1) {
+        mkdir(dst_dir, 0755);
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+      if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+        continue;
+      }
+
+      join_paths(src_dir, entry->d_name, src_path, sizeof(src_path));
+      join_paths(dst_dir, entry->d_name, dst_path, sizeof(dst_path));
+
+      if (entry->d_type == DT_DIR) {
+        copy_directory(src_path, dst_path);
+      } else {
+        copy_file(src_path, dst_path);
+      }
+    }
+
+    closedir(dir);
+    return 0;
+}
+
+void setup_etc(const char *root_dir) {
+  char etc_dir[PATH_MAX];
+  struct stat st;
+
+  join_paths(root_dir, "etc", etc_dir, sizeof(etc_dir));
+
+  if (stat(etc_dir, &st) == 0 && S_ISDIR(st.st_mode)) {
+    printf("[ERL] Setting up /etc from %s\n", etc_dir);
+    copy_directory(etc_dir, "/etc");
+  } else {
+    if (errno != ENOENT) {
+      perror("stat failed during etc setup");
+    } else {
+      printf("[ERL] Directory %s not found\n", etc_dir);
+    }
+  }
+}
+
 static void Init(rtems_task_argument arg) {
-  printf("[ERL] Initializing\n");
   rtems_status_code sc = RTEMS_SUCCESSFUL;
   int rv = 0;
   static char pwd[1024];
@@ -462,7 +605,18 @@ static void Init(rtems_task_argument arg) {
   char *p;
   struct grisp_eeprom eeprom = {0};
 
+#ifdef GRISP_PLATFORM_GRISP2
+
+  const void *fdt;
+  int node_offset;
+  int len;
+
+#endif
+
+  printf("[ERL] Initializing\n");
+
   atexit(fatal_atexit);
+  rtems_bsd_setlogpriority(rtems_log_priority);
 
   grisp_led_set1(true, true, true);
   grisp_led_set2(false, false, false);
@@ -505,10 +659,6 @@ static void Init(rtems_task_argument arg) {
 
 #ifdef GRISP_PLATFORM_GRISP2
 
-  const void *fdt;
-  int node_offset;
-  int len;
-
   fdt = bsp_fdt_get();
   node_offset = fdt_path_offset(fdt, FDT_MOUNTPOINT_NODE);
   rootdir = fdt_getprop(fdt, node_offset, FDT_MOUNTPOINT_PROPERTY, &len);
@@ -539,6 +689,8 @@ static void Init(rtems_task_argument arg) {
 
   sethostname(hostname, strlen(hostname));
   printf("[ERL] hostname: %s\n", hostname);
+
+  setup_etc(rootdir);
 
   if (start_dhcp) {
     printf("[ERL] Starting DHCP\n");
@@ -669,6 +821,7 @@ static void Init(rtems_task_argument arg) {
 #define CONFIGURE_INIT_TASK_STACK_SIZE STACK_SIZE_INIT_TASK
 #define CONFIGURE_INIT_TASK_INITIAL_MODES RTEMS_DEFAULT_MODES
 #define CONFIGURE_INIT_TASK_ATTRIBUTES RTEMS_FLOATING_POINT
+#define CONFIGURE_INIT_TASK_PRIORITY 10
 
 #define CONFIGURE_BDBUF_BUFFER_MAX_SIZE (32 * 1024)
 #define CONFIGURE_BDBUF_MAX_READ_AHEAD_BLOCKS 4
@@ -685,14 +838,44 @@ static void Init(rtems_task_argument arg) {
 
 #define CONFIGURE_RTEMS_INIT_TASKS_TABLE
 
-#define CONFIGURE_INIT_TASK_STACK_SIZE (512 * 1024)
-#define CONFIGURE_INIT_TASK_PRIORITY 10
-
 #define CONFIGURE_MINIMUM_TASK_STACK_SIZE (64 * 1024)
 
 #define CONFIGURE_INIT
 
 #include <rtems/confdefs.h>
+
+/*
+ * Configure Shell.
+ */
+#include <rtems/netcmds-config.h>
+#include <bsp/irq-info.h>
+#define CONFIGURE_SHELL_COMMANDS_INIT
+
+/* Disable the commands that do not work */
+#define CONFIGURE_SHELL_NO_COMMAND_RTC
+#define CONFIGURE_SHELL_NO_COMMAND_MDUMP
+#define CONFIGURE_SHELL_NO_COMMAND_WDUMP
+#define CONFIGURE_SHELL_NO_COMMAND_LDUMP
+#define CONFIGURE_SHELL_NO_COMMAND_MEDIT
+#define CONFIGURE_SHELL_NO_COMMAND_MFILL
+#define CONFIGURE_SHELL_NO_COMMAND_MMOVE
+
+#define CONFIGURE_SHELL_USER_COMMANDS \
+  &bsp_interrupt_shell_command, \
+  &rtems_shell_ARP_Command, \
+  &rtems_shell_PFCTL_Command, \
+  &rtems_shell_PING_Command, \
+  &rtems_shell_IFCONFIG_Command, \
+  &rtems_shell_ROUTE_Command, \
+  &rtems_shell_NETSTAT_Command, \
+  &rtems_shell_HOSTNAME_Command, \
+  &rtems_shell_SYSCTL_Command, \
+  &rtems_shell_WLANSTATS_Command, \
+  &rtems_shell_BLKSTATS_Command
+
+#define CONFIGURE_SHELL_COMMANDS_ALL
+
+#include <rtems/shellconfig.h>
 
 #else
 int main(int argc, char **argv) {
