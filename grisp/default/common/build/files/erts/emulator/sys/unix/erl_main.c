@@ -503,6 +503,9 @@ static void Init(rtems_task_argument arg) {
     grisp_led_set1(true, false, false);
   }
 
+  printf("[ERL] WORKAROUND: Waiting 2 extra seconds for MOUNT\n");
+  rtems_task_wake_after(1000 * 2);
+
 #ifdef GRISP_PLATFORM_GRISP2
 
   const void *fdt;
