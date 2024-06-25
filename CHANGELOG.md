@@ -8,10 +8,16 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.5.0] - 2024-06-25
+
+### Added
+- Remove ssl patch for OTP-26 builds [grisp/#127](https://github.com/grisp/grisp/pull/127)
+- Add support for OTP 27 [grisp/#130](https://github.com/grisp/grisp/pull/130)
+- Add support for OTP 26.2 [grisp/#131](https://github.com/grisp/grisp/pull/131)
 
 ## [2.4.0] - 2024-01-18
 
-### Add
+### Added
 
 - Support for OTP 26 [grisp/#121](https://github.com/grisp/grisp/pull/121)
 
