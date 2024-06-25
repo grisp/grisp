@@ -1,4 +1,6 @@
 apps_dirs:
+  - "."
+deps_dirs:
   - "_build/default/lib/*"
 include_dirs:
   - "_build/default/lib/*/include"
