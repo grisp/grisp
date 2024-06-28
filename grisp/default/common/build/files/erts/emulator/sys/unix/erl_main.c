@@ -695,10 +695,12 @@ static void Init(rtems_task_argument arg) {
   if (start_dhcp) {
     printf("[ERL] Starting DHCP\n");
     grisp_led_set1(false, true, true);
-    if (!access(dhcpfile, F_OK))
+    if (!access(dhcpfile, F_OK)) {
+      printf("[ERL] Using config file %s\n", DHCP_CONF_FILENAME);
       grisp_init_dhcpcd_with_config(PRIO_DHCP, dhcpfile);
-    else
+    } else {
       grisp_init_dhcpcd(PRIO_DHCP);
+    }
   }
 
   if (wlan_enable) {
