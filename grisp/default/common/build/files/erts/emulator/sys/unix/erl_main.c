@@ -64,7 +64,6 @@
 #define DEFAULT_MNT "/media/mmcsd-0-0/"
 #endif
 #define INI_FILENAME "grisp.ini"
-#define DHCP_CONF_FILENAME "dhcpcd.conf"
 
 #define STACK_SIZE_INIT_TASK (512 * 1024)
 
@@ -677,8 +676,6 @@ static void Init(rtems_task_argument arg) {
 
   strlcpy(inifile, rootdir, 192);
   strlcat(inifile, INI_FILENAME, 192);
-  strlcpy(dhcpfile, rootdir, 192);
-  strlcat(dhcpfile, DHCP_CONF_FILENAME, 192);
 
   printf("[ERL] Reading %s\n", inifile);
   erl_args = strdup(default_erl_args);
@@ -695,10 +692,7 @@ static void Init(rtems_task_argument arg) {
   if (start_dhcp) {
     printf("[ERL] Starting DHCP\n");
     grisp_led_set1(false, true, true);
-    if (!access(dhcpfile, F_OK))
-      grisp_init_dhcpcd_with_config(PRIO_DHCP, dhcpfile);
-    else
-      grisp_init_dhcpcd(PRIO_DHCP);
+    grisp_init_dhcpcd(PRIO_DHCP);
   }
 
   if (wlan_enable) {
