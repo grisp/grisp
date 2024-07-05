@@ -29,3 +29,6 @@ doc/stylesheet.css
 .eqc
 cover
 *.eqc
+
+# asdf
+.tool-versions
