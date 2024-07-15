@@ -3,7 +3,7 @@
 
 -behavior(supervisor).
 
--include("grisp.hrl").
+-include("grisp_internal.hrl").
 
 % API
 -export([start_link/1]).

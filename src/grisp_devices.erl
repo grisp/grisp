@@ -21,7 +21,7 @@
 -export([code_change/3]).
 -export([terminate/2]).
 
--include("grisp.hrl").
+-include("grisp_internal.hrl").
 
 %--- API -----------------------------------------------------------------------
 

@@ -10,7 +10,7 @@
 -export([devices/0]).
 -export([device/1]).
 
--include("grisp.hrl").
+-include("grisp_internal.hrl").
 
 %--- Types ---------------------------------------------------------------------
 

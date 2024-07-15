@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Added
 
+ - Expose emulation status through grisp.hrl macro ?IS_EMULATED [grisp/#137](https://github.com/grisp/grisp/pull/137)
  - Copy configuration files to /etc during boot [grisp/#132](https://github.com/grisp/grisp/pull/132)
  - Add default configuration for DNS support [grisp/#132](https://github.com/grisp/grisp/pull/132)
  - Fix the commands available in RTEMS shell [grisp/#132](https://github.com/grisp/grisp/pull/132)

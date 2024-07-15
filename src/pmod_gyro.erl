@@ -13,7 +13,7 @@
 
 -behaviour(gen_server).
 
--include("grisp.hrl").
+-include("grisp_internal.hrl").
 -include("pmod_gyro.hrl").
 
 % API
