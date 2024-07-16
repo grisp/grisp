@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+ - Fix barebox error handling [grisp/#137](https://github.com/grisp/grisp/pull/137)
+
 ### Added
 
  - Expose emulation status through grisp.hrl macro ?IS_EMULATED [grisp/#137](https://github.com/grisp/grisp/pull/137)

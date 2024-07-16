@@ -232,7 +232,6 @@ load_var_block(_Store, Spec, _Addr, _EndAddr, 3) ->
     load_var_block_not_found(Spec);
 load_var_block(Store, Spec, Addr, EndAddr, Count) ->
     case read_var_block(Store, Spec, Addr, EndAddr, Count) of
-        {error, _Reason} = Error -> Error;
         not_found ->
             load_var_block(Store, Spec, Addr + Spec#spec.stride,
                            EndAddr, Count + 1);
@@ -248,7 +247,6 @@ check_var_block(_Store, _Spec, _Addr, _EndAddr, _ExpVars, 3) ->
     ok;
 check_var_block(Store, Spec, Addr, EndAddr, ExpVars, Count) ->
     case read_var_block(Store, Spec, Addr, EndAddr, Count) of
-        {error, _Reason} = Error -> Error;
         not_found ->
             check_var_block(Store, Spec, Addr + Spec#spec.stride,
                             EndAddr, ExpVars, Count + 1);
@@ -264,7 +262,7 @@ check_var_block(Store, Spec, Addr, EndAddr, ExpVars, Count) ->
 
 read_var_block(Store, Spec, Addr, EndAddr, Count)
   when (Addr + 8) =< EndAddr ->
-    try grisp_eeprom:read(Store, Addr, 8) of
+    case grisp_eeprom:read(Store, Addr, 8) of
         <<Magic:4/binary, _BlockSize:32/little-integer>>
           when Magic =/= ?DIRECT_STORAGE_MAGIC ->
             logger:warning("Barebox variable block ~w with unsupported magic: ~w",
@@ -276,7 +274,7 @@ read_var_block(Store, Spec, Addr, EndAddr, Count)
                            [Count + 1]),
             not_found;
         <<_:4/binary, BlockSize:32/little-integer>> ->
-            try grisp_eeprom:read(Store, Addr + 8, BlockSize) of
+            case grisp_eeprom:read(Store, Addr + 8, BlockSize) of
                 Block ->
                     case parse_var_block(Spec, Block) of
                         {error, Msg} ->
@@ -286,11 +284,7 @@ read_var_block(Store, Spec, Addr, EndAddr, Count)
                         {ok, Vars2} ->
                             Vars2
                     end
-            catch
-                error:Reason -> {error, Reason}
             end
-    catch
-        error:Reason -> {error, Reason}
     end;
 read_var_block(_Store, _Spec, _Addr, _EndAddr, Count) ->
     logger:warning("Barebox variable block ~w is outside of the partition",
