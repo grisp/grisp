@@ -232,12 +232,16 @@ reg_files() ->
       rep_soc => #reg_file{addr = 16#06, size = 2, type = read},
       temp => #reg_file{addr = 16#08, size = 2, type = read},
       current => #reg_file{addr = 16#0A, size = 2, type = read},
+      avg_current => #reg_file{addr = 16#0B, size = 2, type = read},
       v_cell => #reg_file{addr = 16#09, size = 2, type = read},
       full_cap_rep => #reg_file{addr = 16#10, size = 2, type = read},
       tte => #reg_file{addr = 16#11, size = 2, type = read},
+      avg_ta => #reg_file{addr = 16#16, size = 2, type = read},
       design_cap => #reg_file{addr = 16#18, size = 2, type = read_write}, % User manual not clear for type
-      avg_v_cell => #reg_file{addr = 16#19, size = 2, type = read_write},
-      max_min_volt => #reg_file{addr = 16#1B, size = 2, type = read_write},
+      avg_v_cell => #reg_file{addr = 16#19, size = 2, type = read},
+      max_min_temp => #reg_file{addr = 16#1A, size = 2, type = read},
+      max_min_volt => #reg_file{addr = 16#1B, size = 2, type = read},
+      max_min_current => #reg_file{addr = 16#1C, size = 2, type = read},
       i_chg_term => #reg_file{addr = 16#1E, size = 2, type = read_write},
       ttf => #reg_file{addr = 16#20, size = 2, type = read},
       dev_name => #reg_file{addr = 16#21, size = 2, type = read},
@@ -389,10 +393,15 @@ reg_file(decode, v_cell, ReadValue) -> % 0x09
     #{
       ?MAP_FIELD(v_cell, voltage, VCell)
      };
-reg_file(decode, current, ReadValue) ->
+reg_file(decode, current, ReadValue) -> % 0x0A
     <<Current:16/little>> = ReadValue,
     #{
       ?MAP_FIELD(current, current, Current)
+     };
+reg_file(decode, avg_current, ReadValue) -> % 0x0B
+    <<AvgCurrent:16/little>> = ReadValue,
+    #{
+      ?MAP_FIELD(avg_current, current, AvgCurrent)
      };
 reg_file(decode, full_cap_rep, ReadValue) -> % 0x10
     <<FullCapRep:16/little>> = ReadValue,
@@ -403,6 +412,11 @@ reg_file(decode, tte, ReadValue) -> % 0x11
     <<TTE:16/little>> = ReadValue,
     #{
       ?MAP_FIELD(tte, time, TTE)
+     };
+reg_file(decode, avg_ta, ReadValue) -> % 0x16
+    <<AvgTA:16/little>> = ReadValue,
+    #{
+      ?MAP_FIELD(avg_ta, temperature, AvgTA)
      };
 reg_file(decode, design_cap, ReadValue) -> % 0x18
     <<DesignCap:16/little>> = ReadValue,
@@ -417,6 +431,27 @@ reg_file(decode, avg_v_cell, ReadValue) -> % 0x19
     <<AvgVCell:16/little>> = ReadValue,
     #{
       ?MAP_FIELD(avg_v_cell, voltage, AvgVCell)
+     };
+reg_file(decode, max_min_temp, ReadValue) -> % 0x1A
+    <<MinTemp:8,
+      MaxTemp:8>> = ReadValue,
+    #{
+      ?MAP_FIELD(min_temp, special, MinTemp),
+      ?MAP_FIELD(max_temp, special, MaxTemp)
+     };
+reg_file(decode, max_min_volt, ReadValue) -> % 0x1B
+    <<MinVCell:8,
+      MaxVCell:8>> = ReadValue,
+    #{
+      ?MAP_FIELD(min_v_cell, special, MinVCell),
+      ?MAP_FIELD(max_v_cell, special, MaxVCell)
+     };
+reg_file(decode, max_min_current, ReadValue) -> % 0x1C
+    <<MinCurrent:8,
+      MaxCurrent:8>> = ReadValue,
+    #{
+      ?MAP_FIELD(min_current, special, MinCurrent),
+      ?MAP_FIELD(max_current, special, MaxCurrent)
      };
 reg_file(decode, i_chg_term, ReadValue) -> % 0x1E
     <<IChgTerm:16/little>> = ReadValue,
@@ -581,10 +616,10 @@ field(encode, _, capacity, Value) ->
     logger:notice("Given capacity: ~p - Encoded: ~p", [Value, C]),
     C;
 field(decode, _, current, Value) ->
-    twos_complement(decode, Value) * ?CURRENT_MUL;
+    twos_complement(decode, Value, 16) * ?CURRENT_MUL;
 field(encode, _, current, Value) ->
     ValueToEncode = round(math:floor(Value / ?CURRENT_MUL)),
-    twos_complement(encode, ValueToEncode);
+    twos_complement(encode, ValueToEncode, 16);
 field(decode, _, voltage, Value) ->
     Value * ?VOLTAGE_MUL;
 field(encode, _, voltage, Value) ->
@@ -594,10 +629,10 @@ field(decode, _, percentage, Value) ->
 field(encode, _, percentage, Value) ->
     round(math:floor(Value / ?PERCENTAGE_MUL));
 field(decode, _, temperature, Value) ->
-    twos_complement(decode, Value) * ?PERCENTAGE_MUL;
+    twos_complement(decode, Value, 16) * ?PERCENTAGE_MUL;
 field(encode, _, temperature, Value) ->
     ValueToEncode = round(math:floor(Value / ?TEMP_MUL)),
-    twos_complement(encode, ValueToEncode);
+    twos_complement(encode, ValueToEncode, 16);
 field(decode, _, power, Value) ->
     (Value * ?POWER_MUL) / 1000;
 field(decode, _, time, Value) ->
@@ -612,6 +647,16 @@ field(decode, vr, special, VR) ->
     VR * ?VR_RESOLUTION;
 field(encode, vr, special, VR) ->
     round(math:floor(VR / ?VR_RESOLUTION));
+field(decode, Register, special, Value) when
+      Register == min_v_cell orelse Register == max_v_cell ->
+    Value * 20; % Resolution of the register is 20mV
+field(decode, Register, special, Value) when
+      Register == min_current orelse Register == max_current ->
+    SignedValue = twos_complement(decode, Value, 8),
+    SignedValue * (0.4/?RSENSE);
+field(decode, Register, special, Value) when
+      Register == max_temp orelse Register  == min_temp ->
+    twos_complement(decode, Value, 8); % Register resolution is 1 deg. C
 field(decode, soft_wakeup, pick, Value) ->
     % Note: It appears that there is an error in the datasheet
     % The value soft wakeup value is given as 0x0090 but should be written 0x9000
@@ -641,15 +686,17 @@ field(_, Register, Type, _) ->
     error({unknown_register, Register, Type}).
 
 % TODO test correctly this function
-twos_complement(encode, Value) ->
-    Mask = round(math:pow(2, 17)) - 1,
+twos_complement(encode, Value, Size) when Value < 0->
+    Mask = round(math:pow(2, Size+1)) - 1,
     if Value < 0 ->
            ((bnot(Value) band Mask) + 1) band Mask;
        true -> Value
     end;
-twos_complement(decode, Value) ->
-    Mask = round(math:pow(2, 17)) - 1,
-    MSB = Value bsr 15,
+twos_complement(encode, Value, _Size) when Value >= 0 ->
+    Value;
+twos_complement(decode, Value, Size) ->
+    Mask = round(math:pow(2, Size + 1)) - 1,
+    MSB = Value bsr (Size -1),
     print("MSB ~p~n", [MSB]),
     case MSB of
         1 ->
