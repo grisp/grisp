@@ -22,7 +22,7 @@
 %--- Records -------------------------------------------------------------------
 
 -record(state, {bus :: grisp_i2c:bus(),
-                reg_files :: #{atom() => reg_file()}
+                reg_files :: #{reg_file_name() => reg_file()}
                 }).
 
 -record(reg_file, {addr :: non_neg_integer(),
@@ -32,7 +32,8 @@
 %--- Types ---------------------------------------------------------------------
 
 -type state() :: #state{}.
--type reg_file() :: atom().
+-type reg_file() :: #reg_file{}.
+-type reg_file_name() :: atom().
 
 %--- MACROS --------------------------------------------------------------------
 
@@ -65,11 +66,11 @@
 start_link(Slot, _Opts) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Slot, []).
 
--spec read(reg_file()) -> map().
+-spec read(reg_file_name()) -> map().
 read(RegisterFile) ->
     call({read, RegisterFile}).
 
--spec write(reg_file(), map()) -> ok.
+-spec write(reg_file_name(), map()) -> ok.
 write(RegisterFile, Value) ->
     call({write, RegisterFile, Value}).
 
@@ -142,7 +143,7 @@ verify_component(#state{bus = Bus}) ->
 
 -spec verify_reg_file({RegFile, Value, Size}, State) -> State when
       RegFile  :: non_neg_integer(),
-      Value    :: <<_:8>>,
+      Value    :: <<_:16>>,
       Size     :: pos_integer(),
       State    :: state().
 verify_reg_file({RegFile, <<Value:16/big>>, Size}, State) ->
@@ -227,37 +228,37 @@ exit_hibernate(State) ->
 
 -spec reg_files() -> #{atom() := reg_file()}.
 reg_files() ->
-    #{status => #reg_file{addr = 16#00, size = 2, type = read},
-      rep_cap => #reg_file{addr = 16#05, size = 2, type = read},
-      rep_soc => #reg_file{addr = 16#06, size = 2, type = read},
-      temp => #reg_file{addr = 16#08, size = 2, type = read},
-      current => #reg_file{addr = 16#0A, size = 2, type = read},
-      avg_current => #reg_file{addr = 16#0B, size = 2, type = read},
-      v_cell => #reg_file{addr = 16#09, size = 2, type = read},
-      full_cap_rep => #reg_file{addr = 16#10, size = 2, type = read},
-      tte => #reg_file{addr = 16#11, size = 2, type = read},
-      avg_ta => #reg_file{addr = 16#16, size = 2, type = read},
+    #{status => #reg_file{addr = 16#00, size = 2, type = read_only},
+      rep_cap => #reg_file{addr = 16#05, size = 2, type = read_only},
+      rep_soc => #reg_file{addr = 16#06, size = 2, type = read_only},
+      temp => #reg_file{addr = 16#08, size = 2, type = read_only},
+      current => #reg_file{addr = 16#0A, size = 2, type = read_only},
+      avg_current => #reg_file{addr = 16#0B, size = 2, type = read_only},
+      v_cell => #reg_file{addr = 16#09, size = 2, type = read_only},
+      full_cap_rep => #reg_file{addr = 16#10, size = 2, type = read_only},
+      tte => #reg_file{addr = 16#11, size = 2, type = read_only},
+      avg_ta => #reg_file{addr = 16#16, size = 2, type = read_only},
       design_cap => #reg_file{addr = 16#18, size = 2, type = read_write}, % User manual not clear for type
-      avg_v_cell => #reg_file{addr = 16#19, size = 2, type = read},
-      max_min_temp => #reg_file{addr = 16#1A, size = 2, type = read},
-      max_min_volt => #reg_file{addr = 16#1B, size = 2, type = read},
-      max_min_current => #reg_file{addr = 16#1C, size = 2, type = read},
+      avg_v_cell => #reg_file{addr = 16#19, size = 2, type = read_only},
+      max_min_temp => #reg_file{addr = 16#1A, size = 2, type = read_only},
+      max_min_volt => #reg_file{addr = 16#1B, size = 2, type = read_only},
+      max_min_current => #reg_file{addr = 16#1C, size = 2, type = read_only},
       i_chg_term => #reg_file{addr = 16#1E, size = 2, type = read_write},
-      ttf => #reg_file{addr = 16#20, size = 2, type = read},
-      dev_name => #reg_file{addr = 16#21, size = 2, type = read},
+      ttf => #reg_file{addr = 16#20, size = 2, type = read_only},
+      dev_name => #reg_file{addr = 16#21, size = 2, type = read_only},
       v_empty => #reg_file{addr = 16#3A, size = 2, type = read_write},
-      fstat => #reg_file{addr = 16#3D, size = 2,type = read},
+      fstat => #reg_file{addr = 16#3D, size = 2,type = read_only},
       soft_wakeup => #reg_file{addr = 16#60, size = 2, type = read_write},
-      power => #reg_file{addr = 16#B1, size = 2, type = read},
-      avg_power => #reg_file{addr = 16#B2, size = 2, type = read},
+      power => #reg_file{addr = 16#B1, size = 2, type = read_only},
+      avg_power => #reg_file{addr = 16#B2, size = 2, type = read_only},
       hib_cfg => #reg_file{addr = 16#BA, size = 2, type = read_write},
-      r_sense => #reg_file{addr = 16#D0, size = 2, type = read},
+      r_sense => #reg_file{addr = 16#D0, size = 2, type = read_only},
       model_cfg => #reg_file{addr = 16#DB, size = 2, type = read_write}}.
 
 %--- Internal: Read and Write functions ----------------------------------------
 
 % @doc reading the register file of the given component
--spec read_reg_file(state(), atom()) -> {ok, state(), map()}.
+-spec read_reg_file(state(), reg_file_name()) -> {ok, state(), map()}.
 read_reg_file(State, RegFileName) ->
     #reg_file{addr = RAddr,
               size = RSize} = maps:get(RegFileName, State#state.reg_files),
@@ -302,7 +303,7 @@ write_n_reg_files(State, WriteList) ->
       State    :: state(),
       RegFile  :: non_neg_integer(),
       Size     :: pos_integer(),
-      Value    :: <<_:8>>.
+      Value    :: binary().
 read_request(#state{bus = Bus}, RegFile, Size) ->
      Resp = grisp_i2c:read(Bus, ?MAX17260ADDR, RegFile, Size),
      debug_read(?MAX17260ADDR, RegFile, Resp),
@@ -323,7 +324,7 @@ write_request(#state{bus = Bus}, RegFile, Value) ->
 %--- Internal: Register mapping
 -spec reg_file(Type, RegFile, Value) -> Ret when
       Type    :: encode | decode,
-      RegFile :: atom(),
+      RegFile :: reg_file_name(),
       Value   :: binary() | map(),
       Ret     :: binary() | map().
 reg_file(decode, status, ReadValue) -> % 0x00
@@ -578,21 +579,19 @@ reg_file(_, RegFile, _) ->
 -spec field(Action, RegFile, Type, Value) -> Ret when
     Action  :: encode | decode,
     RegFile :: atom(),
-    Type    :: pick | {signed, Size} | unsigned | boolean,
-    Size    :: 16 | 32,
-    Value   :: map() | binary(),
-    Ret     :: map() | binary().
-field(decode, _, {signed, Size}, Value) ->
-    MSB = Value bsr (Size - 1),
-    print("MSB: ~p~n", [MSB]),
-    case MSB of
-        0 ->
-            Value;
-        1 ->
-            Mask = round(math:pow(2, Size) - 1),
-            print("Value: ~p | Val - 1: ~p | bnot(Val - 1): ~p~n", [Value, (Value - 1) band Mask, bnot((Value - 1) band Mask) band Mask]),
-            -(bnot((Value - 1) band Mask) band Mask)
-    end;
+    Type    :: pick
+               | unsigned
+               | boolean
+               | capacity
+               | current
+               | temperature
+               | voltage
+               | special
+               | power
+               | percentage
+               | time,
+    Value   :: term(),
+    Ret     :: term().
 field(encode, _, unsigned, Value) ->
     Value;
 field(decode, _, unsigned, Value) ->
@@ -607,8 +606,6 @@ field(encode, _, boolean, Value) ->
         false -> 0;
         true -> 1
     end;
-field(decode, _, bit, Value) ->
-    Value;
 field(decode, _, capacity, Value) ->
     Value * ?CAPACITY_MUL; % TODO check if Rsense is 0,01 ohm + explain how I found this value
 field(encode, _, capacity, Value) ->
