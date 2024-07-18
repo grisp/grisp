@@ -56,7 +56,7 @@
 %--- Record --------------------------------------------------------------------
 
 -record(state, {bus :: grisp_i2c:bus(),
-                reg_files :: #{atom() => reg_file()}
+                reg_files :: #{reg_file_name() => reg_file()}
                 }).
 
 -record(reg_file, {addr :: non_neg_integer(),
@@ -70,11 +70,48 @@
 
 -type source() :: wall | usb | battery.
 
+-type reg_file_name() :: refresh
+                         | ctrl
+                         | acc_count
+                         | vpower1_acc
+                         | vpower2_acc
+                         | vpower3_acc
+                         | vbus1
+                         | vbus2
+                         | vbus3
+                         | vbus4
+                         | vsense1
+                         | vsense2
+                         | vsense3
+                         | vbus1_avg
+                         | vbus2_avg
+                         | vbus3_avg
+                         | vsense1_avg
+                         | vsense2_avg
+                         | vsense3_avg
+                         | vpower1
+                         | vpower2
+                         | vpower3
+                         | channel_dis
+                         | neg_pwr
+                         | refresh_g
+                         | refresh_v
+                         | slow
+                         | ctrl_act
+                         | channel_dis_act
+                         | neg_pwr_act
+                         | ctrl_lat
+                         | channel_dis_lat
+                         | neg_pwr_lat
+                         | prod_id
+                         | man_id
+                         | rev_id.
+
 %--- API -----------------------------------------------------------------------
 start_link(Slot, _Opts) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Slot, []).
 
--spec read(reg_file()) -> map().
+-spec read(reg_file_name()) -> map().
 read(RegisterFile) ->
     call({read, RegisterFile}).
 
@@ -165,47 +202,47 @@ initialize_device(State) ->
 
 % @doc builds a map of the registers of a component and with their addresses
 -spec reg_files() -> RegisterFiles when
-      RegisterFiles :: #{atom() => reg_file()}.
+      RegisterFiles :: #{reg_file_name() => reg_file()}.
 reg_files() ->
     % Registers 0x06, 0x0A, 0x0E, 0x12, 0x16, 0x1A
     % Are used by other chips of the PAC193x familly.
     #{refresh => #reg_file{addr = 16#00, size = 0, type = special},
       ctrl => #reg_file{addr = 16#01, size = 1, type = read_write},
-      acc_count => #reg_file{addr = 16#02, size = 3, type = read},
-      vpower1_acc => #reg_file{addr = 16#03, size = 6, type  = read},
-      vpower2_acc => #reg_file{addr = 16#04, size = 6, type  = read},
-      vpower3_acc => #reg_file{addr = 16#05, size = 6, type  = read},
-      vbus1 => #reg_file{addr = 16#07, size = 2, type  = read},
-      vbus2 => #reg_file{addr = 16#08, size = 2, type  = read},
-      vbus3 => #reg_file{addr = 16#09, size = 2, type  = read},
-      vbus4 => #reg_file{addr = 16#0A, size = 2, type  = read}, % FIXME: To remove later
-      vsense1 => #reg_file{addr = 16#0B, size = 2, type  = read},
-      vsense2 => #reg_file{addr = 16#0C, size = 2, type  = read},
-      vsense3 => #reg_file{addr = 16#0D, size = 2, type  = read},
-      vbus1_avg => #reg_file{addr = 16#0F, size = 2, type  = read},
-      vbus2_avg => #reg_file{addr = 16#10, size = 2, type  = read},
-      vbus3_avg => #reg_file{addr = 16#11, size = 2, type  = read},
-      vsense1_avg => #reg_file{addr = 16#13, size = 2, type  = read},
-      vsense2_avg => #reg_file{addr = 16#14, size = 2, type  = read},
-      vsense3_avg => #reg_file{addr = 16#15, size = 2, type  = read},
-      vpower1 => #reg_file{addr = 16#17, size = 4, type  = read},
-      vpower2 => #reg_file{addr = 16#18, size = 4, type  = read},
-      vpower3 => #reg_file{addr = 16#19, size = 4, type  = read},
+      acc_count => #reg_file{addr = 16#02, size = 3, type = read_only},
+      vpower1_acc => #reg_file{addr = 16#03, size = 6, type  = read_only},
+      vpower2_acc => #reg_file{addr = 16#04, size = 6, type  = read_only},
+      vpower3_acc => #reg_file{addr = 16#05, size = 6, type  = read_only},
+      vbus1 => #reg_file{addr = 16#07, size = 2, type  = read_only},
+      vbus2 => #reg_file{addr = 16#08, size = 2, type  = read_only},
+      vbus3 => #reg_file{addr = 16#09, size = 2, type  = read_only},
+      vbus4 => #reg_file{addr = 16#0A, size = 2, type  = read_only}, % FIXME: To remove later
+      vsense1 => #reg_file{addr = 16#0B, size = 2, type  = read_only},
+      vsense2 => #reg_file{addr = 16#0C, size = 2, type  = read_only},
+      vsense3 => #reg_file{addr = 16#0D, size = 2, type  = read_only},
+      vbus1_avg => #reg_file{addr = 16#0F, size = 2, type  = read_only},
+      vbus2_avg => #reg_file{addr = 16#10, size = 2, type  = read_only},
+      vbus3_avg => #reg_file{addr = 16#11, size = 2, type  = read_only},
+      vsense1_avg => #reg_file{addr = 16#13, size = 2, type  = read_only},
+      vsense2_avg => #reg_file{addr = 16#14, size = 2, type  = read_only},
+      vsense3_avg => #reg_file{addr = 16#15, size = 2, type  = read_only},
+      vpower1 => #reg_file{addr = 16#17, size = 4, type  = read_only},
+      vpower2 => #reg_file{addr = 16#18, size = 4, type  = read_only},
+      vpower3 => #reg_file{addr = 16#19, size = 4, type  = read_only},
       % channel_dis Also contains SMBUS ctrl
       channel_dis => #reg_file{addr = 16#1C, size = 1, type = read_write},
       neg_pwr => #reg_file{addr = 16#1D, size = 1, type = read_write},
       refresh_g => #reg_file{addr = 16#1E, size = 0, type = special},
       refresh_v => #reg_file{addr = 16#1F, size = 0, type = special},
       slow => #reg_file{addr = 16#20, size = 1, type = read_write},
-      ctrl_act => #reg_file{addr = 16#21, size = 1, type = read},
-      channel_dis_act => #reg_file{addr = 16#22, size = 1, type = read},
-      neg_pwr_act => #reg_file{addr = 16#23, size = 1, type = read},
-      ctrl_lat => #reg_file{addr = 16#24, size = 1, type = read},
-      channel_dis_lat => #reg_file{addr = 16#25, size = 1, type = read},
-      neg_pwr_lat => #reg_file{addr = 16#26, size = 1, type = read},
-      prod_id => #reg_file{addr = 16#FD, size = 1, type = read},
-      man_id => #reg_file{addr = 16#FE, size = 1, type = read},
-      rev_id => #reg_file{addr = 16#FF, size = 1, type = read}
+      ctrl_act => #reg_file{addr = 16#21, size = 1, type = read_only},
+      channel_dis_act => #reg_file{addr = 16#22, size = 1, type = read_only},
+      neg_pwr_act => #reg_file{addr = 16#23, size = 1, type = read_only},
+      ctrl_lat => #reg_file{addr = 16#24, size = 1, type = read_only},
+      channel_dis_lat => #reg_file{addr = 16#25, size = 1, type = read_only},
+      neg_pwr_lat => #reg_file{addr = 16#26, size = 1, type = read_only},
+      prod_id => #reg_file{addr = 16#FD, size = 1, type = read_only},
+      man_id => #reg_file{addr = 16#FE, size = 1, type = read_only},
+      rev_id => #reg_file{addr = 16#FF, size = 1, type = read_only}
      }.
 
 apply_on_sources(Fun) ->
@@ -216,7 +253,7 @@ apply_on_sources(Fun) ->
 %--- Internal: Read and Write functions ----------------------------------------
 
 % @doc reading the register file of the given component
--spec read_reg_file(state(), atom()) -> {ok, state(), map()}.
+-spec read_reg_file(state(), reg_file_name()) -> {ok, state(), map()}.
 read_reg_file(State, RegFileName) ->
     #reg_file{addr = RAddr,
               size = RSize} = maps:get(RegFileName, State#state.reg_files),
@@ -227,7 +264,7 @@ read_reg_file(State, RegFileName) ->
 % @doc writing the given value(s) to the register file of the given component
 % the function makes sure to not overwrite the other values of the register file
 % @end
--spec write_reg_file(state(), atom(), map()) -> {ok, state()}.
+-spec write_reg_file(state(), reg_file_name(), map()) -> {ok, state()}.
 write_reg_file(State, RegFileName, Value) ->
     #reg_file{addr = RFAddr} = maps:get(RegFileName, State#state.reg_files),
 
@@ -242,7 +279,7 @@ write_reg_file(State, RegFileName, Value) ->
     {ok, State1}.
 
 %--- Internal: Verifiers -------------------------------------------------------
--spec verify_device(state()) -> ok.
+-spec verify_device(state()) -> state().
 verify_device(State) ->
     verify_component(State),
 
@@ -261,7 +298,7 @@ verify_component(#state{bus = Bus}) ->
         false -> error({pac1933_not_detected_on_i2c, Detected})
     end.
 
--spec verify_reg_file({RegFile, Value, Size}, State) -> State when
+-spec verify_reg_file({RegFile, Value, Size}, State) -> State | no_return() when
       RegFile  :: non_neg_integer(),
       Value    :: <<_:8>>,
       Size     :: pos_integer(),
@@ -276,7 +313,7 @@ verify_reg_file({RegFile, Value, Size}, State) ->
 % @doc Gets the measured <b>voltage<b> at SENSE+ for the given output
 % It converts the values of VBus using Eq. 4-1 of the data sheet
 % The units of the returned value is in Volt (V)
--spec read_voltage(state(), source()) -> integer().
+-spec read_voltage(state(), source()) -> float().
 read_voltage(State, Source) ->
     Den = case Source of
               wall -> 16#10000; % 2^16
@@ -285,7 +322,7 @@ read_voltage(State, Source) ->
     [VBus] = maps:values(read_vbus(State, Source)),
     32 * (VBus/Den).
 
--spec read_vbus(state(), source()) -> float().
+-spec read_vbus(state(), source()) -> #{vbus1 | vbus2 | vbus3 => integer()}.
 read_vbus(State, Source) ->
     % FIXME: find a better way to fetch infos related to the sources
     refreshv(State),
@@ -332,7 +369,7 @@ refreshv(#state{bus = Bus}) ->
       State    :: state(),
       RegFile  :: non_neg_integer(),
       Size     :: pos_integer(),
-      Value    :: <<_:8>>.
+      Value    :: binary().
 read_request(#state{bus = Bus}, RegFile, Size) ->
     [ok] = grisp_i2c:transfer(Bus, [{write, ?PAC1933ADDR, 0, <<RegFile>>}]),
     timer:sleep(1),
@@ -352,7 +389,7 @@ write_request(#state{bus = Bus}, RegFile, Value) ->
 %--- Internals: Encode/Decode --------------------------------------------------
 -spec reg_file(Type, RegFile, Value) -> Ret when
       Type    :: encode | decode,
-      RegFile :: atom(),
+      RegFile :: reg_file_name(),
       Value   :: binary() | map(),
       Ret     :: binary() | map().
 reg_file(decode, RegFile, ReadValue) when RegFile == ctrl orelse
@@ -568,11 +605,11 @@ reg_file(_, RegFile, _) ->
 
 -spec field(Action, RegFile, Type, Value) -> Ret when
     Action  :: encode | decode,
-    RegFile :: atom(),
-    Type    :: pick | {signed, Size} | unsigned | boolean,
-    Size    :: 16 | 32,
-    Value   :: map() | binary(),
-    Ret     :: map() | binary().
+    RegFile :: reg_file_name(),
+    Type    :: pick | {signed, Size} | {unsigned, Size} | boolean | bit,
+    Size    :: non_neg_integer(),
+    Value   :: map() | binary() | term(),
+    Ret     :: map() | term().
 field(decode, sample_rate, pick, Value) ->
     pick(Value, {1024, 256, 64, 8});
 field(encode, sample_rate, pick, 1024) ->
