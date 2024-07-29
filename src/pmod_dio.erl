@@ -21,7 +21,7 @@
 -define(CRC5_START, 16#1F).
 -define(CRC5_POLY, 16#15).
 
--include("grisp.hrl").
+-include("grisp_internal.hrl").
 
 %--- API -----------------------------------------------------------------------
 
