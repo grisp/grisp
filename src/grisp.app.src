@@ -1,6 +1,6 @@
 {application, grisp, [
     {description, "GRiSP Erlang Runtime Library"},
-    {vsn, "2.5.0"},
+    {vsn, "2.6.0"},
     {registered, []},
     {mod, {grisp_app, []}},
     {applications, [
@@ -30,6 +30,7 @@
         "rebar.*",
         "rebar.config.script",
         "rebar.lock",
+        "include",
         "src",
         "grisp"
     ]}
