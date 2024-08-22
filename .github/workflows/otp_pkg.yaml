@@ -14,6 +14,13 @@ on:
 jobs:
     otp-gen-matrix:
       runs-on: ubuntu-latest
+      container:
+        # This image is based on debian:bookworm
+        # but we need to make  erlef/setup-beam@v1 happy
+        # so we set 'ubuntu22' (jammy) which is the most similar
+        image: grisp/grisp2-rtems-toolchain
+        env:
+          ImageOS: 'ubuntu22'
       strategy:
         matrix:
           otp: ['27.0.1']
@@ -36,20 +43,27 @@ jobs:
           run: |
             TOOLCHAIN_DIR=$(pwd)/toolchain
             sed -i '/{grisp, \[/a\
-            '"{build, [{toolchain, [{directory, \"$TOOLCHAIN_DIR\"}]}]}," robot/rebar.config
+            '"{build, [{toolchain, [{directory, \"/grisp2-rtems-toolchain\"}]}]}," robot/rebar.config
             sed -i '/{deps, \[/,/\]}.*/{
             N
             N
             s/{deps, \[\n[[:space:]]*grisp\n\]}.*/{deps, [${{matrix.deps}}]}./
             }' robot/rebar.config
             cat robot/rebar.config
-        - name: Prepare Toolchain
-          run: |
-            TOOLCHAIN="grisp2-rtems-toolchain_Linux_5.11.0-1027-azure_e2c29d3374d9046af01af570f6a85a6aa99546bb"
-            wget https://grisp.s3.amazonaws.com/platforms/grisp2/toolchain/${TOOLCHAIN}.tar.gz -q
-            mkdir toolchain
-            tar -xvzf ${TOOLCHAIN}.tar.gz -C toolchain
+        # - name: Prepare Toolchain
+        #   run: |
+        #     TOOLCHAIN="grisp2-rtems-toolchain_Linux_5.11.0-1027-azure_e2c29d3374d9046af01af570f6a85a6aa99546bb"
+        #     wget https://grisp.s3.amazonaws.com/platforms/grisp2/toolchain/${TOOLCHAIN}.tar.gz -q
+        #     mkdir toolchain
+        #     tar -xvzf ${TOOLCHAIN}.tar.gz -C toolchain
         - name: Build OTP
           run: |
             cd robot
             rebar3 grisp build --tar
+            PKG_NAME=$(ls _grisp/grisp2/otp/${{matrix.otp}}/package)
+            echo "pkg_name=$PKG_NAME" >> $GITHUB_ENV
+        - name: Upload OTP Artifact
+          uses: actions/upload-artifact@v4
+          with:
+            name: ${{ env.pkg_name }}
+            path: robot/_grisp/grisp2/otp/${{matrix.otp}}/package/grisp_otp_build_${{matrix.otp}}_*.tar.gz
