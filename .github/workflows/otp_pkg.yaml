@@ -1,0 +1,55 @@
+name: OTP package generation
+
+on:
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+  repository_dispatch:
+    types:
+      - new-otp-release
+
+# ${{ github.event.client_payload.otp }}
+
+jobs:
+    otp-gen-matrix:
+      runs-on: ubuntu-latest
+      strategy:
+        matrix:
+          otp: ['27.0.1']
+          deps: ['grisp']
+          rebar3: ['3']
+      steps:
+        - uses: erlef/setup-beam@v1
+          with:
+            otp-version: ${{matrix.otp}}
+            rebar3-version: ${{ matrix.rebar3 }}
+        - name: Install GRiSP Plugin
+          run: |
+            mkdir -p ${HOME}/.config/rebar3/
+            echo "{plugins, [rebar3_hex,rebar3_grisp]}." > ${HOME}/.config/rebar3/rebar.config
+            rebar3
+        - name: Generate Dummy Project
+          run: |
+            rebar3 grisp configure -i false --otp_version="${{matrix.otp}}"
+        - name: Edit rebar.config
+          run: |
+            TOOLCHAIN_DIR=$(pwd)/toolchain
+            sed -i '/{grisp, \[/a\
+            '"{build, [{toolchain, [{directory, \"$TOOLCHAIN_DIR\"}]}]}," robot/rebar.config
+            sed -i '/{deps, \[/,/\]}.*/{
+            N
+            N
+            s/{deps, \[\n[[:space:]]*grisp\n\]}.*/{deps, [${{matrix.deps}}]}./
+            }' robot/rebar.config
+            cat robot/rebar.config
+        - name: Prepare Toolchain
+          run: |
+            TOOLCHAIN="grisp2-rtems-toolchain_Linux_5.11.0-1027-azure_e2c29d3374d9046af01af570f6a85a6aa99546bb"
+            wget https://grisp.s3.amazonaws.com/platforms/grisp2/toolchain/${TOOLCHAIN}.tar.gz -q
+            mkdir toolchain
+            tar -xvzf ${TOOLCHAIN}.tar.gz -C toolchain
+        - name: Build OTP
+          run: |
+            cd robot
+            rebar3 grisp build --tar
