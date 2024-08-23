@@ -8,6 +8,9 @@
 -export([voltage/1]).
 -export([power/0]).
 -export([read/1]).
+-export([write/2]).
+-export([register_dump/0]).
+-export([refresh/0]).
 
 % gen_server callbacks
 -export([init/1]).
@@ -29,8 +32,10 @@
 
 -define(PFSR, 640). % c.f. Eq. 4-5
 
--define(CH1Bid, true).
--define(CH1TYPE, signed).
+-define(CH1Bid, false).
+-define(CH1TYPE, unsigned).
+%-define(CH1Bid, true).
+%-define(CH1TYPE, signed).
 
 -define(CH2Bid, false).
 -define(CH2TYPE, unsigned).
@@ -115,6 +120,10 @@ start_link(Slot, _Opts) ->
 read(RegisterFile) ->
     call({read, RegisterFile}).
 
+-spec write(reg_file_name(), map()) -> ok.
+write(RegisterFile, Value) ->
+    call({write, RegisterFile, Value}).
+
 -spec voltage() -> #{wall := float(), usb := float(), battery := float()}.
 voltage() ->
     apply_on_sources(fun voltage/1).
@@ -128,6 +137,12 @@ power() ->
 
 power(Source) ->
     call({power, Source}).
+
+register_dump() ->
+    call(register_dump).
+
+refresh() ->
+    call(refresh).
 
 %--- gen_server callbacks ------------------------------------------------------
 
@@ -186,7 +201,24 @@ execute_call({write, RegisterFile, Value}, State) ->
         _ -> ok
     end,
     {ok, State1} = write_reg_file(State, RegisterFile, Value),
-    {reply, ok, State1}.
+    {reply, ok, State1};
+execute_call(register_dump, State) ->
+    UnsortedRegs = lists:map(fun(Reg) ->
+                             {Reg#reg_file.addr, Reg#reg_file.size}
+                     end, maps:values(State#state.reg_files)),
+    SortedRegs = lists:sort(fun({Addr1, _}, {Addr2, _}) ->
+                                    Addr1 < Addr2
+                            end, UnsortedRegs),
+    lists:foreach(fun({RegAddr, Size}) ->
+                          timer:sleep(20),
+                          {ok, Val} = read_request(State, RegAddr, Size),
+                          io:format("[READ - Register: 16#~2.16.0B - Size: ~p]: ~s~n",
+                                    [RegAddr, Size, debug_bitstring(Val)])
+                  end, SortedRegs),
+    {reply, ok, State};
+execute_call(refresh, State) ->
+    refresh(State),
+    {reply, ok, State}.
 
 %--- Internal: Initialization
 -spec initialize_device(state()) -> state().
@@ -194,11 +226,17 @@ initialize_device(State) ->
     NegPwr = #{ch1_bidi => ?CH1Bid, ch1_bidv => ?CH1Bid,
                ch2_bidi => ?CH2Bid, ch2_bidv => ?CH2Bid,
                ch3_bidi => ?CH3Bid, ch3_bidv => ?CH3Bid},
-    Configs = [{neg_pwr, NegPwr}],
+    Ctrl = #{alert_pin => true, alert_cc => false, ovf_alert => false},
+    ChannelDis = #{ch1_off => false, ch2_off => false, ch3_off => false, ch4_off => true,
+                   timeout => false, byte_count => false, no_skip => true},
+    Configs = [{neg_pwr, NegPwr}, {ctrl, Ctrl}, {channel_dis, ChannelDis}],
     lists:foldl(fun({RegFile, Config}, AccState) ->
                         {ok, NewState} = write_reg_file(AccState, RegFile, Config),
                         NewState
-                end, State, Configs).
+                end, State, Configs),
+    refresh(State),
+    timer:sleep(1),
+    State.
 
 % @doc builds a map of the registers of a component and with their addresses
 -spec reg_files() -> RegisterFiles when
@@ -206,28 +244,34 @@ initialize_device(State) ->
 reg_files() ->
     % Registers 0x06, 0x0A, 0x0E, 0x12, 0x16, 0x1A
     % Are used by other chips of the PAC193x familly.
+    % (Still included for a full reg dump)
     #{refresh => #reg_file{addr = 16#00, size = 0, type = special},
       ctrl => #reg_file{addr = 16#01, size = 1, type = read_write},
       acc_count => #reg_file{addr = 16#02, size = 3, type = read_only},
-      vpower1_acc => #reg_file{addr = 16#03, size = 6, type  = read_only},
-      vpower2_acc => #reg_file{addr = 16#04, size = 6, type  = read_only},
-      vpower3_acc => #reg_file{addr = 16#05, size = 6, type  = read_only},
-      vbus1 => #reg_file{addr = 16#07, size = 2, type  = read_only},
-      vbus2 => #reg_file{addr = 16#08, size = 2, type  = read_only},
-      vbus3 => #reg_file{addr = 16#09, size = 2, type  = read_only},
-      vbus4 => #reg_file{addr = 16#0A, size = 2, type  = read_only}, % FIXME: To remove later
-      vsense1 => #reg_file{addr = 16#0B, size = 2, type  = read_only},
-      vsense2 => #reg_file{addr = 16#0C, size = 2, type  = read_only},
-      vsense3 => #reg_file{addr = 16#0D, size = 2, type  = read_only},
-      vbus1_avg => #reg_file{addr = 16#0F, size = 2, type  = read_only},
-      vbus2_avg => #reg_file{addr = 16#10, size = 2, type  = read_only},
-      vbus3_avg => #reg_file{addr = 16#11, size = 2, type  = read_only},
-      vsense1_avg => #reg_file{addr = 16#13, size = 2, type  = read_only},
-      vsense2_avg => #reg_file{addr = 16#14, size = 2, type  = read_only},
-      vsense3_avg => #reg_file{addr = 16#15, size = 2, type  = read_only},
-      vpower1 => #reg_file{addr = 16#17, size = 4, type  = read_only},
-      vpower2 => #reg_file{addr = 16#18, size = 4, type  = read_only},
-      vpower3 => #reg_file{addr = 16#19, size = 4, type  = read_only},
+      vpower1_acc => #reg_file{addr = 16#03, size = 6, type = read_only},
+      vpower2_acc => #reg_file{addr = 16#04, size = 6, type = read_only},
+      vpower3_acc => #reg_file{addr = 16#05, size = 6, type = read_only},
+      vpower4_acc => #reg_file{addr = 16#06, size = 6, type = read_only},
+      vbus1 => #reg_file{addr = 16#07, size = 2, type = read_only},
+      vbus2 => #reg_file{addr = 16#08, size = 2, type = read_only},
+      vbus3 => #reg_file{addr = 16#09, size = 2, type = read_only},
+      vbus4 => #reg_file{addr = 16#0A, size = 2, type = read_only},
+      vsense1 => #reg_file{addr = 16#0B, size = 2, type = read_only},
+      vsense2 => #reg_file{addr = 16#0C, size = 2, type = read_only},
+      vsense3 => #reg_file{addr = 16#0D, size = 2, type = read_only},
+      vsense4 => #reg_file{addr = 16#0E, size = 2, type = read_only},
+      vbus1_avg => #reg_file{addr = 16#0F, size = 2, type = read_only},
+      vbus2_avg => #reg_file{addr = 16#10, size = 2, type = read_only},
+      vbus3_avg => #reg_file{addr = 16#11, size = 2, type = read_only},
+      vbus4_avg => #reg_file{addr = 16#12, size = 2, type = read_only},
+      vsense1_avg => #reg_file{addr = 16#13, size = 2, type = read_only},
+      vsense2_avg => #reg_file{addr = 16#14, size = 2, type = read_only},
+      vsense3_avg => #reg_file{addr = 16#15, size = 2, type = read_only},
+      vsense4_avg => #reg_file{addr = 16#16, size = 2, type = read_only},
+      vpower1 => #reg_file{addr = 16#17, size = 4, type = read_only},
+      vpower2 => #reg_file{addr = 16#18, size = 4, type = read_only},
+      vpower3 => #reg_file{addr = 16#19, size = 4, type = read_only},
+      vpower4 => #reg_file{addr = 16#1A, size = 4, type = read_only},
       % channel_dis Also contains SMBUS ctrl
       channel_dis => #reg_file{addr = 16#1C, size = 1, type = read_write},
       neg_pwr => #reg_file{addr = 16#1D, size = 1, type = read_write},
@@ -247,6 +291,7 @@ reg_files() ->
 
 apply_on_sources(Fun) ->
     lists:foldl(fun(Source, Map) ->
+                        timer:sleep(10),
                         maps:put(Source, Fun(Source), Map)
                 end, #{}, ?SOURCES).
 
@@ -315,9 +360,12 @@ verify_reg_file({RegFile, Value, Size}, State) ->
 % The units of the returned value is in Volt (V)
 -spec read_voltage(state(), source()) -> float().
 read_voltage(State, Source) ->
+    % unsigned => 2^16, signed => 2^15
+    PossibleDen = #{unsigned => 16#10000, signed => 16#8000},
     Den = case Source of
-              wall -> 16#10000; % 2^16
-              _ -> 16#8000 % 2^15
+              usb -> maps:get(?CH1TYPE, PossibleDen);
+              wall -> maps:get(?CH2TYPE, PossibleDen);
+              battery -> maps:get(?CH3TYPE, PossibleDen)
           end,
     [VBus] = maps:values(read_vbus(State, Source)),
     32 * (VBus/Den).
@@ -340,10 +388,12 @@ read_vbus(State, Source) ->
 % The unit of the value returned is in Watts.
 -spec read_power(state(), source()) -> float().
 read_power(State, Source) ->
+    PossibleDen = #{unsigned => 16#10000000, signed => 16#8000000},
     [VPower] = maps:values(read_vpower(State, Source)),
     Den = case Source of
-              wall -> 16#10000000;
-              _ -> 16#8000000
+              usb -> maps:get(?CH1TYPE, PossibleDen);
+              wall -> maps:get(?CH2TYPE, PossibleDen);
+              battery -> maps:get(?CH3TYPE, PossibleDen)
           end,
     ?PFSR * (VPower/Den).
 
@@ -360,7 +410,17 @@ read_vpower(State, Source) ->
     VPower.
 
 %--- Internals: Utils ----------------------------------------------------------
-% @doc Sends the refresh command for Vbus, Vsense data only
+% @doc Sends the refreshg command for Vbus, Vsense data only
+refresh(#state{bus = Bus}) ->
+    [ok] = grisp_i2c:transfer(Bus, [{write, ?PAC1933ADDR, 0, <<16#00>>}]),
+    timer:sleep(1).
+
+% @doc Sends the refreshg command for Vbus, Vsense data only
+refreshg(#state{bus = Bus}) ->
+    [ok] = grisp_i2c:transfer(Bus, [{write, ?PAC1933ADDR, 0, <<16#1E>>}]),
+    timer:sleep(1).
+
+% @doc Sends the refreshv command for Vbus, Vsense data only
 refreshv(#state{bus = Bus}) ->
     [ok] = grisp_i2c:transfer(Bus, [{write, ?PAC1933ADDR, 0, <<16#1F>>}]),
     timer:sleep(1).
@@ -374,7 +434,7 @@ read_request(#state{bus = Bus}, RegFile, Size) ->
     [ok] = grisp_i2c:transfer(Bus, [{write, ?PAC1933ADDR, 0, <<RegFile>>}]),
     timer:sleep(1),
     [Resp] = grisp_i2c:transfer(Bus, [{read, ?PAC1933ADDR, 1, Size}]),
-    debug_read(?PAC1933ADDR, RegFile, Resp),
+    % debug_read(?PAC1933ADDR, RegFile, Resp),
     {ok, Resp}.
 
 -spec write_request(State, RegFile, Value) -> ok when
@@ -420,7 +480,7 @@ reg_file(encode, ctrl, Value) ->
       ovf_alert := OvfAlert,
       ovf := Ovf
      } = Value,
-    <<?BIN_FIELD(sample_rate, pick, SampleRate):1,
+    <<?BIN_FIELD(sample_rate, pick, SampleRate):2,
       ?BIN_FIELD(sleep, boolean, Sleep):1,
       ?BIN_FIELD(sing, pick, Sing):1,
       ?BIN_FIELD(alert_pin, boolean, AlertPin):1,
@@ -505,13 +565,13 @@ reg_file(encode, channel_dis, Value) ->
       byte_count := ByteCount,
       no_skip := NoSkip
      } = Value,
-    <<?BIN_FIELD(ch1_off, boolean, Ch1Off),
-      ?BIN_FIELD(ch2_off, boolean, Ch2Off),
-      ?BIN_FIELD(ch3_off, boolean, Ch3Off),
-      ?BIN_FIELD(ch4_off, boolean, Ch4Off),
-      ?BIN_FIELD(timeout, boolean, Timeout),
-      ?BIN_FIELD(byte_count, boolean, ByteCount),
-      ?BIN_FIELD(no_skip, boolean, NoSkip),
+    <<?BIN_FIELD(ch1_off, boolean, Ch1Off):1,
+      ?BIN_FIELD(ch2_off, boolean, Ch2Off):1,
+      ?BIN_FIELD(ch3_off, boolean, Ch3Off):1,
+      ?BIN_FIELD(ch4_off, boolean, Ch4Off):1,
+      ?BIN_FIELD(timeout, boolean, Timeout):1,
+      ?BIN_FIELD(byte_count, boolean, ByteCount):1,
+      ?BIN_FIELD(no_skip, boolean, NoSkip):1,
       0:1>>;
 reg_file(decode, RegFile, ReadValue) when RegFile == neg_pwr orelse
                                                    RegFile == neg_pwr_act orelse
@@ -584,8 +644,7 @@ reg_file(encode, slow, Value) ->
       RFall:1,
       RVFall:1,
       POR:1>>;
-reg_file(decode, RegFile, ReadValue)
-  when RegFile == channel_dis_act orelse RegFile == channel_dis_lat ->
+reg_file(decode, channel_dis_act, ReadValue) ->
     <<Ch1Off:1,
       Ch2Off:1,
       Ch3Off:1,
