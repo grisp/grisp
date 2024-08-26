@@ -26,6 +26,7 @@ jobs:
           otp: ['27.0']
           deps: ['grisp', 'grisp, grisp_cryptoauth']
           rebar3: ['3']
+        fail-fast: false
       steps:
         - uses: erlef/setup-beam@v1
           with:
@@ -38,7 +39,7 @@ jobs:
             rebar3
         - name: Generate Dummy Project
           run: |
-            rebar3 grisp configure -i false --otp_version="${{matrix.otp}}" --dest="_deploy"
+            rebar3 grisp configure -i false --otp_version="=${{matrix.otp}}" --dest="_deploy"
             mkdir robot/_deploy
             sed -i 's/grisp/${{matrix.deps}}/g' robot/src/robot.app.src
             sed -i '/{deps, \[/,/\]}.*/{
@@ -64,9 +65,20 @@ jobs:
             rebar3 grisp build --tar
             PKG_NAME=$(ls _grisp/grisp2/otp/${{matrix.otp}}/package)
             echo "pkg_name=$PKG_NAME" >> $GITHUB_ENV
-        - name: Upload OTP Artifact
+        - name: Upload as GitHub Artifact
           if: ${{ steps.build.outcome == 'success' }}
+          continue-on-error: true
           uses: actions/upload-artifact@v4
           with:
-            name: ${{ env.pkg_name }}
-            path: robot/_grisp/grisp2/otp/${{matrix.otp}}/package/grisp_otp_build_${{matrix.otp}}_*.tar.gz
+            name: ${{env.pkg_name}}
+            path: robot/_grisp/grisp2/otp/${{matrix.otp}}/package/${{env.pkg_name}}
+        - name: Upload to S3
+          if: ${{ steps.build.outcome == 'success' }}
+          env:
+            AWS_ACCESS_KEY_ID: ${{ secrets.GRISP_S3_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.GRISP_S3_SECRET_ACCESS_KEY }}
+            AWS_DEFAULT_REGION: "us-east-1"
+          run: |
+            aws s3 cp --acl public-read --storage-class INTELLIGENT_TIERING \
+            robot/_grisp/grisp2/otp/${{matrix.otp}}/package/${{env.pkg_name}} \
+            s3://grisp/platforms/grisp2/otp/
