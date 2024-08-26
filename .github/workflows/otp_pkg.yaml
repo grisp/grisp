@@ -24,7 +24,7 @@ jobs:
       strategy:
         matrix:
           otp: ['27.0.1']
-          deps: ['grisp', ['grisp, grisp_cryptoauth'], ['grisp, grisp_connect']]
+          deps: ['grisp', 'grisp, grisp_cryptoauth', 'grisp, grisp_connect']
           rebar3: ['3']
       steps:
         - uses: erlef/setup-beam@v1
@@ -51,28 +51,24 @@ jobs:
         - name: Try to Deploy
           id: deploy
           continue-on-error: true
-          run: | # rebar3 grisp deploy
-            exit 0
-        - name: Add Build settings to rebar.config
+          run: |
+            cd robot
+            rebar3 grisp deploy
+        - name: Build OTP
+          id: build
           if: ${{ steps.deploy.outcome == 'failure' }}
           run: |
             TOOLCHAIN_DIR=$(pwd)/toolchain
             sed -i '/{grisp, \[/a\
             '"{build, [{toolchain, [{directory, \"/grisp2-rtems-toolchain\"}]}]}," robot/rebar.config
             cat robot/rebar.config
-        - name: Ciao
-          run: |
-            echo ciao
-        # - name: Build OTP
-        #   if:
-        #   run: |
-        #     cd robot
-        #     rebar3 grisp build --tar
-        #     PKG_NAME=$(ls _grisp/grisp2/otp/${{matrix.otp}}/package)
-        #     echo "pkg_name=$PKG_NAME" >> $GITHUB_ENV
-        # - name: Upload OTP Artifact
-        #   if:
-        #   uses: actions/upload-artifact@v4
-        #   with:
-        #     name: ${{ env.pkg_name }}
-        #     path: robot/_grisp/grisp2/otp/${{matrix.otp}}/package/grisp_otp_build_${{matrix.otp}}_*.tar.gz
+            cd robot
+            rebar3 grisp build --tar
+            PKG_NAME=$(ls _grisp/grisp2/otp/${{matrix.otp}}/package)
+            echo "pkg_name=$PKG_NAME" >> $GITHUB_ENV
+        - name: Upload OTP Artifact
+          if: ${{ steps.build.outcome == 'success' }}
+          uses: actions/upload-artifact@v4
+          with:
+            name: ${{ env.pkg_name }}
+            path: robot/_grisp/grisp2/otp/${{matrix.otp}}/package/grisp_otp_build_${{matrix.otp}}_*.tar.gz
