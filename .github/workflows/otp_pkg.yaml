@@ -1,4 +1,4 @@
-name: OTP package generation
+name: OTP Package
 
 on:
   pull_request:
@@ -65,15 +65,21 @@ jobs:
             rebar3 grisp build --tar
             PKG_NAME=$(ls _grisp/grisp2/otp/${{matrix.otp}}/package)
             echo "pkg_name=$PKG_NAME" >> $GITHUB_ENV
-        - name: Upload as GitHub Artifact
+        - name: Deploy test
           if: ${{ steps.build.outcome == 'success' }}
+          id: deploy-test
+          working-directory: robot
+          run: |
+            rebar3 grisp deploy
+        - name: Upload as GitHub Artifact
+          if: ${{ steps.deploy-test.outcome == 'success' }}
           continue-on-error: true
           uses: actions/upload-artifact@v4
           with:
             name: ${{env.pkg_name}}
             path: robot/_grisp/grisp2/otp/${{matrix.otp}}/package/${{env.pkg_name}}
         - name: Upload to S3
-          if: ${{ steps.build.outcome == 'success' }}
+          if: ${{ steps.deploy-test.outcome == 'success' }}
           env:
             AWS_ACCESS_KEY_ID: ${{ secrets.GRISP_S3_ACCESS_KEY_ID }}
             AWS_SECRET_ACCESS_KEY: ${{ secrets.GRISP_S3_SECRET_ACCESS_KEY }}
