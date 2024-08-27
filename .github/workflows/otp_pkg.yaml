@@ -1,19 +1,23 @@
 name: OTP Package
 
 on:
-  pull_request:
-    branches:
-      - master
-  workflow_dispatch:
   repository_dispatch:
     types:
       - new-otp-release
 
-# ${{ github.event.client_payload.otp }}
-
 jobs:
+  define-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      otp-versions: ${{ steps.matrix-def.outputs.otp-versions }}
+    steps:
+      - name: Matrix Definition
+        id: matrix-def
+        run: |
+           echo "otp-versions=['${{ github.event.client_payload.otp }}']" >> "$GITHUB_OUTPUT"
   otp-gen-matrix:
     runs-on: ubuntu-latest
+    needs: define-matrix
     container:
       # This image is based on debian:bookworm
       # but we need to make  erlef/setup-beam@v1 happy
@@ -23,7 +27,7 @@ jobs:
         ImageOS: 'ubuntu22'
     strategy:
       matrix:
-        otp: ['27.0']
+        otp: ${{ fromJson(needs.define-matrix.outputs.otp-versions) }}
         deps: ['grisp', 'grisp, grisp_cryptoauth']
         rebar3: ['3']
       fail-fast: false
