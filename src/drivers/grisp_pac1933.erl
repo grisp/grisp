@@ -372,9 +372,7 @@ read_voltage(State, Source) ->
 
 -spec read_vbus(state(), source()) -> #{vbus1 | vbus2 | vbus3 => integer()}.
 read_vbus(State, Source) ->
-    % FIXME: find a better way to fetch infos related to the sources
     refreshv(State),
-    timer:sleep(2),
     RegFileName = case Source of
                    usb -> vbus1;
                    wall -> vbus2;
@@ -399,7 +397,6 @@ read_power(State, Source) ->
 
 read_vpower(State, Source) ->
     refreshv(State),
-    timer:sleep(2),
     RegFileName = case Source of
                       usb -> vpower1;
                       wall -> vpower2;
