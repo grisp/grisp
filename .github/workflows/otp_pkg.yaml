@@ -92,6 +92,7 @@ jobs:
           path: robot/_grisp/grisp2/otp/${{matrix.otp}}/package/${{env.pkg_name}}
 
       - name: Upload to S3
+        if: ${{ steps.deploy-test.outcome == 'success' }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.GRISP_S3_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.GRISP_S3_SECRET_ACCESS_KEY }}
