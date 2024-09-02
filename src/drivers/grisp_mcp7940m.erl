@@ -272,6 +272,21 @@ decode_reg_file(rtcyear, RawValue) ->
     <<YrTens:4,
       YrOnes:4>> = RawValue,
     #{rtcyear => decode(two_digit, {YrTens, YrOnes})};
+decode_reg_file(control, RawValue) ->
+    <<Out:1,
+      SQWEn:1,
+      Alm1En:1,
+      Alm0En:1,
+      ExtOsc:1,
+      CrsTrim:1,
+      SQWFS:2>> = RawValue,
+    #{out => decode(polarity, Out),
+      sqwen => decode(boolean, SQWEn),
+      alm1en => decode(boolean, Alm1En),
+      alm0en => decode(boolean, Alm0En),
+      extosc => decode(boolean, ExtOsc),
+      crstrim => decode(boolean, CrsTrim),
+      sqwfs => decode(mfp_freq, SQWFS)};
 decode_reg_file(osctrim, RawValue) ->
     <<Sign:1,
       TrimVal:7>> = RawValue,
@@ -385,6 +400,21 @@ encode_reg_file(rtcyear, Value) ->
     {Tens, Ones} = encode(two_digit, Year),
     <<Tens:4,
       Ones:4>>;
+encode_reg_file(control, Value) ->
+    #{out := Out,
+      sqwen := SQWEn,
+      alm1en := Alm1En,
+      alm0en := Alm0En,
+      extosc := ExtOsc,
+      crstrim := CrsTrim,
+      sqwfs := SQWFS} = Value,
+    <<(encode(polarity, Out)):1,
+      (encode(boolean, SQWEn)):1,
+      (encode(boolean, Alm1En)):1,
+      (encode(boolean, Alm0En)):1,
+      (encode(boolean, ExtOsc)):1,
+      (encode(boolean, CrsTrim)):1,
+      (encode(mfp_freq, SQWFS)):1>>;
 encode_reg_file(osctrim, Value) ->
     #{sign := Sign,
       trimval := TrimVal} = Value,
@@ -487,6 +517,8 @@ decode(polarity, Value) ->
     end;
 decode(alm_mask, Value) ->
     element(Value + 1, {seconds, minutes, hours, day, date, rsvd, rsvd, all});
+decode(mfp_freq, Value) ->
+    element(Value + 1, {1, 4096, 8192, 32768}); % all values are in Hz
 decode(boolean, Value) ->
     Value =:= 1;
 decode(Type, Value) ->
@@ -535,6 +567,14 @@ encode(alm_mask, Value) ->
         day -> 3;
         date -> 4;
         all -> 7
+    end;
+encode(mfp_freq, Value) ->
+    % All values are in Hz (datasheet gives some of them in KHz)
+    case Value of
+        1 -> 0;
+        4096 -> 1;
+        8192 -> 2;
+        32768 -> 3
     end;
 encode(boolean, Value) ->
     case Value of
