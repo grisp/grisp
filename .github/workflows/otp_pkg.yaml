@@ -1,0 +1,103 @@
+name: OTP Package
+
+on:
+  repository_dispatch:
+    types:
+      - new-otp-release
+
+jobs:
+  define-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      otp-versions: ${{ steps.matrix-def.outputs.otp-versions }}
+    steps:
+      - name: Matrix Definition
+        id: matrix-def
+        run: |
+           echo "otp-versions=${{ github.event.client_payload.otp }}" >> "$GITHUB_OUTPUT"
+  otp-gen-matrix:
+    runs-on: ubuntu-latest
+    needs: define-matrix
+    container:
+      # This image is based on debian:bookworm
+      # but we need to make  erlef/setup-beam@v1 happy
+      # so we set 'ubuntu22' (jammy), which is the most similar, as ImageOS
+      image: grisp/grisp2-rtems-toolchain
+      env:
+        ImageOS: 'ubuntu22'
+    strategy:
+      matrix:
+        otp: ${{ fromJson(needs.define-matrix.outputs.otp-versions) }}
+        deps: ['grisp', 'grisp, grisp_cryptoauth']
+        rebar3: ['3']
+      fail-fast: false
+    steps:
+      - name: Install AWS CLI
+        run: |
+          apt update
+          apt install curl unzip -y
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          ./aws/install
+          aws --version
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{matrix.otp}}
+          rebar3-version: ${{ matrix.rebar3 }}
+      - name: Install GRiSP Plugin
+        run: |
+          mkdir -p ${HOME}/.config/rebar3/
+          echo "{plugins, [rebar3_hex,rebar3_grisp]}." > ${HOME}/.config/rebar3/rebar.config
+          rebar3
+      - name: Generate Dummy Project
+        run: |
+          rebar3 grisp configure -i false --otp_version="=${{matrix.otp}}" --dest="_deploy"
+          mkdir robot/_deploy
+          sed -i 's/grisp/${{matrix.deps}}/g' robot/src/robot.app.src
+          sed -i '/{deps, \[/,/\]}.*/{
+          N
+          N
+          s/{deps, \[\n[[:space:]]*grisp\n\]}.*/{deps, [${{matrix.deps}}]}./
+          }' robot/rebar.config
+          cat robot/rebar.config
+      - name: Try to Deploy
+        id: deploy
+        continue-on-error: true
+        working-directory: robot
+        run: |
+          rebar3 grisp deploy
+      - name: Build OTP
+        id: build
+        if: ${{ steps.deploy.outcome == 'failure' }}
+        working-directory: robot
+        run: |
+          sed -i '/{grisp, \[/a\
+          '"{build, [{toolchain, [{directory, \"/grisp2-rtems-toolchain\"}]}]}," rebar.config
+          cat rebar.config
+          rebar3 grisp build --tar
+          PKG_NAME=$(ls _grisp/grisp2/otp/${{matrix.otp}}/package)
+          echo "pkg_name=$PKG_NAME" >> $GITHUB_ENV
+      - name: Deploy test
+        if: ${{ steps.build.outcome == 'success' }}
+        id: deploy-test
+        working-directory: robot
+        run: |
+          rebar3 grisp deploy
+      - name: Upload as GitHub Artifact
+        id: artifact-upload
+        if: ${{ steps.deploy-test.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{env.pkg_name}}
+          path: robot/_grisp/grisp2/otp/${{matrix.otp}}/package/${{env.pkg_name}}
+
+      - name: Upload to S3
+        if: ${{ steps.deploy-test.outcome == 'success' }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.GRISP_S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.GRISP_S3_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: "us-east-1"
+        run: |
+          aws s3 cp --acl public-read --storage-class INTELLIGENT_TIERING \
+          robot/_grisp/grisp2/otp/${{matrix.otp}}/package/${{env.pkg_name}} \
+          s3://grisp/platforms/grisp2/otp/
