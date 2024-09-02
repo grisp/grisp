@@ -47,7 +47,7 @@
 -type state() :: #state{}.
 -type reg() :: #reg{}.
 -type reg_name() :: atom(). % TODO
--type type() :: atom(). % TODO
+-type type() :: two_digit | week_day | hour_format | am_pm | boolean. % TODO
 
 %--- API -----------------------------------------------------------------------
 start_link(Slot, _Opts) ->
@@ -170,7 +170,20 @@ reg_files() -> #{
     rtcdate => #reg{addr = 16#04, type = read_write},
     rtcmth => #reg{addr = 16#05, type = read_write}, % Can't write lpyr ?
     rtcyear => #reg{addr = 16#06, type = read_write},
-    control => #reg{addr = 16#07, type = read_write}
+    control => #reg{addr = 16#07, type = read_write},
+    osctrim => #reg{addr = 16#08, type = read_write},
+    alm0sec => #reg{addr = 16#0A, type = read_write},
+    alm0min => #reg{addr = 16#0B, type = read_write},
+    alm0hour => #reg{addr = 16#0C, type = read_write},
+    alm0wkday => #reg{addr = 16#0D, type = read_write},
+    alm0date => #reg{addr = 16#0E, type = read_write},
+    alm0mth => #reg{addr = 16#0F, type = read_write},
+    alm1sec => #reg{addr = 16#11, type = read_write},
+    alm1min => #reg{addr = 16#12, type = read_write},
+    alm1hour => #reg{addr = 16#13, type = read_write},
+    alm1wkday => #reg{addr = 16#14, type = read_write},
+    alm1date => #reg{addr= 16#15, type = read_write},
+    alm1mth => #reg{addr = 16#16, type = read_write}
 }.
 
 %--- Internal: Read and Write functions ----------------------------------------
@@ -259,6 +272,56 @@ decode_reg_file(rtcyear, RawValue) ->
     <<YrTens:4,
       YrOnes:4>> = RawValue,
     #{rtcyear => decode(two_digit, {YrTens, YrOnes})};
+decode_reg_file(osctrim, RawValue) ->
+    <<Sign:1,
+      TrimVal:7>> = RawValue,
+    #{sign => decode(sign, Sign),
+      trimval => decode(trim, TrimVal)};
+decode_reg_file(RegFile, RawValue) 
+  when RegFile =:= alm0sec orelse RegFile =:= alm1sec ->
+    <<_:1,
+      SecTens:3,
+      SecOnes:4>> = RawValue,
+    #{RegFile => decode(two_digit, {SecTens, SecOnes})};
+decode_reg_file(RegFile, RawValue)
+  when RegFile =:= alm0min orelse RegFile =:= alm1min ->
+    <<_:1,
+      MinTens:3,
+      MinOnes:4>> = RawValue,
+    #{RegFile => decode(two_digit, {MinTens, MinOnes})};
+decode_reg_file(RegFile, RawValue)
+  when RegFile =:= alm0hour orelse RegFile =:= alm1hour ->
+    case RawValue of
+        <<0:1, 0:1, HrTens:2, HrOnes:4>> ->
+            #{format => decode(hour_format, 0),
+              hour => decode(two_digit, {HrTens, HrOnes})};
+        <<0:1, 1:1, AmPm:1, HrTens:1, HrOnes:4>> ->
+            #{format => decode(hour_format, 1),
+              am_pm => decode(am_pm, AmPm),
+              hour => decode(two_digit, {HrTens, HrOnes})}
+    end;
+decode_reg_file(RegFile, RawValue)
+  when RegFile =:= alm0wkday orelse RegFile =:= alm1wkday ->
+    <<AlmPol:1,
+      AlmMsk:3,
+      AlmIf:1,
+      AlmWkDay:3>> = RawValue,
+    #{almpol => decode(polarity, AlmPol),
+      almmsk => decode(alm_mask, AlmMsk),
+      almif => decode(boolean, AlmIf),
+      almwkday => decode(week_day, AlmWkDay)};
+decode_reg_file(RegFile, RawValue)
+  when RegFile =:= alm0date orelse RegFile =:= alm1date ->
+    <<_:2,
+      DateTens:2,
+      DateOnes:4>> = RawValue,
+    #{RegFile => decode(two_digit, {DateTens, DateOnes})};
+decode_reg_file(RegFile, RawValue)
+  when RegFile =:= alm0mth orelse RegFile =:= alm1mth ->
+    <<_:3,
+      MthTens:1,
+      MthOnes:4>> = RawValue,
+    #{RegFile => decode(two_digit, {MthTens, MthOnes})};
 decode_reg_file(RegFile, _) ->
     error({unknown_reg_file, RegFile}).
 
@@ -322,6 +385,68 @@ encode_reg_file(rtcyear, Value) ->
     {Tens, Ones} = encode(two_digit, Year),
     <<Tens:4,
       Ones:4>>;
+encode_reg_file(osctrim, Value) ->
+    #{sign := Sign,
+      trimval := TrimVal} = Value,
+    <<(encode(sign, Sign)):1,
+      (encode(trim, TrimVal)):7>>;
+encode_reg_file(RegFile, Value)
+  when RegFile =:= alm0sec orelse RegFile =:= alm1sec ->
+    #{RegFile := AlmSec} = Value,
+    {SecTens, SecOnes} = encode(two_digit, AlmSec),
+    <<0:1,
+      SecTens:3,
+      SecOnes:4>>;
+encode_reg_file(RegFile, Value)
+  when RegFile =:= alm0min orelse alm1min ->
+    #{RegFile := AlmMin} = Value,
+    {MinTens, MinOnes} = encode(two_digit, AlmMin),
+    <<0:1,
+      MinTens:3,
+      MinOnes:4>>;
+encode_reg_file(RegFile, Value)
+  when RegFile =:= alm0hour orelse RegFile =:= alm1hour ->
+    case Value of
+        #{format := 12, hour := Hour} when Hour > 12->
+            error({hour_not_match_format_12, Hour});
+        #{format := 12, am_pm := AmPm, hour := Hour} ->
+            {HourTens, HourOnes} = encode(two_digit, Hour),
+            <<0:1,
+              (encode(hour_format, 12)):1,
+              (encode(am_pm, AmPm)):1,
+              HourTens:1,
+              HourOnes:4>>;
+        #{format := 24, hour := Hour} ->
+            {HourTens, HourOnes} = encode(two_digit, Hour),
+            <<0:1,
+              (encode(hour_format, 24)):1,
+              HourTens:2,
+              HourOnes:4>>
+    end;
+encode_reg_file(RegFile, Value)
+  when RegFile =:= alm0wkday orelse RegFile =:= alm1wkday ->
+    #{almpol := AlmPol,
+      almmsk := AlmMsk,
+      almif := AlmIf,
+      almday := AlmDay} = Value,
+    <<(encode(polarity, AlmPol)):1,
+      (encode(alm_mask, AlmMsk)):3,
+      (encode(boolean, AlmIf)):1,
+      (encode(week_day, AlmDay)):3>>;
+encode_reg_file(RegFile, Value)
+  when RegFile =:= alm0date orelse RegFile =:= alm1date ->
+    #{RegFile := AlmDate} = Value,
+    {DateTens, DateOnes} = encode(two_digit, AlmDate),
+    <<0:2,
+      DateTens:2,
+      DateOnes:4>>;
+encode_reg_file(RegFile, Value)
+  when RegFile =:= alm0mth orelse RegFile =:= alm1mth ->
+    #{RegFile := Month} = Value,
+    {MthTens, MthOnes} = encode(two_digit, Month),
+    <<0:3,
+      MthTens:1,
+      MthOnes:4>>;
 encode_reg_file(RegFile, _) ->
     error({unknown_reg_file, RegFile}).
 
@@ -344,6 +469,24 @@ decode(am_pm, Value) ->
         0 -> am;
         1 -> pm
     end;
+decode(sign, Value) ->
+    case Value of
+        0 -> add;
+        1 -> sub
+    end;
+decode(trim, Value) ->
+    if Value > 0 ->
+           Value - 1;
+       Value =:= 0 ->
+           disabled
+    end;
+decode(polarity, Value) ->
+    case Value of
+        0 -> low;
+        1 -> high
+    end;
+decode(alm_mask, Value) ->
+    element(Value + 1, {seconds, minutes, hours, day, date, rsvd, rsvd, all});
 decode(boolean, Value) ->
     Value =:= 1;
 decode(Type, Value) ->
@@ -365,6 +508,33 @@ encode(am_pm, Value) ->
     case Value of
         am -> 0;
         pm -> 1
+    end;
+encode(sign, Value) ->
+    case Value of
+        add -> 0;
+        sub -> 1
+    end;
+encode(trim, Value) ->
+    if Value > 0 andalso Value =< 254 ->
+           Value + 1;
+       Value =:= disabled ->
+           0;
+       true ->
+           error({trim_value_incorrect, Value})
+    end;
+encode(polarity, Value) ->
+    case Value of
+        low -> 0;
+        high -> 1
+    end;
+encode(alm_mask, Value) ->
+    case Value of
+        seconds -> 0;
+        minute -> 1;
+        hours -> 2;
+        day -> 3;
+        date -> 4;
+        all -> 7
     end;
 encode(boolean, Value) ->
     case Value of
