@@ -1,6 +1,6 @@
 -module(ieee802154_duty_cycle_non_beacon).
 
--behaviour(gen_duty_cycle).
+-behaviour(ieee802154_gen_duty_cycle).
 
 % gen_duty_cycle callbacks
 
@@ -45,7 +45,7 @@
       PhyMod :: module(),
       State  :: state().
 init(PhyMod) ->
-    MacTXState = gen_mac_tx:start(unslotted_CSMA, PhyMod),
+    MacTXState = ieee802154_gen_mac_tx:start(ieee802154_unslotted_CSMA, PhyMod),
     #state{sniff_ont = 3,
            sniff_offt = 4,
            phy_layer = PhyMod,
@@ -109,7 +109,7 @@ terminate(State, Reason) ->
     PhyMod = State#state.phy_layer,
     MacTXState = State#state.mac_tx_state,
     turn_off_rx_loop(PhyMod, LoopPid, Reason),
-    gen_mac_tx:stop(MacTXState, Reason),
+    ieee802154_gen_mac_tx:stop(MacTXState, Reason),
     ok.
 
 %--- internal --------------------------------------------------------------
@@ -179,7 +179,7 @@ tx_(State, <<_:2, ?ENABLED:1, _:13, Seqnum:8, _/binary>> = Frame, Pib, Ranging) 
 tx_(State, Frame, CsmaParams, Ranging) ->
     MacTXState = State#state.mac_tx_state,
     TxOpts = #tx_opts{ranging = Ranging},
-    gen_mac_tx:transmit(MacTXState, Frame, CsmaParams, TxOpts).
+    ieee802154_gen_mac_tx:transmit(MacTXState, Frame, CsmaParams, TxOpts).
 
 % @private
 % @doc This function transmits a frame with AR=1
@@ -188,7 +188,7 @@ tx_(State, Frame, CsmaParams, Ranging) ->
 % `no_ack' is returned
 % @end
 -spec tx_ar(MacTXState, PhyMod, Frame, Seqnum, Retry, Pib, Ranging) -> Result when
-      MacTXState :: gen_mac_tx:state(),
+      MacTXState :: ieee802154_gen_mac_tx:state(),
       PhyMod     :: module(),
       Frame      :: bitstring(),
       Seqnum     :: non_neg_integer(),
@@ -201,7 +201,7 @@ tx_ar(MacTxState, _, _, _, ?MACMAXFRAMERETRIES, _, _) ->
     {error, MacTxState, no_ack};
 tx_ar(MacTXState, PhyMod, Frame, Seqnum, Retry, Pib, Ranging) ->
     TxOpts = #tx_opts{wait4resp = ?ENABLED, ranging = Ranging},
-    case gen_mac_tx:transmit(MacTXState, Frame, Pib, TxOpts) of
+    case ieee802154_gen_mac_tx:transmit(MacTXState, Frame, Pib, TxOpts) of
         {ok, NewMacTxState} ->
             case wait_for_ack(PhyMod, Seqnum) of
                 ok ->

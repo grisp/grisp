@@ -21,7 +21,7 @@
 
 %--- Types ---------------------------------------------------------------------
 %--- Record types
--record(ieee_parameters, {duty_cycle = duty_cycle_non_beacon :: module(),
+-record(ieee_parameters, {duty_cycle = ieee802154_duty_cycle_non_beacon :: module(),
                           phy_layer = pmod_uwb :: module(),
                           input_callback = fun(_, _, _, _) -> ok end :: input_callback()}).
 
