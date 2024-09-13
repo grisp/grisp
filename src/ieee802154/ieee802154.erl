@@ -37,7 +37,7 @@
 %--- Types ---------------------------------------------------------------------
 
 -type state() :: #{phy_layer := module(),
-                   duty_cycle := gen_duty_cycle:state(),
+                   duty_cycle := ieee802154_gen_duty_cycle:state(),
                    pib := pib_state(),
                    _:=_}.
 
@@ -177,7 +177,7 @@ init(Params) ->
 
     ok = ieee802154_events:start(#{input_callback => InputCallback}),
 
-    DutyCycleState = gen_duty_cycle:start(Params#ieee_parameters.duty_cycle,
+    DutyCycleState = ieee802154_gen_duty_cycle:start(Params#ieee_parameters.duty_cycle,
                                           PhyMod),
 
     Data = #{phy_layer => PhyMod,
@@ -192,7 +192,7 @@ init(Params) ->
 terminate(Reason, #{duty_cycle := GenDutyCycleState}) ->
     ieee802154_events:stop(),
     gen_event:stop(?GEN_EVENT),
-    gen_duty_cycle:stop(GenDutyCycleState, Reason).
+    ieee802154_gen_duty_cycle:stop(GenDutyCycleState, Reason).
 
 code_change(_, _, _, _) ->
     error(not_implemented).
@@ -202,20 +202,20 @@ code_change(_, _, _, _) ->
       Result  :: {reply, term(), State}.
 handle_call({rx_on}, _From, State) ->
     #{duty_cycle := DCState} = State,
-    case gen_duty_cycle:turn_on(DCState) of
+    case ieee802154_gen_duty_cycle:turn_on(DCState) of
         {ok, NewDutyCycleState} ->
             {reply, ok, State#{duty_cycle => NewDutyCycleState}};
         {error, NewDutyCycleState, Error} ->
             {reply, {error, Error}, State#{duty_cycle => NewDutyCycleState}}
     end;
 handle_call({rx_off}, _From, #{duty_cycle := DCState} = State) ->
-    NewDCState = gen_duty_cycle:turn_off(DCState),
+    NewDCState = ieee802154_gen_duty_cycle:turn_off(DCState),
     {reply, ok, State#{duty_cycle => NewDCState}};
 handle_call({tx, Frame, Ranging}, _From, State) ->
     #{duty_cycle := DCState, pib := Pib} = State,
     {FrameControl, MacHeader, Payload} = Frame,
     EncFrame = mac_frame:encode(FrameControl, MacHeader, Payload),
-    case gen_duty_cycle:tx_request(DCState, EncFrame, Pib, Ranging) of
+    case ieee802154_gen_duty_cycle:tx_request(DCState, EncFrame, Pib, Ranging) of
         {ok, NewDCState, RangingInfos} ->
             timer:sleep(1),
             % timer:sleep(100), % FIXME: IFS
@@ -249,7 +249,7 @@ handle_call({reset, SetDefaultPIB}, _From, State) ->
                    _ ->
                        State
                end,
-    NewDCState = gen_duty_cycle:turn_off(DCState),
+    NewDCState = ieee802154_gen_duty_cycle:turn_off(DCState),
     {reply, ok, NewState#{duty_cycle => NewDCState, ranging => ?DISABLED}};
 handle_call(_Request, _From, _State) ->
     error(call_not_recognized).

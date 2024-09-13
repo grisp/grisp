@@ -13,7 +13,7 @@
 -include("ieee802154.hrl").
 
 % -define(ROBOT_REL_DIR, "/_build/default/rel/robot").
--define(ROBOT_LIB_DIR, "/_build/default/lib").
+-define(LIB_DIR, "/_build/default/lib").
 
 -type mac_address_type() :: mac_short_address | mac_extended_address.
 -type mac_address() :: <<_:16>> | <<_:64>>.
@@ -68,7 +68,7 @@ boot_ieee802154_node(Name, Network, AddressType, Address) ->
 boot_ieee802154_node(Name, Network, AddressType, Address, Callback) ->
     {Pid, Node} = boot_node(Name),
     erpc:call(Node, mock_phy_network, start, [spi2, #{network => Network}]), % Starting the the mock driver/physical layer
-    erpc:call(Node, ieee802154, start, [#ieee_parameters{phy_layer = mock_phy_network, duty_cycle = duty_cycle_non_beacon, input_callback = Callback}]),
+    erpc:call(Node, ieee802154, start, [#ieee_parameters{phy_layer = mock_phy_network, duty_cycle = ieee802154_duty_cycle_non_beacon, input_callback = Callback}]),
     erpc:call(Node, mock_top_layer, start, []),
     erpc:call(Node, ieee802154, set_pib_attribute, [AddressType, Address]),
     {Pid, Node}.
@@ -88,7 +88,7 @@ stop_ieee802154_node(Node, NodePid) ->
 boot_node(Name) ->
     ProjectCWD = get_project_cwd(),
     %Flags = ["-pa", ProjectCWD ++ ?ROBOT_REL_DIR ++ "/lib/robot-0.1.0/ebin"],
-    Flags = ["-pa", ProjectCWD ++ ?ROBOT_LIB_DIR ++ "/robot/ebin"],
+    Flags = ["-pa", ProjectCWD ++ ?LIB_DIR ++ "/grisp/ebin"],
     {ok, Pid, NodeName} = ?CT_PEER(#{name => Name, args => Flags}),
     unlink(Pid),
     {Pid, NodeName}.

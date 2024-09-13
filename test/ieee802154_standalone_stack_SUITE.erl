@@ -39,7 +39,7 @@ init_per_testcase(_, Config) ->
     ct:pal("~w", [Config]),
     MockPhyPid = mock_phy:start_link(spi2, {perfect, #{}}),
     IEEE = ieee802154:start_link(#ieee_parameters{phy_layer = mock_phy,
-                                                  duty_cycle = duty_cycle_non_beacon}),
+                                                  duty_cycle = ieee802154_duty_cycle_non_beacon}),
     [{ieee_pid, IEEE}, {phy_pid, MockPhyPid} | Config].
 
 end_per_testcase(_, _Config) ->
