@@ -152,7 +152,9 @@ verify_component(#state{bus = Bus}) ->
 -spec initialize_device(state()) -> state().
 initialize_device(State) ->
     RtcSec = {rtcsec, #{st => true}},
-    Configs = [RtcSec],
+    Alm0WkDay = {alm0wkday, #{almpol => high}},
+    Alm1WkDay = {alm1wkday, #{almpol => high}},
+    Configs = [RtcSec, Alm0WkDay, Alm1WkDay],
     lists:foldl(
       fun({RegFile, Value}, AccState) ->
               {ok, NewState} = write_register_file(AccState, RegFile, Value),
@@ -324,7 +326,7 @@ decode_reg_file(RegFile, RawValue)
     #{almpol => decode(polarity, AlmPol),
       almmsk => decode(alm_mask, AlmMsk),
       almif => decode(boolean, AlmIf),
-      almwkday => decode(week_day, AlmWkDay)};
+      wkday => decode(week_day, AlmWkDay)};
 decode_reg_file(RegFile, RawValue)
   when RegFile =:= alm0date orelse RegFile =:= alm1date ->
     <<_:2,
@@ -458,7 +460,7 @@ encode_reg_file(RegFile, Value)
     #{almpol := AlmPol,
       almmsk := AlmMsk,
       almif := AlmIf,
-      almday := AlmDay} = Value,
+      wkday := AlmDay} = Value,
     <<(encode(polarity, AlmPol)):1,
       (encode(alm_mask, AlmMsk)):3,
       (encode(boolean, AlmIf)):1,
