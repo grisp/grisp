@@ -1,4 +1,4 @@
--include("../pmod_uwb.hrl").
+-include("pmod_uwb.hrl").
 
 -define(FTYPE_BEACON, 3#000).
 -define(FTYPE_DATA, 2#001).
