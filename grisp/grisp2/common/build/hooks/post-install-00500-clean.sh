@@ -10,7 +10,7 @@ rm -rf "${LIB}.old"
 # Remove beam wrapper and strip debug symbols
 export BEAM="${OTP_ROOT}/erts-${ERTS_VERSION}/bin/beam"
 rm -f "${BEAM}"
-arm-rtems5-objcopy -O binary "${BEAM}.smp" "${BEAM}"
+arm-rtems6-objcopy -O binary "${BEAM}.smp" "${BEAM}"
 
 # Remove unused files
 rm "${OTP_ROOT}/bin/epmd"
