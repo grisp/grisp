@@ -13,7 +13,7 @@
 -include("ieee802154.hrl").
 
 % -define(ROBOT_REL_DIR, "/_build/default/rel/robot").
--define(LIB_DIR, "/_build/default/lib").
+-define(LIB_DIR, "/_build/test/lib").
 
 -type mac_address_type() :: mac_short_address | mac_extended_address.
 -type mac_address() :: <<_:16>> | <<_:64>>.
