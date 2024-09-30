@@ -76,7 +76,7 @@
 -define(MAX_FRAG_SIZE_NoMESH,75). % Because max frame size is 80 bytes, and lowpan header 30 bytes (5 bytes for fragHeader) 8 bytes are from IPHC which is included in payload for frag
 -define(MAX_FRAG_SIZE_MESH,58). % Considering max frame size = 80 bytes, lowpan header = 30 bytes (17 bytes for meshHeader, 5 bytes for fragHeader, 8 bytes for IPHC)
 -define(MAX_DTG_SIZE, 2047). % 11 bits datagram_size
--define(REASSEMBLY_TIMEOUT, 1000). % 60 sec
+-define(REASSEMBLY_TIMEOUT, 60000). % 60 sec
 -define(FRAG_HEADER_SIZE,5). % 5 bytes including frag_type, datagram_size, datagram_tag, and datagram_offset
 -define(DATAGRAMS_MAP,#{}). % map of received datagrams, the keys are the tag of datagrams
 -define(MAX_TAG_VALUE, 65535).
