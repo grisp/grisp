@@ -57,11 +57,11 @@ start_link(Slot, _Opts) ->
 % ok
 % '''
 
--spec on() -> any() | {error, any()}.
+-spec on() -> ok | {error, any()}.
 on() ->
     call(on).
 
--spec off() -> any() | {error, any()}.
+-spec off() -> ok | {error, any()}.
 off() ->
     call(off).
 
@@ -72,8 +72,8 @@ off() ->
 init(Slot) ->
     % TODO: expand for more possible Slots
     case {grisp_hw:platform(), Slot} of
-        {grisp_base, gpio1} -> ok;
-        {grisp2, gpio1} -> ok;
+        {_, gpio1} -> ok;
+        {grisp_base, gpio2} -> ok;
         {P, S} -> error({incompatible_slot, P, S})
     end,
     Pin1 = grisp_gpio:open(gpio1_1, #{mode => {output, 0}}),
