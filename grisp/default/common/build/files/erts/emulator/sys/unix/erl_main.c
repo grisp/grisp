@@ -75,6 +75,11 @@
 
 #define BUFFER_SIZE 1024
 
+#define WDOG_BASE_ADDR 0x020BC000  // Base address for WDOG on i.MX6
+#define WDOG_WCR_OFFSET 0x00       // Watchdog Control Register
+#define WDOG_WCR (*(volatile uint16_t *)(WDOG_BASE_ADDR + WDOG_WCR_OFFSET))
+#define WDOG_WCR_WDE     (1 << 2)  // Watchdog enable
+
 void parse_args(char *args);
 
 static int start_dhcp = 0;
@@ -205,6 +210,17 @@ static char *wpa_supplicant_conf = NULL;
  */
 static char *rtems_log_priority = "err";
 
+/*
+ * Define exit and crash reboot policy. Could be set to either reboot or wait.
+ * Example:
+ *
+ *     [erlang]
+ *     on_exit=reboot
+ *     on_crash=wait
+ */
+static int reboot_on_exit = 0;
+static int reboot_on_crash = 0;
+
 static char *erl_args;
 static const char *default_erl_args = "erl.rtems -- "
                                       "-root otp "
@@ -218,6 +234,7 @@ static char *argv[MAX_ARGC];
 static int argc;
 
 // Function prototypes
+void maybe_reboot(int should_reboot);
 void fatal_extension(rtems_fatal_source source, bool is_internal, rtems_fatal_code error);
 void fatal_atexit(void);
 char* silence_erl_console(char *args);
@@ -249,6 +266,17 @@ int munmap(void *addr, size_t len) {
   return -1;
 }
 
+void maybe_reboot(int should_reboot) {
+#ifdef GRISP_PLATFORM_GRISP2
+  if (should_reboot != 0) {
+    printk("[ERL] Rebooting...\n");
+    sleep(2);
+    WDOG_WCR = WDOG_WCR_WDE;
+  }
+#endif
+  while (1);
+}
+
 void fatal_extension(rtems_fatal_source source, bool is_internal, rtems_fatal_code error) {
   printk("\n\nfatal extension: source=%d, is_internal=%d, error=%d\n",
          source, is_internal, error);
@@ -256,15 +284,13 @@ void fatal_extension(rtems_fatal_source source, bool is_internal, rtems_fatal_co
     rtems_exception_frame_print((const rtems_exception_frame *)error);
 
   /* rtems_stack_checker_report_usage(); */
-  while (1) {
-  }
+  maybe_reboot(reboot_on_crash);
 }
 
 void fatal_atexit(void) {
-  printk("Erlang VM exited\n");
+  printk("\n\n[ERL] Beam exited\n");
   /* rtems_stack_checker_report_usage(); */
-  while (1) {
-  }
+  maybe_reboot(reboot_on_exit);
 }
 
 char* silence_erl_console(char *args) {
@@ -367,6 +393,24 @@ static int ini_file_handler(void *arg, const char *section, const char *name,
         shell = 2;
         ok = 1;
       }
+#ifdef GRISP_PLATFORM_GRISP2
+    } else if (strcmp(name, "on_exit") == 0) {
+      if (strcmp(value, "reboot") == 0) {
+        reboot_on_exit = 1;
+        ok = 1;
+      } else if (strcmp(value, "wait") == 0) {
+        reboot_on_exit = 0;
+        ok = 1;
+      }
+    } else if (strcmp(name, "on_crash") == 0) {
+      if (strcmp(value, "reboot") == 0) {
+        reboot_on_crash = 1;
+        ok = 1;
+      } else if (strcmp(value, "wait") == 0) {
+        reboot_on_crash = 0;
+        ok = 1;
+      }
+#endif
     }
   } else if (strcmp(section, "rtems") == 0) {
     if (strcmp(name, "log_priority") == 0) {
@@ -684,6 +728,20 @@ static void Init(rtems_task_argument arg) {
   printf("[ERL] Booting with arg: %s\n", erl_args);
   parse_args(erl_args);
 
+#ifdef GRISP_PLATFORM_GRISP2
+  if (reboot_on_exit == 1) {
+    printf("[ERL] On exit: reboot\n");
+  } else {
+    printf("[ERL] On exit: wait\n");
+  }
+
+  if (reboot_on_crash == 1) {
+    printf("[ERL] On crash: reboot\n");
+  } else {
+    printf("[ERL] On crash: wait\n");
+  }
+#endif
+
   sethostname(hostname, strlen(hostname));
   printf("[ERL] hostname: %s\n", hostname);
 
@@ -777,7 +835,7 @@ static void Init(rtems_task_argument arg) {
     erl_start(argc, argv);
   }
 
-  printf("[ERL] BEAM exited\n");
+  printf("\n\n[ERL] BEAM terminated\n");
   sleep(2);
   exit(0);
 }
