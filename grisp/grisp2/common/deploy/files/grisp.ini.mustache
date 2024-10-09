@@ -1,6 +1,8 @@
 [erlang]
 args = erl.rtems -C multi_time_warp -- -mode embedded -home . -pa . -root {{release_name}} -bindir {{release_name}}/erts-{{erts_vsn}}/bin -boot {{release_name}}/releases/{{release_version}}/start -config {{release_name}}/releases/{{release_version}}/sys.config -kernel inetrc "./erl_inetrc"
 shell = erlang
+on_exit = reboot
+on_crash = reboot
 
 [network]
 ip_self=dhcp
