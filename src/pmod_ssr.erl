@@ -73,7 +73,6 @@ init(Slot) ->
     % TODO: expand for more possible Slots
     case {grisp_hw:platform(), Slot} of
         {_, gpio1} -> ok;
-        {grisp_base, gpio2} -> ok;
         {P, S} -> error({incompatible_slot, P, S})
     end,
     Pin1 = grisp_gpio:open(gpio1_1, #{mode => {output, 0}}),
