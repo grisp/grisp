@@ -8,9 +8,14 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.7.0] - 2024-10-11
+
 ### Added
 
 - New pmod_ssr driver
+- Support for rebooting the board on crash and/or exit of the VM, so calling
+  init:stop() will reboot the board if the option on_exit is set to reboot in
+  grisp.ini.
 
 ## [2.6.0] - 2024-07-29
 
@@ -233,7 +238,8 @@ compatibility will get added in a later patch release.\*
 - Fixed wrong registers in rotation vector [\#9](https://github.com/grisp/grisp/pull/9) ([nextl00p](https://github.com/nextl00p))
 - Fix for \#2. Negative intervals are now treated by turning off leds [\#5](https://github.com/grisp/grisp/pull/5) ([nextl00p](https://github.com/nextl00p))
 
-[Unreleased]: https://github.com/grisp/grisp/compare/2.6.0...HEAD
+[Unreleased]: https://github.com/grisp/grisp/compare/2.7.0...HEAD
+[2.7.0]: https://github.com/grisp/grisp/compare/2.6.0...2.7.0
 [2.6.0]: https://github.com/grisp/grisp/compare/2.5.0...2.6.0
 [2.5.0]: https://github.com/grisp/grisp/compare/2.4.0...2.5.0
 [2.4.0]: https://github.com/grisp/grisp/compare/2.3.0...2.4.0
