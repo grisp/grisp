@@ -20,7 +20,7 @@ jobs:
         with:
           path: last_cached_ver.txt
           key: ${{env.cache-name}}
-      - name: Cache latest version
+      - name: Initialize Cached version
         if: steps.version-cache.outputs.cache-hit != 'true'
         run: |
           cp last_seen_ver.txt > last_cached_ver.txt
@@ -29,6 +29,9 @@ jobs:
         continue-on-error: true
         run: |
           diff last_cached_ver.txt last_seen_ver.txt
+      - name: Update cached Version
+        run: |
+          cp last_seen_ver.txt last_cached_ver.txt
       - name: Trigger OTP package build
         if: ${{ steps.compare-vsn.outcome == 'failure' }}
         run: |
