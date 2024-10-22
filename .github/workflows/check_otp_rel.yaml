@@ -23,7 +23,7 @@ jobs:
       - name: Initialize Cached version
         if: steps.version-cache.outputs.cache-hit != 'true'
         run: |
-          cp last_seen_ver.txt > last_cached_ver.txt
+          cp last_seen_ver.txt last_cached_ver.txt
       - name: Compare with Latest Release Number
         id: compare-vsn
         continue-on-error: true
