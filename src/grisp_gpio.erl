@@ -139,6 +139,7 @@
 -export([open/2]).
 -export([set/2]).
 -export([get/1]).
+-export([set_pattern/1]).
 
 % Callbacks
 -export([on_load/0]).
@@ -210,6 +211,9 @@ open(Pin, UserOpts) ->
 -spec set(ref(), value()) -> ok.
 set(Pin, Value) when is_integer(Value) -> gpio_set_nif(Pin, Value).
 
+-spec set_pattern(ref()) -> ok.
+set_pattern(Pin) -> gpio_set_pattern_nif(Pin).
+
 % @doc Returns the current value of a pin.
 %
 % Returns the actual value for input pins or the currently set value for output
@@ -253,6 +257,7 @@ on_load() -> ?NIF_LOAD.
 gpio_open_nif(Attributes, Mode) -> ?NIF_STUB([Attributes, Mode]).
 
 gpio_set_nif(Pin, Value) -> ?NIF_STUB([Pin, Value]).
+gpio_set_pattern_nif(Pin) -> ?NIF_STUB([Pin]).
 
 gpio_get_nif(Pin) -> ?NIF_STUB([Pin]).
 
