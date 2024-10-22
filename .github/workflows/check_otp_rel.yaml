@@ -9,6 +9,10 @@ jobs:
   check-otp:
     runs-on: ubuntu-latest
     steps:
+      - name: Get latest version
+        run: |
+          curl -sL https://api.github.com/repos/erlang/otp/releases/latest | \
+          jq -r ".tag_name" > last_seen_ver.txt
       - uses: actions/cache@v4
         id: version-cache
         env:
@@ -16,18 +20,18 @@ jobs:
         with:
           path: last_cached_ver.txt
           key: ${{env.cache-name}}
-      - name: Cache latest version
+      - name: Initialize Cached version
         if: steps.version-cache.outputs.cache-hit != 'true'
         run: |
-          curl -sL https://api.github.com/repos/erlang/otp/releases/latest | \
-          jq -r ".tag_name" > last_cached_ver.txt
+          cp last_seen_ver.txt last_cached_ver.txt
       - name: Compare with Latest Release Number
         id: compare-vsn
         continue-on-error: true
         run: |
-          curl -sL https://api.github.com/repos/erlang/otp/releases/latest | \
-          jq -r ".tag_name" > last_seen_ver.txt
           diff last_cached_ver.txt last_seen_ver.txt
+      - name: Update cached Version
+        run: |
+          cp last_seen_ver.txt last_cached_ver.txt
       - name: Trigger OTP package build
         if: ${{ steps.compare-vsn.outcome == 'failure' }}
         run: |
