@@ -14,7 +14,7 @@ jobs:
       - name: Matrix Definition
         id: matrix-def
         run: |
-           echo "otp-versions=${{ github.event.client_payload.otp }}" >> "$GITHUB_OUTPUT"
+           echo "otp-version=${{ github.event.client_payload.otp }}" >> "$GITHUB_OUTPUT"
   otp-gen-matrix:
     runs-on: ubuntu-latest
     needs: define-matrix
@@ -27,7 +27,7 @@ jobs:
         ImageOS: 'ubuntu22'
     strategy:
       matrix:
-        otp: ["${{ fromJson(needs.define-matrix.outputs.otp-versions) }}"]
+        otp: ["${{ fromJson(needs.define-matrix.outputs.otp-version) }}"]
         deps: ['grisp', 'grisp, grisp_cryptoauth']
         rebar3: ['3']
       fail-fast: false
@@ -99,7 +99,6 @@ jobs:
         with:
           name: ${{env.pkg_name}}
           path: robot/_grisp/grisp2/otp/${{matrix.otp}}/package/${{env.pkg_name}}
-
       - name: Upload to S3
         if: ${{ steps.deploy-test.outcome == 'success' }}
         env:
@@ -110,3 +109,12 @@ jobs:
           aws s3 cp --acl public-read --storage-class INTELLIGENT_TIERING \
           robot/_grisp/grisp2/otp/${{matrix.otp}}/package/${{env.pkg_name}} \
           s3://grisp/platforms/grisp2/otp/
+  slack-notifications:
+    runs-on: ubuntu-latest
+    needs: [define-matrix, otp-gen-matrix]
+    steps:
+    - name: Stritzinger Slack Notification
+      run: |
+        curl  ${{secrets.STRITZINGER_SLACK_WEBHOOK}} \
+          -H "Content-Type: application/json; charset=utf-8" \
+          -d '{"otp":"${{ needs.define-matrix.outputs.otp-version }}"}'
