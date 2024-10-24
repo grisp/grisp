@@ -27,7 +27,7 @@ jobs:
         ImageOS: 'ubuntu22'
     strategy:
       matrix:
-        otp: ${{ fromJson(needs.define-matrix.outputs.otp-versions) }}
+        otp: ["${{ fromJson(needs.define-matrix.outputs.otp-versions) }}"]
         deps: ['grisp', 'grisp, grisp_cryptoauth']
         rebar3: ['3']
       fail-fast: false
