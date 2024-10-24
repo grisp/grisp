@@ -13,17 +13,14 @@ jobs:
         run: |
           curl -sL https://api.github.com/repos/erlang/otp/releases/latest | \
           jq -r ".tag_name" > last_seen_ver.txt
+          echo "LAST_OTP=$(cat last_seen_ver.txt)" >> $GITHUB_ENV
       - uses: actions/cache@v4
         id: version-cache
         env:
           cache-name: cached-version
         with:
           path: last_cached_ver.txt
-          key: ${{env.cache-name}}
-      - name: Initialize Cached version
-        if: steps.version-cache.outputs.cache-hit != 'true'
-        run: |
-          cp last_seen_ver.txt last_cached_ver.txt
+          key: ${{env.LAST_OTP}}
       - name: Compare with Latest Release Number
         id: compare-vsn
         continue-on-error: true
