@@ -31,6 +31,8 @@ jobs:
         deps: ['grisp', 'grisp, grisp_cryptoauth']
         rebar3: ['3']
       fail-fast: false
+    outputs:
+      result: ${{ steps.report.outputs.result }}
     steps:
       - name: Install AWS CLI
         run: |
@@ -100,6 +102,7 @@ jobs:
           name: ${{env.pkg_name}}
           path: robot/_grisp/grisp2/otp/${{matrix.otp}}/package/${{env.pkg_name}}
       - name: Upload to S3
+        id: s3
         if: ${{ steps.deploy-test.outcome == 'success' }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.GRISP_S3_ACCESS_KEY_ID }}
@@ -109,12 +112,18 @@ jobs:
           aws s3 cp --acl public-read --storage-class INTELLIGENT_TIERING \
           robot/_grisp/grisp2/otp/${{matrix.otp}}/package/${{env.pkg_name}} \
           s3://grisp/platforms/grisp2/otp/
-  slack-notifications:
+      - name: Report result
+        id: report
+        if: ${{ steps.s3.outcome == 'success' }}
+        run: |
+          echo 'result=new_package' >> "$GITHUB_OUTPUT"
+  slack-message:
     runs-on: ubuntu-latest
     needs: [define-matrix, otp-gen-matrix]
+    if: needs.otp-gen-matrix.outputs.result == 'new_package'
     steps:
     - name: Stritzinger Slack Notification
       run: |
         curl  ${{secrets.STRITZINGER_SLACK_WEBHOOK}} \
           -H "Content-Type: application/json; charset=utf-8" \
-          -d '{"otp":"${{ needs.define-matrix.outputs.otp-version }}"}'
+          -d '{"otp":${{ needs.define-matrix.outputs.otp-version }}}'
