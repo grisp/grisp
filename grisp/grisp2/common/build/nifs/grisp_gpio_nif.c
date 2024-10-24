@@ -154,7 +154,10 @@ static ERL_NIF_TERM gpio_set_nif(ErlNifEnv *env, int argc,
 
 static void pattern_loop(rtems_task_argument arg) {
   gpio_pin *pin = (gpio_pin *)arg;
-  imx_gpio_set_output(&(pin->imx), 1);
+  for (int i = 0; i < 10000; i++) {
+        imx_gpio_set_output(&(pin->imx), 1);
+        imx_gpio_set_output(&(pin->imx), 0);
+    }
   rtems_task_delete(RTEMS_SELF);
 }
 
