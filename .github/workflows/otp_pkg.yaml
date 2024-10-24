@@ -9,7 +9,7 @@ jobs:
   define-matrix:
     runs-on: ubuntu-latest
     outputs:
-      otp-versions: ${{ steps.matrix-def.outputs.otp-versions }}
+      otp-version: ${{ steps.matrix-def.outputs.otp-version }}
     steps:
       - name: Matrix Definition
         id: matrix-def
