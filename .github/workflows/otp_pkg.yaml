@@ -136,7 +136,6 @@ jobs:
           echo "pkg_name=$PKG_NAME" >> $GITHUB_ENV
       - name: Download Package Artifact
         id: artifact-download
-        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: ${{env.pkg_name}}
@@ -151,7 +150,6 @@ jobs:
           ./aws/install
           aws --version
       - name: Upload to S3
-        id: s3
         if: ${{ steps.artifact-download.outcome == 'success' }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.GRISP_S3_ACCESS_KEY_ID }}
