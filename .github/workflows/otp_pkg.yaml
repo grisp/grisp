@@ -132,7 +132,7 @@ jobs:
         run: |
           rebar3 grisp report
           PKG_HASH=grep -o '<<"[0-9a-f]\{64\}">>' _grisp/report/hash.txt | tail -n 1 | sed 's/[<">]//g'
-          PKG_NAME=grisp_otp_build_${{matrix.otp}}_${{env.pkg_hash}}.tar.gz
+          PKG_NAME=grisp_otp_build_${{matrix.otp}}_${PKG_HASH}.tar.gz
           echo "pkg_name=$PKG_NAME" >> $GITHUB_ENV
       - name: Download Package Artifact
         id: artifact-download
