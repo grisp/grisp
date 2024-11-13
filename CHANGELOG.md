@@ -8,6 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- Add the module grisp_info to get information about the grisp hardware, the
+boot status and the current software on system partions or sdcard.
+
 ## [2.7.0] - 2024-10-11
 
 ### Added
