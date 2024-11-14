@@ -130,6 +130,8 @@ jobs:
         id: deploy
         working-directory: robot
         run: |
+          sed -i '/{grisp, \[/a\
+          '"{build, []}," rebar.config
           rebar3 grisp report
           PKG_HASH=grep -o '<<"[0-9a-f]\{64\}">>' _grisp/report/hash.txt | tail -n 1 | sed 's/[<">]//g'
           PKG_NAME=grisp_otp_build_${{matrix.otp}}_${PKG_HASH}.tar.gz
