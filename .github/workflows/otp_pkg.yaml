@@ -141,7 +141,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ${{env.pkg_name}}
-          path: ${{env.pkg_name}}
       - name: Upload to S3
         if: ${{ steps.artifact-download.outcome == 'success' }}
         env:
