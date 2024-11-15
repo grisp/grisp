@@ -150,7 +150,7 @@ jobs:
           AWS_DEFAULT_REGION: "us-east-1"
         run: |
           aws s3 cp --acl public-read --storage-class INTELLIGENT_TIERING \
-          robot/_grisp/grisp2/otp/${{matrix.otp}}/package/${{env.pkg_name}} \
+          ${{env.pkg_name}} \
           s3://grisp/platforms/grisp2/otp/
   slack-message:
     runs-on: ubuntu-latest
