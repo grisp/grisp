@@ -17,7 +17,7 @@
 -export([handle_cast/2]).
 -export([handle_info/2]).
 
--include("grisp.hrl").
+-include("grisp_internal.hrl").
 
 -define(DEFAULT_OPTS, #{devices => []}).
 
