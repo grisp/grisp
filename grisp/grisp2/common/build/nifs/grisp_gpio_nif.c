@@ -152,6 +152,34 @@ static ERL_NIF_TERM gpio_set_nif(ErlNifEnv *env, int argc,
   return am_ok;
 }
 
+static ERL_NIF_TERM gpio_get_register32_nif(ErlNifEnv *env, int argc,
+                                 const ERL_NIF_TERM argv[]) {
+  uint32_t address;
+  uint32_t value;
+
+  if (!enif_get_uint(env, argv[0], &address)) {
+    return RAISE_TERM(am_invalid_value, argv[0]);
+  }
+  value = *(uint32_t *)(uintptr_t)address;
+  return enif_make_uint(env, value);
+}
+
+static ERL_NIF_TERM gpio_set_register32_nif(ErlNifEnv *env, int argc,
+                                 const ERL_NIF_TERM argv[]) {
+  uint32_t address;
+  uint32_t value;
+
+  if (!enif_get_uint(env, argv[0], &address)) {
+    return RAISE_TERM(am_invalid_value, argv[0]);
+  }
+
+  if (!enif_get_int(env, argv[1], &value)) {
+    return RAISE_TERM(am_invalid_value, argv[1]);
+  }
+  *(uint32_t *)(uintptr_t)address = value;
+  return am_ok;
+}
+
 static void pattern_loop(rtems_task_argument arg) {
   gpio_pin *pin = (gpio_pin *)arg;
   for (int i = 0; i < 10000; i++) {

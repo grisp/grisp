@@ -140,6 +140,8 @@
 -export([set/2]).
 -export([get/1]).
 -export([set_pattern/1]).
+-export([get_register32/1]).
+-export([set_register32/2]).
 
 % Callbacks
 -export([on_load/0]).
@@ -211,6 +213,9 @@ open(Pin, UserOpts) ->
 -spec set(ref(), value()) -> ok.
 set(Pin, Value) when is_integer(Value) -> gpio_set_nif(Pin, Value).
 
+set_register32(Address, Value) when is_integer(Address), is_integer(Value) -> gpio_set_register32_nif(Address, Value).
+get_register32(Address) when is_integer(Address) -> gpio_get_register32_nif(Address).
+
 -spec set_pattern(ref()) -> ok.
 set_pattern(Pin) -> gpio_set_pattern_nif(Pin).
 
@@ -256,6 +261,8 @@ on_load() -> ?NIF_LOAD.
 
 gpio_open_nif(Attributes, Mode) -> ?NIF_STUB([Attributes, Mode]).
 
+gpio_get_register32_nif(Address) -> ?NIF_STUB([Address]).
+gpio_set_register32_nif(Address, Value) -> ?NIF_STUB([Address, Value]).
 gpio_set_nif(Pin, Value) -> ?NIF_STUB([Pin, Value]).
 gpio_set_pattern_nif(Pin) -> ?NIF_STUB([Pin]).
 
