@@ -241,6 +241,8 @@ static ERL_NIF_TERM gpio_get_nif(ErlNifEnv *env, int argc,
 static ErlNifFunc nif_funcs[] = {{"gpio_open_nif", 2, &gpio_open_nif},
                                  {"gpio_set_nif", 2, &gpio_set_nif},
                                  {"gpio_set_pattern_nif", 1, &gpio_set_pattern_nif},
+                                 {"gpio_get_register32_nif", 1, &gpio_get_register32_nif},
+                                 {"gpio_set_register32_nif", 2, &gpio_set_register32_nif},
                                  {"gpio_get_nif", 1, &gpio_get_nif}};
 
 ERL_NIF_INIT(grisp_gpio, nif_funcs, &gpio_load, NULL, NULL, NULL)
