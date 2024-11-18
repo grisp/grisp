@@ -28,29 +28,77 @@
 
 -record(req, {chip, type = single, op = read, reg, value}).
 
+%--- Types ---------------------------------------------------------------------
+
+-type chip() :: 1..4.
+-type reg() :: atom(). % TODO encode all possible register
+-type result_read() :: #{reg() => map()}.
+-type result_write() :: #{{'DiLvl_', 1..4} => 0 | 1,
+                          {'F_', 1..4} => boolean()}.
+-type response() :: #{'SHTVDD' => boolean(),
+                      'AbvVDD' => boolean(),
+                      'OWOffF' => boolean(),
+                      'OvrCurr' => boolean(),
+                      'OvldF' => boolean(),
+                      'GLOBLF' => boolean(),
+                      result => result_read() | result_write()}.
+
 %--- API -----------------------------------------------------------------------
 
 start_link(Slot, UserOpts) ->
     Opts = opts(maps:merge(#{chips => [1]}, UserOpts)),
     gen_server:start_link(?MODULE, Opts#{slot => Slot}, []).
 
+%% @doc Get the list of the address of the configured chips
+-spec chips(Slot :: grisp_spi:bus()) -> Chips :: [chip()].
 chips(Slot) -> call(Slot, chips).
 
+%% @doc Read the value of a register for a given chip
+%% @equiv read(default, Chip, Reg).
+%% @end
+-spec read(Chip :: chip(), Reg :: reg()) -> response().
 read(Chip, Reg) -> read(default, Chip, Reg).
 
+%% @doc Read the value of a register for a given chip at a given slot
+-spec read(Slot, Chip, Reg) -> response() when
+      Slot :: default | grisp_spi:bus(),
+      Chip :: chip(),
+      Reg  :: reg().
 read(Slot, Chip, Reg) ->
     call(Slot, #req{chip = Chip, reg = Reg, value = <<0>>}).
 
+%% @doc Performs a read_burst on the given chip of the default slot
+%% The call will crash if the register is something else than 'DoiLevel'
+%% @equiv read_burst(default, Chip, Reg).
+%% @end
+-spec read_burst(Chip :: chip(), Reg :: reg()) -> response() | no_return().
 read_burst(Chip, Reg) -> read_burst(default, Chip, Reg).
 
+%% @doc Performs a read_burst on the given chip of the given slot
+%% The call will crash if the register is something else than 'DoiLevel'
+%% @end
+-spec read_burst(Slot, Chip, Reg) -> response() | no_return() when
+      Slot :: default | grisp_spi:bus(),
+      Chip :: chip(),
+      Reg  :: reg().
 read_burst(Slot, Chip, 'DoiLevel' = Reg) ->
     Value = <<0, 0, 0, 0, 0, 0>>,
     call(Slot, #req{chip = Chip, type = burst, reg = Reg, value = Value});
 read_burst(_Slot, _Chip, Reg) ->
     error({invalid_burst_register, Reg}).
 
+%% @doc Write on the given register of the given chip on the default slot
+%% @equiv write(default, Chip, Reg, Value)
+%% @end
+-spec write(Chip :: chip(), Reg :: reg(), Value :: map()) -> response().
 write(Chip, Reg, Value) -> write(default, Chip, Reg, Value).
 
+%% @doc Write on the griven register of the given chip of the given slot
+-spec write(Slot, Chip, Reg, Value) -> response() when
+      Slot  :: default | grisp_spi:bus(),
+      Chip  :: chip(),
+      Reg   :: reg(),
+      Value :: map().
 write(Slot, Chip, Reg, Value) ->
     call(Slot, #req{chip = Chip, op = write, reg = Reg, value = Value}).
 
