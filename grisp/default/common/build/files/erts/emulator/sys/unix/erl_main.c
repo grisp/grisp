@@ -681,25 +681,6 @@ static void Init(rtems_task_argument arg) {
   }
 #endif
 
-  printf("[ERL] Mounting SD card asynchronously\n");
-  grisp_init_sd_card();
-  printf("[ERL] Lowering self priority\n");
-  grisp_init_lower_self_prio();
-  printf("[ERL] Initializing libbsd\n");
-  grisp_init_libbsd();
-  printf("[ERL] Running ifconfig on lo0\n");
-  default_network_ifconfig_lo0();
-
-  /* Wait for the SD card */
-  grisp_led_set1(true, false, true);
-  sc = grisp_init_wait_for_sd();
-  if (sc == RTEMS_SUCCESSFUL) {
-    printf("[ERL] SD card mounted\n");
-  } else {
-    printf("[ERL] ERROR: SD card could not be mounted after timeout\n");
-    grisp_led_set1(true, false, false);
-  }
-
 #ifdef GRISP_PLATFORM_GRISP2
 
   fdt = bsp_fdt_get();
@@ -717,6 +698,25 @@ static void Init(rtems_task_argument arg) {
   rootdir = DEFAULT_MNT;
 
 #endif
+
+  printf("[ERL] Mounting SD card asynchronously\n");
+  grisp_init_sd_card(rootdir);
+  printf("[ERL] Lowering self priority\n");
+  grisp_init_lower_self_prio();
+  printf("[ERL] Initializing libbsd\n");
+  grisp_init_libbsd();
+  printf("[ERL] Running ifconfig on lo0\n");
+  default_network_ifconfig_lo0();
+
+  /* Wait for the SD card */
+  grisp_led_set1(true, false, true);
+  sc = grisp_init_wait_for_sd();
+  if (sc == RTEMS_SUCCESSFUL) {
+    printf("[ERL] SD card mounted\n");
+  } else {
+    printf("[ERL] ERROR: SD card could not be mounted after timeout\n");
+    grisp_led_set1(true, false, false);
+  }
 
   strlcpy(inifile, rootdir, 192);
   strlcat(inifile, INI_FILENAME, 192);
