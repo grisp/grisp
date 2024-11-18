@@ -51,10 +51,11 @@
 %--- Types ---------------------------------------------------------------------
 
 -type chip() :: 1..4.
+-type channel() :: 1..4.
 -type reg() :: atom(). % TODO encode all possible register
 -type result_read() :: #{reg() => map()}.
--type result_write() :: #{{'DiLvl_', 1..4} => 0 | 1,
-                          {'F_', 1..4} => boolean()}.
+-type result_write() :: #{{'DiLvl_', channel()} => 0 | 1,
+                          {'F_', channel()} => boolean()}.
 -type response() :: #{'SHTVDD' => boolean(),
                       'AbvVDD' => boolean(),
                       'OWOffF' => boolean(),
@@ -62,6 +63,8 @@
                       'OvldF' => boolean(),
                       'GLOBLF' => boolean(),
                       result => result_read() | result_write()}.
+
+-export_type([chip/0, channel/0]).
 
 %--- API -----------------------------------------------------------------------
 
@@ -74,7 +77,7 @@ start_link(Slot, UserOpts) ->
 chips(Slot) -> call(Slot, chips).
 
 %% @doc Read the value of a register for a given chip
-%% @equiv read(default, Chip, Reg).
+%% @equiv read(default, Chip, Reg)
 %% @end
 -spec read(Chip :: chip(), Reg :: reg()) -> response().
 read(Chip, Reg) -> read(default, Chip, Reg).
@@ -113,7 +116,7 @@ read(Slot, Chip, Reg) ->
 
 %% @doc Performs a read_burst on the given chip of the default slot
 %% The call will crash if the register is something else than 'DoiLevel'
-%% @equiv read_burst(default, Chip, Reg).
+%% @equiv read_burst(default, Chip, Reg)
 %% @end
 -spec read_burst(Chip :: chip(), Reg :: reg()) -> response() | no_return().
 read_burst(Chip, Reg) -> read_burst(default, Chip, Reg).

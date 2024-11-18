@@ -22,7 +22,7 @@
 % '''
 %
 % For grisp_info:software() to be defined during local development, a term file
-% named `MANIFEST` must exists in the current directory and looks like:
+% named `MANIFEST' must exists in the current directory and looks like:
 %
 % ```
 % %% coding: utf-8
@@ -36,7 +36,7 @@
 %     {rtems, [{version, <<"5">>}]},
 %     {otp, [{version, <<"26.2.5.4">>}]}
 % ]}.
-% ```
+% '''
 %
 % @end
 -module(grisp_info).

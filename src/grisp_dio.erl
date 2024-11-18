@@ -1,3 +1,14 @@
+% @doc High level DIO-API
+%
+% This module provides a high-level API for the PmodDIO. It is built on top of the low level driver that you can find under the name `pmod_dio'.
+%
+% To start the API process:
+% ```
+% 1> grisp_dio:start(#{devices => [{spi2, pmod_dio, #{chips => [1]}}]}).
+% '''
+% Here we start the process for the chip with the address 0x00 on the spi2 bus
+%
+% @end
 -module(grisp_dio).
 
 -behavior(gen_server).
@@ -21,16 +32,73 @@
 
 -define(DEFAULT_OPTS, #{devices => []}).
 
+%--- Types ---------------------------------------------------------------------
+
+-type pin() :: {grisp_spi:bus(), pmod_dio:chip(), pmod_dio:channel()}.
+-type option() :: direction.
+
 %--- API -----------------------------------------------------------------------
 
 start(Opts) -> grisp_sup:start_child(?MODULE, [Opts]).
 
+%% @doc gets an array of all the possible combination of {Bus, Chip, Channel}
+%% Bus is a SPI bus on the board
+%% Chip is the id of a connected pmod (from 1 to 4)
+%% Channel is one of the channel number of the specific Chip
+%%
+%% === Example ===
+%% In this case, 2 chips (0x00 and 0x10) are connected to the spi2 bus:
+%% ```
+%% 1> grisp_dio:pins().
+%% [{spi2, 1, 1},
+%%  {spi2, 1, 2},
+%%  {spi2, 1, 3},
+%%  {spi2, 1, 4},
+%%  {spi2, 4, 1},
+%%  {spi2, 4, 2},
+%%  {spi2, 4, 3},
+%%  {spi2, 4, 4}].
+%% '''
+%% @end
+-spec pins() -> [pin()].
 pins() -> call(pins).
 
+%% @doc Configure the given pin
+%% For a given pin you can change its configuration option.
+%% List of options:
+%% <ul>
+%%     <li>`direction': Describes if the channel is either `input' or `output'</li>
+%% </ul>
+%% @end
+-spec configure(Pin, Opt, Value) -> ok when
+      Pin   :: pin(),
+      Opt   :: option(),
+      Value :: input | output.
 configure(Pin, Opt, Value) -> call({configure, validate(Pin), Opt, Value}).
 
+%% @doc Gives the configuration of the provided pin
+%%
+%% === Example ===
+%% ==== Output Mode Example ====
+%% Describe the pin 1 of device 0x00 on spi2 bus
+%% ```
+%% 1> grisp_dio:describe({spi2, 1, 1}).
+%% #{output => 
+%%     #{current_limit =>
+%%         #{current_limit => {miliampere, 600},
+%%           inrush => {milisecond, 20}},
+%%       mode => {high_side, {inrush_multiplier, 1}}}}
+%% '''
+%% ==== Input Mode Example ====
+%% 1> grisp_dio:describe({spi2, 1, 2}).
+%% #{input => #{}}
+%% '''
+%% @end
+-spec describe(Pin :: pin()) -> map().
 describe(Pin) -> call({describe, validate(Pin)}).
 
+%% @doc Get the status of DoiLevel/VDDOKFault for the given pin
+-spec get(Pin::pin()) -> 0 | 1.
 get(Pin) -> call({get, validate(Pin)}).
 
 %--- Callbacks -----------------------------------------------------------------
