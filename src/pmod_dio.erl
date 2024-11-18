@@ -1,5 +1,25 @@
 % MAX14906 specs:
 % https://www.analog.com/media/en/technical-documentation/data-sheets/MAX14906.pdf
+
+% @doc Driver module for the PmodDIO
+% 
+% The PmodDIO is based on the <a href="https://www.analog.com/en/products/max14906.html">MAX14906</a>
+%
+% Each of the 4 channels of the the pmod are fully configurable to be a digital input (either type 1 and type 3 or type 2) or a digital output (either high-side or push-pull)
+%
+% You can start the driver with
+% ```
+% 1> grisp:add_device(spi2, pmod_dio).
+% '''
+%
+% or using the high level module:
+% ```
+% 1> grisp_dio:start(#{devices => [{spi2, pmod_dio, #{chips => [1]}}]}).
+% '''
+%
+% The pmod accepts up to 4 "chips" on the same SPI bus. They are identified by their addresses
+%
+% @end
 -module(pmod_dio).
 -behaviour(gen_server).
 
@@ -60,6 +80,30 @@ chips(Slot) -> call(Slot, chips).
 read(Chip, Reg) -> read(default, Chip, Reg).
 
 %% @doc Read the value of a register for a given chip at a given slot
+%%
+%% === Example ===
+%% To read the Interrupt register (0x03) of chip with address 0x01 on spi2:
+%% ```
+%% 1> pmod_dio:read(spi2, 2, 'Interrupt').
+%% #{'SHTVDD' => false,
+%%   'AbvVDD' => false,
+%%   'OWOffF' => false,
+%%   'OvrCurr' => false,
+%%   'OvldF' => false,
+%%   'GLOBLF' => false,
+%%   result => #{
+%%      'ComErr' => false,
+%%      'SupplyErr' => false,
+%%      'DeMagFault' => false,
+%%      'ShtVDDFault' => false,
+%%      'AboveVDDFault' => false,
+%%      'OWOffFault' => false,
+%%      'CurrLim' => false,
+%%      'OverLdFault' => false}
+%%   }.
+%% '''
+%%
+%% @end
 -spec read(Slot, Chip, Reg) -> response() when
       Slot :: default | grisp_spi:bus(),
       Chip :: chip(),
@@ -94,6 +138,14 @@ read_burst(_Slot, _Chip, Reg) ->
 write(Chip, Reg, Value) -> write(default, Chip, Reg, Value).
 
 %% @doc Write on the griven register of the given chip of the given slot
+%%
+%% === Examples ===
+%% To set the 1st channel of the chip with address 0x00 in input mode :
+%% ```
+%% 1> pmod_dio:write(spi2, 1, 'SetOUT', #{{'SetDi_', 1} => input}).
+%% '''
+%%
+%% @end
 -spec write(Slot, Chip, Reg, Value) -> response() when
       Slot  :: default | grisp_spi:bus(),
       Chip  :: chip(),
