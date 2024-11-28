@@ -9,7 +9,9 @@
 #include <libfdt.h>
 #include <pthread.h>
 
+
 #include <erl_nif.h>
+
 
 static ERL_NIF_TERM am_error;
 static ERL_NIF_TERM am_gpio_init_failed;
@@ -20,6 +22,9 @@ static ERL_NIF_TERM am_invalid_index;
 static ERL_NIF_TERM am_invalid_mode;
 static ERL_NIF_TERM am_invalid_path;
 static ERL_NIF_TERM am_invalid_pin;
+static ERL_NIF_TERM am_fdt_setprop_failed;
+static ERL_NIF_TERM am_fdt_config_failed;
+static ERL_NIF_TERM am_invalid_pwm;
 static ERL_NIF_TERM am_invalid_property;
 static ERL_NIF_TERM am_invalid_value;
 static ERL_NIF_TERM am_not_null_terminated;
@@ -53,6 +58,9 @@ static int gpio_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
   am_invalid_mode = enif_make_atom(env, "invalid_mode");
   am_invalid_path = enif_make_atom(env, "invalid_path");
   am_invalid_pin = enif_make_atom(env, "invalid_pin");
+  am_fdt_setprop_failed = enif_make_atom(env, "fdt_setprop_failed");
+  am_fdt_config_failed = enif_make_atom(env, "fdt_config_failed");
+  am_invalid_pwm = enif_make_atom(env, "invalid_pwm");
   am_invalid_property = enif_make_atom(env, "invalid_property");
   am_invalid_value = enif_make_atom(env, "invalid_value");
   am_not_null_terminated = enif_make_atom(env, "not_null_terminated");
@@ -63,6 +71,118 @@ static int gpio_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
 
   return 0;
 }
+
+static ERL_NIF_TERM gpio_set_pwm_pin_nif(ErlNifEnv *env, int argc,
+                                  const ERL_NIF_TERM argv[]) {
+  ERL_NIF_TERM resource;
+  ERL_NIF_TERM *t_path, *t_prop, *t_index, *mode;
+  int arity = -1;
+  ErlNifBinary path, prop;
+  int index, node, pwm_id;
+  enum imx_gpio_mode gpio_mode;
+  gpio_pin *pin;
+  const void *fdt;
+  struct pincfg {
+    uint32_t mux_reg;
+    uint32_t padconf_reg;
+    uint32_t input_reg;
+    uint32_t mux_val;
+    uint32_t padconf_val;
+    uint32_t input_val;
+  };
+
+
+  // Attributes
+  if (!enif_get_map_value(env, argv[0], am_path, &t_path)) {
+    return RAISE_TERM(am_invalid_attributes, argv[0]);
+  }
+  if (!enif_inspect_iolist_as_binary(env, t_path, &path)) {
+    return RAISE_TERM(am_invalid_path, t_path);
+  }
+  if (path.data[path.size - 1] != 0) {
+    return RAISE_TERM(am_not_null_terminated, &t_path);
+  }
+
+  if (!enif_get_map_value(env, argv[0], am_property, &t_prop)) {
+    return RAISE_TERM(am_invalid_attributes, argv[0]);
+  }
+  if (!enif_inspect_iolist_as_binary(env, t_prop, &prop)) {
+    return RAISE_TERM(am_invalid_property, t_prop);
+  }
+  if (prop.data[prop.size - 1] != 0) {
+    return RAISE_TERM(am_not_null_terminated, t_prop);
+  }
+
+  if (!enif_get_map_value(env, argv[0], am_index, &t_index)) {
+    return RAISE_TERM(am_invalid_attributes, argv[0]);
+  }
+  if (!enif_get_int(env, t_index, &index)) {
+    return RAISE_TERM(am_invalid_index, t_index);
+  }
+
+  // PWM ID
+  if (!enif_get_int(env, argv[1], &pwm_id)) {
+    return RAISE_TERM(am_invalid_value, argv[1]);
+  }
+
+  pin = enif_alloc_resource(gpio_pin_rt, sizeof(*pin));
+  fdt = bsp_fdt_get();
+  node = fdt_path_offset(fdt, (char *)path.data);
+
+  uint32_t pwm_pin_cfg_fdt[6];
+  // taken from here: https://github.com/grisp/grisp2-rtems-toolchain/blob/master/external/fdt/sys/gnu/dts/arm/imx6ul-pinfunc.h
+  switch (pwm_id) {
+    case 1:
+      pwm_pin_cfg_fdt[0] = 0x007c;
+      pwm_pin_cfg_fdt[1] = 0;
+      pwm_pin_cfg_fdt[2] = 0x0000;
+      pwm_pin_cfg_fdt[3] = 0;
+      pwm_pin_cfg_fdt[4] = 0x0308;
+      pwm_pin_cfg_fdt[5] = 0;
+      break;
+    case 2:
+      pwm_pin_cfg_fdt[0] = 0x0080;
+      pwm_pin_cfg_fdt[1] = 0;
+      pwm_pin_cfg_fdt[2] = 0x0000;
+      pwm_pin_cfg_fdt[3] = 0;
+      pwm_pin_cfg_fdt[4] = 0x030c;
+      pwm_pin_cfg_fdt[5] = 0;
+      break;
+    case 3:
+      pwm_pin_cfg_fdt[0] = 0x006c;
+      pwm_pin_cfg_fdt[1] = 1;
+      pwm_pin_cfg_fdt[2] = 0x0000;
+      pwm_pin_cfg_fdt[3] = 0;
+      pwm_pin_cfg_fdt[4] = 0x02f8;
+      pwm_pin_cfg_fdt[5] = 0;
+      break;
+    case 4:
+      pwm_pin_cfg_fdt[0] = 0x0070;
+      pwm_pin_cfg_fdt[1] = 1;
+      pwm_pin_cfg_fdt[2] = 0x0000;
+      pwm_pin_cfg_fdt[3] = 0;
+      pwm_pin_cfg_fdt[4] = 0x02fc;
+      pwm_pin_cfg_fdt[5] = 0;
+      break;
+    default:
+      return RAISE_TERM(am_invalid_pwm, argv[1]);
+  }
+
+  // Add the fsl,pins property to the node in the FDT
+  int setprop_ret = fdt_setprop(fdt, node, "fsl,pins", pwm_pin_cfg_fdt, sizeof(pwm_pin_cfg_fdt));
+  if (setprop_ret != 0) {
+    return RAISE_TERM(am_fdt_setprop_failed, [setprop_ret]);
+  };
+
+  // Call the configuration function
+  int conf_ret = imx_iomux_configure_pins(fdt, node);
+  if (conf_ret != 0) {
+    return RAISE_TERM(am_fdt_config_failed, [conf_ret]);
+  };
+  return am_ok;
+}
+
+
 
 static ERL_NIF_TERM gpio_open_nif(ErlNifEnv *env, int argc,
                                   const ERL_NIF_TERM argv[]) {
@@ -243,6 +363,7 @@ static ErlNifFunc nif_funcs[] = {{"gpio_open_nif", 2, &gpio_open_nif},
                                  {"gpio_set_pattern_nif", 1, &gpio_set_pattern_nif},
                                  {"gpio_get_register32_nif", 1, &gpio_get_register32_nif},
                                  {"gpio_set_register32_nif", 2, &gpio_set_register32_nif},
+                                 {"gpio_set_pwm_pin_nif", 2, &gpio_set_pwm_pin_nif},
                                  {"gpio_get_nif", 1, &gpio_get_nif}};
 
 ERL_NIF_INIT(grisp_gpio, nif_funcs, &gpio_load, NULL, NULL, NULL)

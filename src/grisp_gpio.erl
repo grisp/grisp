@@ -142,6 +142,7 @@
 -export([set_pattern/1]).
 -export([get_register32/1]).
 -export([set_register32/2]).
+-export([gpio_set_pwm_pin/2]).
 
 % Callbacks
 -export([on_load/0]).
@@ -156,6 +157,7 @@
 %--- Types ---------------------------------------------------------------------
 
 -type pin() :: atom().
+-type pwm_id() :: 1 | 2 | 3 | 4.
 -type opts() :: #{'mode' => mode(),
                   _ => _}.
 -type mode() :: 'input' | {'output', value()}.
@@ -184,8 +186,8 @@ open(Pin) -> open(Pin, #{}).
 % 1> grisp_gpio:open(led1_r, #{mode => {output, 0}}).
 % #Ref<0.2691682867.116916226.176944>
 % '''
-%
 % Open the GPIO pin of Mode Jumper 1 as an input pin:
+%
 % ```
 % 1> grisp_gpio:open(jumper_1, #{mode => input}).
 % #Ref<0.2691682867.116916226.176944>
@@ -215,6 +217,11 @@ set(Pin, Value) when is_integer(Value) -> gpio_set_nif(Pin, Value).
 
 set_register32(Address, Value) when is_integer(Address), is_integer(Value) -> gpio_set_register32_nif(Address, Value).
 get_register32(Address) when is_integer(Address) -> gpio_get_register32_nif(Address).
+
+-spec gpio_set_pwm_pin(pin(), pwm_id()) -> ok.
+gpio_set_pwm_pin(Pin, PWMId) ->
+    Attributes = pin(Pin),
+    gpio_set_pwm_pin_nif(Attributes, PWMId).
 
 -spec set_pattern(ref()) -> ok.
 set_pattern(Pin) -> gpio_set_pattern_nif(Pin).
@@ -265,6 +272,7 @@ gpio_get_register32_nif(Address) -> ?NIF_STUB([Address]).
 gpio_set_register32_nif(Address, Value) -> ?NIF_STUB([Address, Value]).
 gpio_set_nif(Pin, Value) -> ?NIF_STUB([Pin, Value]).
 gpio_set_pattern_nif(Pin) -> ?NIF_STUB([Pin]).
+gpio_set_pwm_pin_nif(Pin, PWMId) -> ?NIF_STUB([Pin, PWMId]).
 
 gpio_get_nif(Pin) -> ?NIF_STUB([Pin]).
 
