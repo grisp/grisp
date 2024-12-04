@@ -36,6 +36,7 @@
 #include <rtems/console.h>
 #include <rtems/libio.h>
 #include <rtems/malloc.h>
+#include <rtems/libcsupport.h>
 #include <rtems/media.h>
 #include <rtems/score/armv7m.h>
 #include <rtems/shell.h>
@@ -43,10 +44,12 @@
 
 #include <assert.h>
 #include <bsp.h>
+#include <bsp/bootcard.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sysexits.h>
 #include <unistd.h>
+#include <inttypes.h>
 
 #include <inih/ini.h>
 
@@ -82,12 +85,14 @@
 
 void parse_args(char *args);
 
+#ifndef GRISP_PLATFORM_GRISP_NANO
 static int start_dhcp = 0;
 static int wlan_adhocmode = 0;
 static int wlan_enable = 0;
 
 static char *ip_self = "";
 static char *wlan_ip_netmask = "";
+#endif
 
 /*
  * The optional shell option can be set to either erlang, rtems or none.
@@ -144,7 +149,9 @@ static int shell = 0;
  * in channel 6 and the host "my_grisp_board_1"
  * will be using address "169.254.16.1/16"
  */
+#ifndef GRISP_PLATFORM_GRISP_NANO
 static char *wlan_mode = "infrastructure";
+#endif
 
 /*
 * During experiments in adhoc mode, it has been
@@ -193,6 +200,7 @@ static char *wlan_mode = "infrastructure";
 * the channel that is as far as possible from interfering
 * devices in the 2.4GHz band.
 */
+#ifndef GRISP_PLATFORM_GRISP_NANO
 static char *wlan_channel = "6";
 
 static char *wlan_adhocname = "adhocnetwork";
@@ -200,6 +208,7 @@ static char *wlan_adhocname = "adhocnetwork";
 static char *hostname = "grisp";
 
 static char *wpa_supplicant_conf = NULL;
+#endif
 
 /*
  * RTEMS log priority can be set to either alert, crit, debug, emerg, err, info,
@@ -238,15 +247,18 @@ void maybe_reboot(int should_reboot);
 void fatal_extension(rtems_fatal_source source, bool is_internal, rtems_fatal_code error);
 void fatal_atexit(void);
 char* silence_erl_console(char *args);
-void set_grisp_hostname(struct grisp_eeprom *eeprom);
 void join_paths(const char *part1, const char *part2, char *result, size_t max_size);
 int copy_file(const char *src_path, const char *dst_path);
 int copy_directory(const char *src_dir, const char *dst_dir);
 void setup_etc(const char *root_dir);
 
+#ifndef GRISP_PLATFORM_GRISP_NANO
+void set_grisp_hostname(struct grisp_eeprom *eeprom);
+#endif
+
 static char *strdupcat(const char *s1, const char *s2) {
   char *res;
-  int len;
+  size_t len;
 
   len = strlen(s1) + strlen(s2) + 1;
   res = malloc(len);
@@ -257,22 +269,39 @@ static char *strdupcat(const char *s1, const char *s2) {
 }
 
 void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset) {
+  (void) addr;
+  (void) len;
+  (void) prot;
+  (void) flags;
+  (void) fd;
+  (void) offset;
   errno = ENODEV;
   return MAP_FAILED;
 }
 
 int munmap(void *addr, size_t len) {
+  (void) addr;
+  (void) len;
   errno = EINVAL;
   return -1;
 }
 
 void maybe_reboot(int should_reboot) {
 #ifdef GRISP_PLATFORM_GRISP2
+  /* TODO: Test if calling bsp_reset() would work */
   if (should_reboot != 0) {
     printk("[ERL] Rebooting...\n");
     sleep(2);
     WDOG_WCR = WDOG_WCR_WDE;
   }
+#elif defined(GRISP_PLATFORM_GRISP_NANO)
+  if (should_reboot != 0) {
+    printk("[ERL] Rebooting...\n");
+    sleep(2);
+    bsp_reset(RTEMS_FATAL_SOURCE_BSP, 0);
+  }
+#else
+  (void) should_reboot;
 #endif
   while (1);
 }
@@ -320,7 +349,7 @@ char* silence_erl_console(char *args) {
   }
 
   /* Copy the parts of the original string and insert the new strings */
-  length_before = pos - args + 2; /* +2 to include the "--" */
+  length_before = (size_t)(pos - args + 2); /* +2 to include the "--" */
   strncpy(new_args, args, length_before);
   strcpy(new_args + length_before, " -noshell -noinput");
   strcpy(new_args + length_before + added_length, pos + 2);
@@ -334,6 +363,9 @@ char* silence_erl_console(char *args) {
 static int ini_file_handler(void *arg, const char *section, const char *name,
                             const char *value) {
   int ok = 0;
+
+#ifndef GRISP_PLATFORM_GRISP_NANO
+
   const char *rootdir = (const char*)arg;
 
   if (strcmp(section, "network") == 0) {
@@ -377,7 +409,9 @@ static int ini_file_handler(void *arg, const char *section, const char *name,
       wpa_supplicant_conf = strdupcat(rootdir, value);
       ok = 1;
     }
-  } else if (strcmp(section, "erlang") == 0) {
+  } else
+#endif
+  if (strcmp(section, "erlang") == 0) {
     if (strcmp(name, "args") == 0) {
       free(erl_args);
       erl_args = strdup(value);
@@ -393,7 +427,7 @@ static int ini_file_handler(void *arg, const char *section, const char *name,
         shell = 2;
         ok = 1;
       }
-#ifdef GRISP_PLATFORM_GRISP2
+#if defined(GRISP_PLATFORM_GRISP2) || defined(GRISP_PLATFORM_GRISP_NANO)
     } else if (strcmp(name, "on_exit") == 0) {
       if (strcmp(value, "reboot") == 0) {
         reboot_on_exit = 1;
@@ -452,6 +486,7 @@ static void evaluate_ini_file(const char *rootdir, const char *ini_file) {
     erl_args = silence_erl_console(erl_args);
 }
 
+#ifndef GRISP_PLATFORM_GRISP_NANO
 static void default_network_ifconfig_lo0(void) {
   int exit_code;
   char *lo0[] = {"ifconfig", "lo0",           "inet", "127.0.0.1",
@@ -499,6 +534,7 @@ static void create_wlandev_adhoc(void) {
     printf("ERROR while setting up edge wlan0 in adhoc mode.");
   }
 }
+#endif
 
 void parse_args(char *args) {
   char *p;
@@ -514,6 +550,7 @@ void parse_args(char *args) {
   }
 }
 
+#ifndef GRISP_PLATFORM_GRISP_NANO
 void set_grisp_hostname(struct grisp_eeprom *eeprom) {
   static char *dynhostname;
   int dynhostname_len = 0;
@@ -528,6 +565,7 @@ void set_grisp_hostname(struct grisp_eeprom *eeprom) {
   assert(rv > 0);
   hostname = dynhostname;
 }
+#endif
 
 void join_paths(const char *part1, const char *part2, char *result, size_t max_size) {
   size_t len1 = strlen(part1);
@@ -638,15 +676,31 @@ void setup_etc(const char *root_dir) {
   }
 }
 
+static void print_rtems_memory_info(void) {
+  Heap_Information_block info;
+  malloc_info(&info);
+  printf("  Number of used blocks: %8" PRIuPTR "\n"
+         "  Largest used block:    %8" PRIuPTR "\n"
+         "  Total bytes used:      %8" PRIuPTR "\n"
+         "  Number of free blocks: %8" PRIuPTR "\n"
+         "  Largest free block:    %8" PRIuPTR "\n"
+         "  Total bytes free:      %8" PRIuPTR "\n",
+         info.Used.number, info.Used.largest, info.Used.total,
+         info.Free.number, info.Free.largest, info.Free.total);
+}
+
 static void Init(rtems_task_argument arg) {
   rtems_status_code sc = RTEMS_SUCCESSFUL;
   int rv = 0;
   static char pwd[1024];
   const char *rootdir;
   static char inifile[192];
-  static char dhcpfile[192];
   char *p;
   struct grisp_eeprom eeprom = {0};
+
+#ifndef GRISP_PLATFORM_GRISP_NANO
+  static char dhcpfile[192];
+#endif
 
 #ifdef GRISP_PLATFORM_GRISP2
 
@@ -656,17 +710,22 @@ static void Init(rtems_task_argument arg) {
 
 #endif
 
+  (void) arg;
+
   printf("[ERL] Initializing\n");
 
   atexit(fatal_atexit);
   rtems_bsd_setlogpriority(rtems_log_priority);
 
+#ifndef GRISP_PLATFORM_GRISP_NANO
   grisp_led_set1(true, true, true);
   grisp_led_set2(false, false, false);
+#endif
 
   printf("[ERL] Initializing buses\n");
   grisp_init_buses();
 
+#ifndef GRISP_PLATFORM_GRISP_NANO
   printf("[ERL] Initializing EEPROM\n");
   grisp_eeprom_init();
   rv = grisp_eeprom_get(&eeprom);
@@ -680,24 +739,39 @@ static void Init(rtems_task_argument arg) {
     printf("[ERL] ERROR: Invalid EEPROM\n");
   }
 #endif
+#else
+  /* FIXME: EEPROM would have to be re-implemented using STM HAL */
+  (void) rv;
+  (void) eeprom;
+#endif
 
   printf("[ERL] Mounting SD card asynchronously\n");
+#ifdef GRISP_PLATFORM_GRISP_NANO
+  grisp_init_sd_card(DEFAULT_MNT);
+#else
   grisp_init_sd_card();
+#endif
   printf("[ERL] Lowering self priority\n");
   grisp_init_lower_self_prio();
   printf("[ERL] Initializing libbsd\n");
   grisp_init_libbsd();
+#ifndef GRISP_PLATFORM_GRISP_NANO
   printf("[ERL] Running ifconfig on lo0\n");
   default_network_ifconfig_lo0();
+#endif
 
   /* Wait for the SD card */
+#ifndef GRISP_PLATFORM_GRISP_NANO
   grisp_led_set1(true, false, true);
+#endif
   sc = grisp_init_wait_for_sd();
   if (sc == RTEMS_SUCCESSFUL) {
     printf("[ERL] SD card mounted\n");
   } else {
     printf("[ERL] ERROR: SD card could not be mounted after timeout\n");
+#ifndef GRISP_PLATFORM_GRISP_NANO
     grisp_led_set1(true, false, false);
+#endif
   }
 
 #ifdef GRISP_PLATFORM_GRISP2
@@ -728,7 +802,7 @@ static void Init(rtems_task_argument arg) {
   printf("[ERL] Booting with arg: %s\n", erl_args);
   parse_args(erl_args);
 
-#ifdef GRISP_PLATFORM_GRISP2
+#if defined(GRISP_PLATFORM_GRISP2) || defined(GRISP_PLATFORM_GRISP_NANO)
   if (reboot_on_exit == 1) {
     printf("[ERL] On exit: reboot\n");
   } else {
@@ -742,11 +816,14 @@ static void Init(rtems_task_argument arg) {
   }
 #endif
 
+#ifndef GRISP_PLATFORM_GRISP_NANO
   sethostname(hostname, strlen(hostname));
   printf("[ERL] hostname: %s\n", hostname);
+#endif
 
   setup_etc(rootdir);
 
+#ifndef GRISP_PLATFORM_GRISP_NANO
   if (start_dhcp) {
     printf("[ERL] Starting DHCP\n");
     grisp_led_set1(false, true, true);
@@ -773,6 +850,7 @@ static void Init(rtems_task_argument arg) {
     }
   }
   grisp_led_set1(false, true, false);
+#endif
 
   printf("[ERL] mkdir /tmp\n");
   rv = mkdir("/tmp", 0755);
@@ -806,6 +884,9 @@ static void Init(rtems_task_argument arg) {
   else
     printf("[ERL] getcwd: %s\n", p);
 
+  printf("[ERL] Heap information:\n");
+  print_rtems_memory_info();
+
   printf("[ERL] Starting BEAM\n");
 
   // Erlang shell
@@ -815,7 +896,9 @@ static void Init(rtems_task_argument arg) {
 
   // RTEMS shell
   } else if (shell == 1) {
+#ifndef GRISP_PLATFORM_GRISP_NANO
     grisp_led_set2(false, true, false);
+#endif
     printf("[ERL] Starting RTEMS shell\n");
 
     sc = rtems_shell_init("SHLL"  /* task name */
@@ -844,6 +927,10 @@ static void Init(rtems_task_argument arg) {
  * Configure LibBSD.
  */
 #include <grisp/libbsd-nexus-config.h>
+
+#ifdef GRISP_PLATFORM_GRISP_NANO
+#define RTEMS_BSD_CONFIG_DOMAIN_PAGE_MBUFS_SIZE (1 * 1024 * 1024)
+#endif
 
 #define RTEMS_BSD_CONFIG_TERMIOS_KQUEUE_AND_POLL
 #define RTEMS_BSD_CONFIG_INIT
@@ -875,9 +962,16 @@ static void Init(rtems_task_argument arg) {
 #define CONFIGURE_INIT_TASK_ATTRIBUTES RTEMS_FLOATING_POINT
 #define CONFIGURE_INIT_TASK_PRIORITY 10
 
+#ifdef GRISP_PLATFORM_GRISP_NANO
+#define CONFIGURE_BDBUF_BUFFER_MAX_SIZE (16 * 1024)
+#define CONFIGURE_BDBUF_MAX_READ_AHEAD_BLOCKS 2
+#define CONFIGURE_BDBUF_MAX_WRITE_BLOCKS 4
+#define CONFIGURE_BDBUF_CACHE_MEMORY_SIZE (512 * 1024)
+#else
 #define CONFIGURE_BDBUF_BUFFER_MAX_SIZE (32 * 1024)
 #define CONFIGURE_BDBUF_MAX_READ_AHEAD_BLOCKS 4
 #define CONFIGURE_BDBUF_CACHE_MEMORY_SIZE (1 * 1024 * 1024)
+#endif
 #define CONFIGURE_BDBUF_READ_AHEAD_TASK_PRIORITY 97
 #define CONFIGURE_SWAPOUT_TASK_PRIORITY 97
 
@@ -912,17 +1006,27 @@ static void Init(rtems_task_argument arg) {
 #define CONFIGURE_SHELL_NO_COMMAND_MFILL
 #define CONFIGURE_SHELL_NO_COMMAND_MMOVE
 
+#ifdef GRISP_PLATFORM_GRISP_NANO
+  #define GRISP_NET_CMDS
+#else
+  #define GRISP_NET_CMDS \
+    &rtems_shell_ARP_Command, \
+    &rtems_shell_PFCTL_Command, \
+    &rtems_shell_PING_Command, \
+    &rtems_shell_IFCONFIG_Command, \
+    &rtems_shell_ROUTE_Command, \
+    &rtems_shell_NETSTAT_Command, \
+    &rtems_shell_DHCPCD_Command, \
+    &rtems_shell_HOSTNAME_Command, \
+    &rtems_shell_WLANSTATS_Command, \
+    &rtems_shell_STARTFTP_Command,
+#endif
+
 #define CONFIGURE_SHELL_USER_COMMANDS \
   &bsp_interrupt_shell_command, \
-  &rtems_shell_ARP_Command, \
-  &rtems_shell_PFCTL_Command, \
-  &rtems_shell_PING_Command, \
-  &rtems_shell_IFCONFIG_Command, \
-  &rtems_shell_ROUTE_Command, \
-  &rtems_shell_NETSTAT_Command, \
-  &rtems_shell_HOSTNAME_Command, \
+  GRISP_NET_CMDS \
   &rtems_shell_SYSCTL_Command, \
-  &rtems_shell_WLANSTATS_Command, \
+  &rtems_shell_VMSTAT_Command, \
   &rtems_shell_BLKSTATS_Command
 
 #define CONFIGURE_SHELL_COMMANDS_ALL
