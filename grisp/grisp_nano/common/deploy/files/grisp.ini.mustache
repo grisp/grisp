@@ -3,7 +3,7 @@ image_path = /media/mmcsd-0-0/{{release_name}}/erts-{{erts_vsn}}/bin/beam.bin
 timeout_in_seconds = 1
 
 [erlang]
-args = erl.rtems -C multi_time_warp -Musac false -MMsco true -MMscs 6 -MMscrfsd 16384 -MMscrpm true -Mea min -MBmmbcs 32 -MDmmbcs 32 -MEmmbcs 32 -MFmmbcs 128 -MHmmbcs 256 -MLmmbcs 1024 -MRmmbcs 32 -MSmmbcs 32 -- -mode embedded -home . -pa . -root {{release_name}} -bindir {{release_name}}/erts-{{erts_vsn}}/bin -boot {{release_name}}/releases/{{release_version}}/start -config {{release_name}}/releases/{{release_version}}/sys.config -kernel inetrc "./erl_inetrc"
+args = erl.rtems -C multi_time_warp -MMscrfsd 16384 -MMscrpm true -Mea min -MBmmbcs 32 -MDmmbcs 32 -MEmmbcs 32 -MFmmbcs 128 -MHmmbcs 256 -MLmmbcs 1024 -MRmmbcs 32 -MSmmbcs 32 -Q 1024 -P 1024 -S 1:1 -SDcpu 1:1 -L -sss 20 -hms 128 -hmbs 4096 -sssdcpu 20 -sssdio 20 -- -mode embedded -home . -pa . -root {{release_name}} -bindir {{release_name}}/erts-{{erts_vsn}}/bin -boot {{release_name}}/releases/{{release_version}}/start -config {{release_name}}/releases/{{release_version}}/sys.config -kernel inetrc "./erl_inetrc"
 shell = erlang
 on_exit = reboot
 on_crash = reboot
