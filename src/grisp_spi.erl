@@ -67,6 +67,7 @@ that wait for a fully received request before replying.
 -export([open/1]).
 -export([open/2]).
 -export([transfer/2]).
+-export_type([ref/0, bus/0]).
 
 % Callbacks
 -ifndef(DOC).
