@@ -1,6 +1,9 @@
 -module(pmod_mtds).
 -moduledoc """
 GRiSP device driver for Digilent Pmod MTDS.
+
+For manuals and a C++ reference driver, see
+https://github.com/Digilent/vivado-library/tree/master/ip/Pmods/PmodMTDS_v1_0
 """.
 -export([clear/1]).  % public, interactions
 -export([start_link/1]).  % public, server management
@@ -11,8 +14,21 @@ GRiSP device driver for Digilent Pmod MTDS.
 -behavior(gen_server).
 -include("grisp_internal.hrl").  % for device record definition
 
+%% milliseconds between querying for touch events
+-define(TOUCH_POLL_PERIOD, 100).
+
+
+
+
+% display is 240x320 — maybe 200x300 in accessible coords?
+
+
+
+
+
+
 %%%
-%%% Public interface
+%%% Public interface for MTDS
 %%%
 
 -type color() :: {R :: float(), G :: float(), B :: float()}.
@@ -27,20 +43,35 @@ clear(Color) ->
     ok.
 
 %%%
-%%% gen_server wrapper for driver
+%%% Public interface for driver
 %%%
-
--doc "Internal state of the MTDS driver.".
--record(state, {bus, buffer = << >>}).
--type state() :: #state{
-    bus :: grisp_spi:ref(),
-    buffer :: binary()
-}.
 
 -doc "Launch the MTDS driver.".
 -spec start_link(grisp_spi:bus()) -> {ok, pid()} | ignore | {error, term()}.
 start_link(Interface) ->
     gen_server:start_link(?MODULE, [Interface], []).
+
+%%%
+%%% gen_server wrapper for driver
+%%%
+
+-type window() :: integer().
+
+-doc "Internal state of the MTDS driver.".
+-record(state, {
+    %% link with MTDS
+    bus, buffer = << >>,
+    %% windowing system
+    window_refs = #{16#C4400000 => default}, listeners = #{}
+}).
+-type state() :: #state{
+    %% link with MTDS
+    bus :: grisp_spi:ref(),
+    buffer :: binary(),
+    %% windowing system
+    window_refs :: #{window() => reference()},
+    listeners :: #{reference() | default => sets:set(pid())}
+}.
 
 -doc false.
 %%% Initializes the bus object to form a driver state, but defers actual
@@ -48,10 +79,8 @@ start_link(Interface) ->
 %%% the way of any supervisor tree.
 init([Interface]) ->
     %% NOTE: MTDS wants to put freq in 3.5–4 MHz, much faster than GRiSP's 0.1 MHz.
-    Bus = grisp_spi:open(Interface),
     ok = grisp_devices:register(Interface, ?MODULE),
-    State = #state{bus = Bus},
-    {ok, State, 0}.
+    {ok, Interface, 0}.
 
 -doc false.
 %%% Handles a call.
@@ -65,14 +94,25 @@ handle_cast(_Request, State) ->
     {noreply, State}.
 
 -doc false.
-%%% Handles a raw message.
-%% TODO: May want to handle other timeouts to lazily poll for touch events.
+%%% Handles raw messages and timeout events.
+%% Poll for touch events.
+handle_info(timeout, State = #state{}) ->
+    {PolledState, Replies} = poll_touch_events(State),
+    lists:foreach(
+        fun(Reply) ->
+            io:format("Event: ~w~n", [Reply])
+        end,
+        Replies
+    ),
+    {noreply, PolledState, ?TOUCH_POLL_PERIOD};
 %% Complete initialization.
-handle_info(timeout, State) ->
+handle_info(timeout, Interface) when is_atom(Interface) ->
+    Bus = grisp_spi:open(Interface),
+    State = #state{bus = Bus},
     %% NOTE: Reference driver toggles the reset pin, but we don't have access.
     {ok, SyncedState} = sync(State),
-    {ok, StartedState, _Reply} = command(SyncedState, {16#1, 16#2}, << >>),
-    {noreply, StartedState}.
+    {ok, StartedState, _Reply} = command(SyncedState, {2#01, 16#2}),
+    {noreply, StartedState, ?TOUCH_POLL_PERIOD}.
 
 -doc false.
 %%% Handles a code update.
@@ -123,6 +163,8 @@ command_payload(Class, Command, Parameters) ->
 -doc "Send a command to MTDS and confirm delivery.".
 -spec command(state(), {class(), command()}, binary()) ->
     {ok, state(), binary()} | {error, any()}.
+command(State, {Class, Command}) ->
+    command(State, {Class, Command}, << >>).
 command(State, {Class, Command}, Parameters) ->
     _DataPackets = [],
 
@@ -181,6 +223,45 @@ sync_exit(State, TrialsToGo) ->
         <<?CONTROL_SYNCING>> -> sync_exit(PeeledState, TrialsToGo - 1)
     end.
 
+-doc "".
+%% TODO: Could limit the recursion here if it interferes with draw commands.
+poll_touch_events(State) ->
+    {ok, QueriedState, Status} = command(State, {?CLASS_UTILITY, 16#11}),
+    case Status of
+        <<0:32/little>> -> {QueriedState, []};
+        _ ->
+            {ok, PolledState, RawResult} = command(QueriedState, {?CLASS_UTILITY, 16#14}),
+            Result = parse_touch_event(RawResult, PolledState),
+            {UltimateState, Results} = poll_touch_events(PolledState),
+            {UltimateState, [Result | Results]}
+    end.
+
+-doc "".
+parse_touch_event(RawResult, State) ->
+    <<
+        _Timestamp:32/little,
+        RawWindowHandle:32/little,
+        X:16/little-signed,
+        MessageKind:16/little,
+        Y:16/little-signed,
+        Weight:8,
+        Speed:8
+    >> = RawResult,
+    Maneuver = {
+        case (MessageKind - 16#10) rem 3 of
+            0 -> down;
+            1 -> move;
+            2 -> up
+        end,
+        (MessageKind - 16#10) div 3
+    },
+    %% TODO: let fail? or maybe filter dispossessed messages?
+    WindowHandle = case State#state.window_refs of
+        #{RawWindowHandle := Ref} -> {RawWindowHandle, Ref};
+        _ -> {RawWindowHandle, none}
+    end,
+    {touch, WindowHandle, Maneuver, {X, Y}, Weight, Speed}.
+
 -doc "Poll MTDS until we see some Goal prefix.".
 -spec wait_until(state(), bitstring()) -> state().
 wait_until(State = #state{buffer = << >>}, Goal) ->
@@ -209,6 +290,10 @@ read(State = #state{buffer = Buffer}, AtLeast) ->
 -spec transfer(state(), binary()) -> state().
 transfer(State = #state{bus = Bus, buffer = Buffer}, Binary) ->
     [Response] = grisp_spi:transfer(Bus, [{?SPI_MODE, Binary}]),
+    % io:format("transfer; in: ~s ; out: ~s ~n", [
+    %     hex_from_binary(Binary),
+    %     hex_from_binary(Response)
+    % ]),
     State#state{buffer = <<Buffer/binary, Response/binary>>}.
 
 -doc "Discard the next unread reply byte from the MTDS.".
@@ -237,3 +322,16 @@ color_from_mtds(Payload) ->
     <<Packed:16/little>> = Payload,
     <<RR:5, GG:6, BB:5>> = <<Packed>>,
     {RR / 2#11111, GG / 2#111111, BB / 2#11111}.
+
+hex_from_binary(Binary) ->
+    <<
+        <<
+            <<
+                <<Y>>
+                ||  <<Nibble:4>> <= <<Byte>>,
+                    Y <- integer_to_list(Nibble, 16)
+            >>/binary,
+            ","
+        >>
+        || <<Byte:8>> <= Binary
+    >>.
