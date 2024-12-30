@@ -5,27 +5,21 @@ GRiSP device driver for Digilent Pmod MTDS.
 For manuals and a C++ reference driver, see
 https://github.com/Digilent/vivado-library/tree/master/ip/Pmods/PmodMTDS_v1_0
 """.
--export([clear/1]).  % public, interactions
+-export([register/1]).  % public, touch events
+-export([  % public, MTDS commands
+    clear/1, display_surface/0, release_surface/1, move_to/2, line_to/2
+]).
 -export([start_link/1]).  % public, server management
 -export([  % private: gen_server callbacks
     init/1, terminate/2, code_change/3,
     handle_call/3, handle_cast/2, handle_info/2
 ]).
+-export([poll_loop/1]).  % private
 -behavior(gen_server).
 -include("grisp_internal.hrl").  % for device record definition
 
 %% milliseconds between querying for touch events
 -define(TOUCH_POLL_PERIOD, 100).
-
-
-
-
-% display is 240x320 — maybe 200x300 in accessible coords?
-
-
-
-
-
 
 %%%
 %%% Public interface for MTDS
@@ -33,13 +27,53 @@ https://github.com/Digilent/vivado-library/tree/master/ip/Pmods/PmodMTDS_v1_0
 
 -type color() :: {R :: float(), G :: float(), B :: float()}.
 
+-doc "".
+register(Window) ->
+    #device{pid = PID} = grisp_devices:default(?MODULE),
+    gen_server:call(PID, {register, self(), Window}).
+
 -doc "Blanks the MTDS to the indicated color.".
 -spec clear(color()) -> ok.
 clear(Color) ->
     {R, G, B} = Color,
-    #device{pid = PID} = grisp_devices:default(?MODULE),
     Payload = mtds_from_color(R, G, B),
-    {ok, <<>>} = gen_server:call(PID, {command, 16#1, 16#b, Payload}),
+    #device{pid = PID} = grisp_devices:default(?MODULE),
+    {ok, <<>>} = gen_server:call(PID, {command, {utility, 16#b}, Payload}),
+    ok.
+
+-doc "".
+display_surface() ->
+    #device{pid = PID} = grisp_devices:default(?MODULE),
+    {ok, <<Handle:32/little, _Rest/binary>>} = gen_server:call(
+        PID, {command, {graphics, 16#1}, << >>}
+    ),
+    %% TODO?: Hide Handle behind a reference?
+    {ok, Handle}.
+
+-doc "".
+release_surface(Handle) ->
+    #device{pid = PID} = grisp_devices:default(?MODULE),
+    {ok, <<>>} = gen_server:call(
+        PID, {command, {graphics, 16#3}, <<Handle:32/little>>}
+    ),
+    ok.
+
+-doc "".
+move_to(Handle, _Position = {X, Y}) ->
+    #device{pid = PID} = grisp_devices:default(?MODULE),
+    Payload = <<Handle:32/little, X:16/little, Y:16/little>>,
+    {ok, <<>>} = gen_server:call(
+        PID, {command, {graphics, 16#33}, Payload}
+    ),
+    ok.
+
+-doc "".
+line_to(Handle, _Position = {X, Y}) ->
+    #device{pid = PID} = grisp_devices:default(?MODULE),
+    Payload = <<Handle:32/little, X:16/little, Y:16/little>>,
+    {ok, <<>>} = gen_server:call(
+        PID, {command, {graphics, 16#35}, Payload}
+    ),
     ok.
 
 %%%
@@ -78,15 +112,43 @@ start_link(Interface) ->
 %%% device initialization to a timeout (see handle_info/2) so as not to get in
 %%% the way of any supervisor tree.
 init([Interface]) ->
-    %% NOTE: MTDS wants to put freq in 3.5–4 MHz, much faster than GRiSP's 0.1 MHz.
+    %% NOTE: MTDS wants to put freq in 3.5–4 MHz, whereas GRiSP runs at 0.1 MHz.
     ok = grisp_devices:register(Interface, ?MODULE),
     {ok, Interface, 0}.
 
 -doc false.
 %%% Handles a call.
-handle_call({command, Class, Command, Parameters}, _From, State) ->
+handle_call({command, {ClassAtom, Command}, Parameters}, _From, State) ->
+    Class = class_from_atom(ClassAtom),
     {ok, NewState, Reply} = command(State, {Class, Command}, Parameters),
-    {reply, {ok, Reply}, NewState}.
+    {reply, {ok, Reply}, NewState};
+handle_call({register, PID, Window}, _From, State) ->
+    #state{listeners = Listeners} = State,
+    NewListeners = case Listeners of
+        #{Window := Registrants} ->
+            Listeners#{Window => sets:add_element(PID, Registrants)};
+        _ ->
+            Listeners#{Window => sets:from_list([PID])}
+    end,
+    NewState = State#state{listeners = NewListeners},
+    {reply, ok, NewState};
+%% Poll for touch events.
+handle_call(poll_touch_events, _From, State = #state{}) ->
+    {NewState, Replies} = poll_touch_events(State),
+    lists:foreach(
+        fun(Reply = {touch, WindowRef, _Action, _Position, _Speed, _Weight}) ->
+            case NewState#state.listeners of
+                #{WindowRef := Listeners} ->
+                    lists:foreach(
+                        fun(Listener) -> Listener ! Reply end,
+                        sets:to_list(Listeners)
+                    );
+                _ -> ok
+            end
+        end,
+        Replies
+    ),
+    {reply, ok, NewState}.
 
 -doc false.
 %%% Handles a cast.
@@ -95,16 +157,6 @@ handle_cast(_Request, State) ->
 
 -doc false.
 %%% Handles raw messages and timeout events.
-%% Poll for touch events.
-handle_info(timeout, State = #state{}) ->
-    {PolledState, Replies} = poll_touch_events(State),
-    lists:foreach(
-        fun(Reply) ->
-            io:format("Event: ~w~n", [Reply])
-        end,
-        Replies
-    ),
-    {noreply, PolledState, ?TOUCH_POLL_PERIOD};
 %% Complete initialization.
 handle_info(timeout, Interface) when is_atom(Interface) ->
     Bus = grisp_spi:open(Interface),
@@ -112,7 +164,8 @@ handle_info(timeout, Interface) when is_atom(Interface) ->
     %% NOTE: Reference driver toggles the reset pin, but we don't have access.
     {ok, SyncedState} = sync(State),
     {ok, StartedState, _Reply} = command(SyncedState, {2#01, 16#2}),
-    {noreply, StartedState, ?TOUCH_POLL_PERIOD}.
+    spawn_link(?MODULE, poll_loop, [self()]),  % set up touch poll
+    {noreply, StartedState}.
 
 -doc false.
 %%% Handles a code update.
@@ -124,6 +177,16 @@ code_change(_OldVsn, State, _Extra) ->
 terminate(_Reason, _State) ->
     ok.
 
+-doc false.
+%%% Prompts the main server to poll for touch events.
+poll_loop(PID) ->
+    receive
+        stop -> ok
+    after ?TOUCH_POLL_PERIOD ->
+        gen_server:call(PID, poll_touch_events),
+        poll_loop(PID)
+    end.
+
 %%%
 %%% Underlying device comms
 %%%
@@ -132,9 +195,7 @@ terminate(_Reason, _State) ->
 -define(SPI_MODE, #{clock => {low, leading}}).
 
 -define(HEADER_COMMAND, 2#01).
--define(HEADER_STATUS, 2#10).
-
--define(CLASS_UTILITY, 2#01).
+-define(HEADER_STATUS,  2#10).
 
 -define(CONTROL_READ,  16#1).
 -define(CONTROL_START, 16#2).
@@ -144,6 +205,9 @@ terminate(_Reason, _State) ->
 -define(CONTROL_SYNCING, 16#25).
 
 -define(STATUS_OK, 16#0).
+
+-define(CLASS_UTILITY,  2#01).
+-define(CLASS_GRAPHICS, 2#10).
 
 -type class() :: 0..3 .
 -type command() :: 0..63 .
@@ -196,7 +260,8 @@ sync(State) ->
     {ok, StartedState#state{buffer = << >>}}.
 
 -doc "Puts the MTDS into the synchronizing state.".
--spec sync_enter(state(), integer(), integer()) -> {ok, state()} | {error, any()}.
+-spec sync_enter(state(), integer(), integer()) ->
+    {ok, state()} | {error, any()}.
 sync_enter(State, _SuccessesNeeded = 0, _TrialsToGo) ->
     {ok, State};
 sync_enter(_State, _SuccessesNeeded, _TrialsToGo = 0) ->
@@ -230,7 +295,9 @@ poll_touch_events(State) ->
     case Status of
         <<0:32/little>> -> {QueriedState, []};
         _ ->
-            {ok, PolledState, RawResult} = command(QueriedState, {?CLASS_UTILITY, 16#14}),
+            {ok, PolledState, RawResult} = command(
+                QueriedState, {?CLASS_UTILITY, 16#14}
+            ),
             Result = parse_touch_event(RawResult, PolledState),
             {UltimateState, Results} = poll_touch_events(PolledState),
             {UltimateState, [Result | Results]}
@@ -257,8 +324,8 @@ parse_touch_event(RawResult, State) ->
     },
     %% TODO: let fail? or maybe filter dispossessed messages?
     WindowHandle = case State#state.window_refs of
-        #{RawWindowHandle := Ref} -> {RawWindowHandle, Ref};
-        _ -> {RawWindowHandle, none}
+        #{RawWindowHandle := Ref} -> Ref;
+        _ -> none
     end,
     {touch, WindowHandle, Maneuver, {X, Y}, Weight, Speed}.
 
@@ -290,10 +357,6 @@ read(State = #state{buffer = Buffer}, AtLeast) ->
 -spec transfer(state(), binary()) -> state().
 transfer(State = #state{bus = Bus, buffer = Buffer}, Binary) ->
     [Response] = grisp_spi:transfer(Bus, [{?SPI_MODE, Binary}]),
-    % io:format("transfer; in: ~s ; out: ~s ~n", [
-    %     hex_from_binary(Binary),
-    %     hex_from_binary(Response)
-    % ]),
     State#state{buffer = <<Buffer/binary, Response/binary>>}.
 
 -doc "Discard the next unread reply byte from the MTDS.".
@@ -306,6 +369,10 @@ drop(State) ->
 %%%
 %%% Utilities
 %%%
+
+-doc "".
+class_from_atom(utility)  -> ?CLASS_UTILITY;
+class_from_atom(graphics) -> ?CLASS_GRAPHICS.
 
 -doc "Convert an RGB triple in [0.0, 1.0] to an MTDS-compatible color payload.".
 -spec mtds_from_color(R :: float(), G :: float(), B :: float()) -> binary().
@@ -335,3 +402,6 @@ hex_from_binary(Binary) ->
         >>
         || <<Byte:8>> <= Binary
     >>.
+
+%%% NOTES:
+%%%     display is 240x320 — maybe 200x300 in accessible coords?
