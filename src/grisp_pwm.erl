@@ -127,6 +127,18 @@
         "PWM8_PWMCNR" => 16#20F_C014
 }).
 
+-define(PIMUXING, #{
+        gpio1_8  => #{pwm_id => 3, register => 16#20E_0120, value => <<1:32>>},
+        gpio1_4  => #{pwm_id => 3, register => 16#20E_006C, value => <<1:32>>},
+        gpio1_2  => #{pwm_id => 4, register => 16#20E_0070, value => <<1:32>>},
+        gpio_2_6 => #{pmw_id => 8, register => 16#20E_01E0, value => <<6:32>>},
+        spi2_7   => #{pmw_id => 7, register => 16#20E_01DC, value => <<6:32>>},
+        uart_8   => #{pmw_id => 1, register => 16#20E_0118, value => <<1:32>>},
+        uart_9   => #{pmw_id => 2, register => 16#20E_011C, value => <<1:32>>},
+        jtag_4   => #{pmw_id => 7, register => 16#20E_0054, value => <<4:32>>},
+        jtag_8   => #{pmw_id => 6, register => 16#20E_0050, value => <<4:32>>}
+}).
+
 -spec default_pwm_config() -> pwm_config().
 default_pwm_config() ->
     #pwm_config{
