@@ -64,7 +64,7 @@
 -type fifo_write_error() :: true | false.
 -type status() :: #status{}.
 
--type period() :: 0..65535.
+-type period() :: <<_:16>>.
 
 % the names correspond to the
 % i.MX 6UltraLite Applications
@@ -165,10 +165,10 @@ default_interrupt_config() ->
 
 -spec setup(pwm_id()) -> status().
 setup(PWMId) ->
-    setup(PWMId, grisp_pwm:default_pwm_config(), 256, <<128:16>>).
+    setup(PWMId, grisp_pwm:default_pwm_config(), <<256:16>>, <<128:16>>).
 
 -spec setup(pwm_id(), pwm_config(), period(), sample()) -> status().
-setup(PWMId, Config = #pwm_config{}, Period, Sample) when is_number(PWMId), is_number(Period), is_binary(Sample) ->
+setup(PWMId, Config = #pwm_config{}, Period, Sample) when is_number(PWMId), is_binary(Period), is_binary(Sample) ->
     % make sure PMW is disabled
     set_activation(PWMId, false),
     % configure PWM Control Register
@@ -194,8 +194,8 @@ setup(PWMId, Config = #pwm_config{}, Period, Sample) when is_number(PWMId), is_n
     status(PWMId).
 
 -spec set_pwm_period(pwm_id(), period()) -> ok.
-set_pwm_period(PWMId, Period) when is_integer(PWMId), is_integer(Period) ->
-    set_register(address(PWMId, "PWMPR"), <<0:16, <<Period:16/big>>/binary>>).
+set_pwm_period(PWMId, Period) when is_integer(PWMId), is_binary(Period) ->
+    set_register(address(PWMId, "PWMPR"), <<0:16, Period/binary>>).
 
 
 -spec status(pwm_id()) -> status().
