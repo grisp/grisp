@@ -153,7 +153,7 @@ default_interrupt_config() ->
 
 -spec setup(pwm_id()) -> status().
 setup(PWMId) ->
-    setup(PWMId, grisp_pwm:default_pwm_config(), 0, <<32768:16>>).
+    setup(PWMId, grisp_pwm:default_pwm_config(), 256, <<128:16>>).
 
 -spec setup(pwm_id(), pwm_config(), period(), sample()) -> status().
 setup(PWMId, Config = #pwm_config{}, Period, Sample) when is_number(PWMId), is_number(Period), is_binary(Sample) ->
@@ -346,4 +346,3 @@ set_register(Address, <<Value:32/big>>) when is_number(Address) ->
 get_register(Address) when is_number(Address) ->
     Value = grisp_gpio:get_register32(Address),
     <<Value:32/big>>.
-
