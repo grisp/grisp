@@ -238,16 +238,6 @@ start_link(Interface) ->
 %%% gen_server wrapper for driver
 %%%
 
-%% Device-side memory region constants.
-%%
-%% It would be nice to place these down with the other device-specific
-%% constants, but these are needed to set up the default touch region.
--define(REGION_FONT,   16#C3000000).
--define(REGION_WINDOW, 16#C4000000).
-
--define(STOCK_FONT,   16#00300000).
--define(STOCK_WINDOW, 16#00400000).
-
 -doc "Internal state of the MTDS driver.".
 -record(state, {
     %% link with MTDS
@@ -380,13 +370,23 @@ poll_loop(PID) ->
 -type class() :: 0..3 .
 -type command() :: 0..63 .
 
+%% Device-side memory region constants.
+%%
+%% It would be nice to place these down with the other device-specific
+%% constants, but these are needed to set up the default touch region.
+-define(REGION_FONT,   16#C3000000).
+-define(REGION_WINDOW, 16#C4000000).
+
+-define(STOCK_FONT,   16#00300000).
+-define(STOCK_WINDOW, 16#00400000).
+
 -doc "Package a command sequence into a binary payload.".
 -spec command_payload(integer(), integer(), binary()) -> binary().
 command_payload(Class, Command, Parameters) ->
     Size = size(Parameters),
     <<
         ?HEADER_COMMAND:2,
-        Class:6,  % this is which command
+        Class:6,
         Command:8,
         Size:16/little,
         Parameters/binary
