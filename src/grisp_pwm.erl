@@ -1,8 +1,27 @@
 -module(grisp_pwm).
--export([setup/4]).
--export([default_pwm_config/0]).
+-behaviour(gen_server).
 
--compile(export_all).
+% API
+-export([
+    start_link/0,
+    open/4,
+    close/1,
+    set_sample/2,
+    default_pwm_config/0
+]).
+
+% gen_server callbacks
+-export([
+    init/1,
+    handle_call/3,
+    handle_cast/2,
+    handle_info/2,
+    terminate/2,
+    code_change/3
+]).
+
+% export for testability
+-export([get_register/1, set_register/2, setup/4]).
 
 -record(pwm_config, {
     sample_repeat :: sample_repeat(),
@@ -32,6 +51,20 @@
     fifo_write_error :: fifo_write_error()
 }).
 
+-record(pin_state, {
+    pin :: pin(),
+    pwm_id :: pwm_id(),
+    mux_register :: number(),
+    previous_mux_value :: <<_:32>>,
+    config :: #pwm_config{},
+    period :: <<_:32>>
+}).
+
+-record(state, {
+    pin_states :: #{atom() => #pin_state{}}
+}).
+
+-type pin() :: gpio1_2 | gpio1_4 | gpio1_8 | gpio_2_6 | spi2_7 | uart_8 | uart_9 | jtag_4 | jtag_8.
 
 -type pwm_id() :: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8.
 
@@ -127,10 +160,10 @@
         "PWM8_PWMCNR" => 16#20F_C014
 }).
 
--define(PIMUXING, #{
-        gpio1_8  => #{pwm_id => 3, register => 16#20E_0120, value => <<1:32>>},
-        gpio1_4  => #{pwm_id => 3, register => 16#20E_006C, value => <<1:32>>},
+-define(PINMUXING, #{
         gpio1_2  => #{pwm_id => 4, register => 16#20E_0070, value => <<1:32>>},
+        gpio1_4  => #{pwm_id => 3, register => 16#20E_006C, value => <<1:32>>},
+        gpio1_8  => #{pwm_id => 3, register => 16#20E_0120, value => <<1:32>>},
         gpio_2_6 => #{pmw_id => 8, register => 16#20E_01E0, value => <<6:32>>},
         spi2_7   => #{pmw_id => 7, register => 16#20E_01DC, value => <<6:32>>},
         uart_8   => #{pmw_id => 1, register => 16#20E_0118, value => <<1:32>>},
@@ -139,12 +172,29 @@
         jtag_8   => #{pmw_id => 6, register => 16#20E_0050, value => <<4:32>>}
 }).
 
+% API
+
+start_link() ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+-spec open(pin(), pwm_config(), period(), sample()) -> ok | {error, _}.
+open(Pin, Config = #pwm_config{}, Period, Sample) when is_atom(Pin), is_binary(Period), is_binary(Sample) ->
+    gen_server:call(?MODULE, {open, Pin, Config, Period, Sample}).
+
+-spec close(pin()) -> ok.
+close(Pin) when is_atom(Pin) ->
+    gen_server:call(?MODULE, {close, Pin}).
+
+-spec set_sample(pin(), sample()) -> ok | {error | _}.
+set_sample(Pin, Sample) when is_atom(Pin), is_binary(Sample) ->
+    gen_server:call(?MODULE, {set_sample, Pin, Sample}).
+
 -spec default_pwm_config() -> pwm_config().
 default_pwm_config() ->
     #pwm_config{
         sample_repeat = 1,
-        prescale = 1,
-        clock = ipg_clk_32k,
+        prescale = 10,
+        clock = ipg_clk,
         output_config = set_at_rollover,
         swap_half_word = false,
         swap_sample = false,
@@ -163,11 +213,82 @@ default_interrupt_config() ->
        fifo_empty_interrupt = false
     }.
 
--spec setup(pwm_id()) -> status().
-setup(PWMId) ->
-    setup(PWMId, grisp_pwm:default_pwm_config(), <<256:16>>, <<128:16>>).
+% gen_server callbacks
 
--spec setup(pwm_id(), pwm_config(), period(), sample()) -> status().
+init([]) ->
+    {ok, #state{pin_states = #{}}}.
+
+handle_call({open, Pin, Config, Period, Sample}, _From, State) ->
+    case maps:get(Pin, State#state.pin_states, nil) of
+        nil ->
+            case maps:get(Pin, ?PINMUXING, nil) of
+                nil ->
+                    {reply, {error, unknown_pin}, State};
+                #{pwm_id := PWMId, register := MuxRegister, value := MuxValue} ->
+                    % we have to make sure that the PWM unit is not used already
+                    case [PinState || PinState <- maps:values(State#state.pin_states), PinState#pin_state.pwm_id==PWMId] of
+                        [#pin_state{pin = ConflictingPin}] ->
+                            {reply, {error, conflicting_pin, ConflictingPin}, State};
+                        [] ->
+                            PinState = #pin_state{
+                                pin = Pin,
+                                pwm_id = PWMId,
+                                mux_register = MuxRegister,
+                                previous_mux_value = ?MODULE:get_register(MuxRegister),
+                                config = Config,
+                                period = Period
+                            },
+                            ?MODULE:set_register(MuxRegister, MuxValue),
+                            ok = ?MODULE:setup(PWMId, Config, Period, Sample),
+                            NextState = State#state{ pin_states = maps:put(Pin, PinState, State#state.pin_states)},
+                            {reply, ok, NextState}
+                    end
+            end;
+        _   ->
+            {reply, {error, already_open}, State}
+    end;
+handle_call({close, Pin}, _From, State) ->
+    case maps:get(Pin, State#state.pin_states, nil) of
+        nil ->
+            % the pin is not in the state, we just confirm the close
+            % so close/1 is idempotent
+            {reply, ok, State};
+        #pin_state{
+            pwm_id = PWMId,
+            mux_register = MuxRegister,
+            previous_mux_value = PreviousMuxValue
+        } ->
+            reset(PWMId),
+            ?MODULE:set_register(MuxRegister, PreviousMuxValue),
+            NextState = State#state{ pin_states = maps:remove(Pin, State#state.pin_states)},
+            {reply, ok, NextState}
+    end;
+handle_call({set_sample, Pin, Sample}, _From, State) ->
+    case maps:get(Pin, State#state.pin_states, nil) of
+        nil ->
+            {error, pin_not_open};
+        #pin_state{
+            pwm_id = PWMId
+        } ->
+            fill_sample_fifo(PWMId, Sample),
+            {reply, ok, State}
+    end.
+
+handle_cast(_Msg, State) ->
+    {noreply, State}.
+
+handle_info(_Info, State) ->
+    {noreply, State}.
+
+terminate(_Reason, _State) ->
+    ok.
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
+% internal functions
+
+-spec setup(pwm_id(), pwm_config(), period(), sample()) -> ok.
 setup(PWMId, Config = #pwm_config{}, Period, Sample) when is_number(PWMId), is_binary(Period), is_binary(Sample) ->
     % make sure PMW is disabled
     set_activation(PWMId, false),
@@ -176,9 +297,7 @@ setup(PWMId, Config = #pwm_config{}, Period, Sample) when is_number(PWMId), is_b
     % configure PWM Interrupt Register
     configure_interrupts(PWMId, default_interrupt_config()),
     % write to PWM Sample Register
-    set_sample(PWMId, Sample),
-    set_sample(PWMId, Sample),
-    set_sample(PWMId, Sample),
+    fill_sample_fifo(PWMId, Sample),
     % get PWM status
     Status = status(PWMId),
     % check FIFO Write Error status bit
@@ -191,16 +310,16 @@ setup(PWMId, Config = #pwm_config{}, Period, Sample) when is_number(PWMId), is_b
     set_pwm_period(PWMId, Period),
     % enable PWM
     set_activation(PWMId, true),
-    status(PWMId).
+    ok.
 
 -spec set_pwm_period(pwm_id(), period()) -> ok.
 set_pwm_period(PWMId, Period) when is_integer(PWMId), is_binary(Period) ->
-    set_register(address(PWMId, "PWMPR"), <<0:16, Period/binary>>).
+    ?MODULE:set_register(address(PWMId, "PWMPR"), <<0:16, Period/binary>>).
 
 
 -spec status(pwm_id()) -> status().
 status(PWMId) ->
-    <<_:25, FWE:1, CMP:1, ROV:1, FE:1, FIFOAV1:1, FIFOAV2:1, FIFOAV3:1>> = get_register(address(PWMId, "PWMSR")),
+    <<_:25, FWE:1, CMP:1, ROV:1, FE:1, FIFOAV1:1, FIFOAV2:1, FIFOAV3:1>> = ?MODULE:get_register(address(PWMId, "PWMSR")),
     FIFOAV =
     case {FIFOAV1, FIFOAV2, FIFOAV3} of
         {0, 0, 0} -> 0;
@@ -217,9 +336,10 @@ status(PWMId) ->
         fifo_write_error = (FWE == 1)
      }.
 
--spec set_sample(pwm_id(), sample()) -> ok.
-set_sample(PWMId, Sample) when is_integer(PWMId), is_binary(Sample) ->
-    set_register(address(PWMId, "PWMSAR"), <<0:16, Sample/binary>>).
+-spec fill_sample_fifo(pwm_id(), sample()) -> ok.
+fill_sample_fifo(PWMId, Sample) when is_integer(PWMId), is_binary(Sample) ->
+    [?MODULE:set_register(address(PWMId, "PWMSAR"), <<0:16, Sample/binary>>) || _ <- [1, 2, 3]],
+    ok.
 
 -spec configure_interrupts(pwm_id(), pwm_interrupt_config()) -> pwm_interrupt_config().
 configure_interrupts(PWMId, Interrupts = #pwm_interrupt_config{}) when is_integer(PWMId) ->
@@ -244,7 +364,7 @@ configure_interrupts(PWMId, Interrupts = #pwm_interrupt_config{}) when is_intege
         RolloverInterrupt/bitstring,
         FifoEmptyInterrupt/bitstring
     >>,
-    set_register(address(PWMId, "PWMIR"), Data).
+    ?MODULE:set_register(address(PWMId, "PWMIR"), Data).
 
 
 -spec configure( pwm_id(), pwm_config()) -> ok.
@@ -325,15 +445,15 @@ configure(PWMId, Config = #pwm_config{}) when is_integer(PWMId) ->
         SampleRepeat/bitstring,
         Enable/bitstring
     >>,
-    set_register(address(PWMId, "PWMCR"), Data),
+    ?MODULE:set_register(address(PWMId, "PWMCR"), Data),
     ok.
 
 -spec reset(pwm_id()) -> ok.
 reset(PWMId) when is_integer(PWMId)->
     Address = address(PWMId, "PWMCR"),
-    <<Pre:28, _Reset:1, Post:3>> = get_register(Address),
+    <<Pre:28, _Reset:1, Post:3>> = ?MODULE:get_register(Address),
     Data = <<Pre:28, 1:1, Post:3>>,
-    set_register(Address, Data).
+    ?MODULE:set_register(Address, Data).
 
 
 -spec set_activation(pwm_id(), pwm_activation()) -> ok.
@@ -344,9 +464,9 @@ set_activation(PWMId, Active) when is_number(PWMId), is_atom(Active) ->
         false -> <<0:1>>
     end,
     Address = address(PWMId, "PWMCR"),
-    <<Rest:31, _:1>> = get_register(Address),
+    <<Rest:31, _:1>> = ?MODULE:get_register(Address),
     RegisterWithActivation = <<<<Rest:31>>/bitstring, ActiveBit/bitstring>>,
-    set_register(Address, RegisterWithActivation),
+    ?MODULE:set_register(Address, RegisterWithActivation),
     ok.
 
 address(PWMId, Key) when is_number(PWMId), is_list(Key) ->
