@@ -4,7 +4,7 @@
 % API
 -export([
     start_link/0,
-    open/4,
+    open/3,
     close/1,
     set_sample/2,
     default_pwm_config/0
@@ -21,12 +21,13 @@
 ]).
 
 % export for testability
--export([get_register/1, set_register/2, setup/4]).
+-export([get_register/1, set_register/2, setup/3]).
 
 -record(pwm_config, {
     sample_repeat :: sample_repeat(),
     prescale :: prescale(),
     clock :: clock(),
+    period :: period(),
     output_config :: output_config(),
     swap_half_word :: swap_half_word(),
     swap_sample :: swap_sample(),
@@ -56,8 +57,7 @@
     pwm_id :: pwm_id(),
     mux_register :: number(),
     previous_mux_value :: <<_:32>>,
-    config :: #pwm_config{},
-    period :: <<_:32>>
+    config :: #pwm_config{}
 }).
 
 -record(state, {
@@ -177,9 +177,9 @@
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
--spec open(pin(), pwm_config(), period(), sample()) -> ok | {error, _}.
-open(Pin, Config = #pwm_config{}, Period, Sample) when is_atom(Pin), is_binary(Period), is_binary(Sample) ->
-    gen_server:call(?MODULE, {open, Pin, Config, Period, Sample}).
+-spec open(pin(), pwm_config(), sample()) -> ok | {error, _}.
+open(Pin, Config = #pwm_config{}, Sample) when is_atom(Pin), is_binary(Sample) ->
+    gen_server:call(?MODULE, {open, Pin, Config, Sample}).
 
 -spec close(pin()) -> ok.
 close(Pin) when is_atom(Pin) ->
@@ -195,6 +195,7 @@ default_pwm_config() ->
         sample_repeat = 1,
         prescale = 10,
         clock = ipg_clk,
+        period = <<256:32>>,
         output_config = set_at_rollover,
         swap_half_word = false,
         swap_sample = false,
@@ -218,7 +219,7 @@ default_interrupt_config() ->
 init([]) ->
     {ok, #state{pin_states = #{}}}.
 
-handle_call({open, Pin, Config, Period, Sample}, _From, State) ->
+handle_call({open, Pin, Config, Sample}, _From, State) ->
     case maps:get(Pin, State#state.pin_states, nil) of
         nil ->
             case maps:get(Pin, ?PINMUXING, nil) of
@@ -235,11 +236,10 @@ handle_call({open, Pin, Config, Period, Sample}, _From, State) ->
                                 pwm_id = PWMId,
                                 mux_register = MuxRegister,
                                 previous_mux_value = ?MODULE:get_register(MuxRegister),
-                                config = Config,
-                                period = Period
+                                config = Config
                             },
                             ?MODULE:set_register(MuxRegister, MuxValue),
-                            ok = ?MODULE:setup(PWMId, Config, Period, Sample),
+                            ok = ?MODULE:setup(PWMId, Config, Sample),
                             NextState = State#state{ pin_states = maps:put(Pin, PinState, State#state.pin_states)},
                             {reply, ok, NextState}
                     end
@@ -288,8 +288,8 @@ code_change(_OldVsn, State, _Extra) ->
 
 % internal functions
 
--spec setup(pwm_id(), pwm_config(), period(), sample()) -> ok.
-setup(PWMId, Config = #pwm_config{}, Period, Sample) when is_number(PWMId), is_binary(Period), is_binary(Sample) ->
+-spec setup(pwm_id(), pwm_config(), sample()) -> ok.
+setup(PWMId, Config = #pwm_config{}, Sample) when is_number(PWMId), is_binary(Sample) ->
     % make sure PMW is disabled
     set_activation(PWMId, false),
     % configure PWM Control Register
@@ -307,7 +307,7 @@ setup(PWMId, Config = #pwm_config{}, Period, Sample) when is_number(PWMId), is_b
     % check Roll-over status bit
     false = Status#status.roll_over_event,
     % write PWM Period Register
-    set_pwm_period(PWMId, Period),
+    set_pwm_period(PWMId, Config#pwm_config.period),
     % enable PWM
     set_activation(PWMId, true),
     ok.
