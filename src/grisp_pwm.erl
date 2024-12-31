@@ -88,7 +88,7 @@
 -type fifo_empty_interrupt() :: true | false.
 -type pwm_interrupt_config() :: #pwm_interrupt_config{}.
 
--type sample() :: <<_:16>>.
+-type sample() :: <<_:16>> | float().
 
 -type fifo_available() :: 0 | 1 | 2 | 3 | 4.
 -type fifo_empty() :: true | false.
@@ -178,15 +178,20 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 -spec open(pin(), pwm_config(), sample()) -> ok | {error, _}.
-open(Pin, Config = #pwm_config{}, Sample) when is_atom(Pin), is_binary(Sample) ->
-    gen_server:call(?MODULE, {open, Pin, Config, Sample}).
+open(Pin, Config = #pwm_config{}, Sample) when is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
+    case sample_to_bin(Sample, Config#pwm_config.period) of
+        {ok, SampleBin} ->
+            gen_server:call(?MODULE, {open, Pin, Config, SampleBin});
+        Error ->
+            Error
+        end.
 
 -spec close(pin()) -> ok.
 close(Pin) when is_atom(Pin) ->
     gen_server:call(?MODULE, {close, Pin}).
 
 -spec set_sample(pin(), sample()) -> ok | {error | _}.
-set_sample(Pin, Sample) when is_atom(Pin), is_binary(Sample) ->
+set_sample(Pin, Sample) when is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
     gen_server:call(?MODULE, {set_sample, Pin, Sample}).
 
 -spec default_pwm_config() -> pwm_config().
@@ -264,15 +269,22 @@ handle_call({close, Pin}, _From, State) ->
             {reply, ok, NextState}
     end;
 handle_call({set_sample, Pin, Sample}, _From, State) ->
+    Reply =
     case maps:get(Pin, State#state.pin_states, nil) of
         nil ->
             {error, pin_not_open};
         #pin_state{
-            pwm_id = PWMId
+            pwm_id = PWMId,
+            config = #pwm_config{period = Period}
         } ->
-            fill_sample_fifo(PWMId, Sample),
-            {reply, ok, State}
-    end.
+            case sample_to_bin(Sample, Period) of
+                {ok, SampleBin} ->
+                    fill_sample_fifo(PWMId, SampleBin);
+                Error ->
+                    Error
+            end
+    end,
+    {reply, Reply, State}.
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
@@ -468,6 +480,18 @@ set_activation(PWMId, Active) when is_number(PWMId), is_atom(Active) ->
     RegisterWithActivation = <<<<Rest:31>>/bitstring, ActiveBit/bitstring>>,
     ?MODULE:set_register(Address, RegisterWithActivation),
     ok.
+
+-spec sample_to_bin(sample(), period()) -> {ok, <<_:32>>} | {error, _}.
+sample_to_bin(+0.0, _) -> {ok, <<0:32>>};
+sample_to_bin(-0.0, _) -> {ok, <<0:32>>};
+sample_to_bin(1.0, Period) -> {ok, Period};
+sample_to_bin(Sample, Period = <<PeriodInt:32>>) when is_float(Sample), Sample >= 0.0, Sample =< 1.0 ->
+    SampleInt = trunc(PeriodInt * Sample),
+    sample_to_bin(<<SampleInt:32>>, Period);
+sample_to_bin(Sample, Period) when is_binary(Sample), Sample =< Period ->
+    {ok, Sample};
+sample_to_bin(_, _) ->
+    {error, sample_out_of_range}.
 
 address(PWMId, Key) when is_number(PWMId), is_list(Key) ->
     maps:get(("PWM" ++ integer_to_list(PWMId) ++ "_" ++ Key), ?ADDRESSES).
