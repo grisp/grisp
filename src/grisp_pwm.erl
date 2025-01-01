@@ -488,8 +488,7 @@ set_activation(PWMId, Active) when is_number(PWMId), is_atom(Active) ->
     Address = address(PWMId, "PWMCR"),
     <<Rest:31, _:1>> = ?MODULE:get_register(Address),
     RegisterWithActivation = <<<<Rest:31>>/bitstring, ActiveBit/bitstring>>,
-    ?MODULE:set_register(Address, RegisterWithActivation),
-    ok.
+    ?MODULE:set_register(Address, RegisterWithActivation).
 
 -spec sample_to_bin(sample(), period()) -> {ok, <<_:16>>} | {error, _}.
 sample_to_bin(+0.0, _) -> {ok, <<0:16>>};
