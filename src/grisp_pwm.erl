@@ -11,6 +11,8 @@
     open/3,
     close/1,
     set_sample/2,
+    config/2,
+    config/3,
     default_config/0
 ]).
 
@@ -222,6 +224,28 @@ default_config() ->
         run_if_stop = false,
         flag_empty_water_mark = 2
       }.
+
+-spec config(prescale(), period()) -> pwm_config().
+config(Prescale, Period = <<_:16>>) when is_integer(Prescale), Prescale >= 1  ->
+    config(ipg_clk, Prescale, Period).
+
+-spec config(clock(), prescale(), period()) -> pwm_config().
+config(Clock, Prescale, Period = <<_:16>>) when is_atom(Clock), is_integer(Prescale), Prescale >= 1  ->
+    #pwm_config{
+        sample_repeat = 1,
+        prescale = Prescale,
+        clock = Clock,
+        period = Period,
+        output_config = set_at_rollover,
+        swap_half_word = false,
+        swap_sample = false,
+        run_if_debug = true,
+        run_if_wait = false,
+        run_if_doze = false,
+        run_if_stop = false,
+        flag_empty_water_mark = 2
+      }.
+
 
 -spec default_interrupt_config() -> pwm_interrupt_config().
 default_interrupt_config() ->

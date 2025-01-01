@@ -6,6 +6,7 @@
 
 pwm_test_() ->
     {foreach, fun setup/0, fun teardown/1, [
+        fun config_/0,
         fun open_and_close_same_/0,
         fun open_and_close_several_/0,
         fun setting_sample_/0,
@@ -28,6 +29,10 @@ teardown(_) ->
     meck:unload(grisp_pwm).
 
 %--- Tests ---------------------------------------------------------------------
+
+config_() ->
+    DefaultConfig = grisp_pwm:default_config(),
+    ?assertMatch(DefaultConfig, grisp_pwm:config(ipg_clk, 10, <<1024:16>>)).
 
 open_and_close_same_() ->
     OpenReply = grisp_pwm:open(gpio1_2, grisp_pwm:default_config(), <<128:16>>),
