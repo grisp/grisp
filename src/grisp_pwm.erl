@@ -1,9 +1,13 @@
 -module(grisp_pwm).
 -behaviour(gen_server).
 
+% driver
+-export([start_driver/0]).
+
 % API
 -export([
     start_link/0,
+    start_link/2,
     open/3,
     close/1,
     set_sample/2,
@@ -172,10 +176,16 @@
         jtag_8   => #{pmw_id => 6, register => 16#20E_0050, value => <<4:32>>}
 }).
 
-% API
+start_driver() ->
+    grisp:add_device(pwm, ?MODULE, #{}).
 
+%% API
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+% interface for grisp_devices
+start_link(pwm, #{}) ->
+    start_link().
 
 -spec open(pin(), pwm_config(), sample()) -> ok | {error, _}.
 open(Pin, Config = #pwm_config{}, Sample) when is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
@@ -200,7 +210,7 @@ default_pwm_config() ->
         sample_repeat = 1,
         prescale = 10,
         clock = ipg_clk,
-        period = <<256:32>>,
+        period = <<1024:16>>,
         output_config = set_at_rollover,
         swap_half_word = false,
         swap_sample = false,
@@ -219,9 +229,9 @@ default_interrupt_config() ->
        fifo_empty_interrupt = false
     }.
 
-% gen_server callbacks
-
+%% gen_server callbacks
 init([]) ->
+    ok = grisp_devices:register(pwm, ?MODULE),
     {ok, #state{pin_states = #{}}}.
 
 handle_call({open, Pin, Config, Sample}, _From, State) ->
