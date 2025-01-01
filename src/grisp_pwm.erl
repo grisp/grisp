@@ -360,8 +360,8 @@ status(PWMId) ->
 
 -spec fill_sample_fifo(pwm_id(), sample()) -> ok.
 fill_sample_fifo(PWMId, Sample) when is_integer(PWMId), is_binary(Sample) ->
-    [?MODULE:set_register(address(PWMId, "PWMSAR"), <<0:16, Sample/binary>>) || _ <- [1, 2, 3]],
-    ok.
+    % setting one of the slots of the FIFO is enough
+    ?MODULE:set_register(address(PWMId, "PWMSAR"), <<0:16, Sample/binary>>).
 
 -spec configure_interrupts(pwm_id(), pwm_interrupt_config()) -> pwm_interrupt_config().
 configure_interrupts(PWMId, Interrupts = #pwm_interrupt_config{}) when is_integer(PWMId) ->
