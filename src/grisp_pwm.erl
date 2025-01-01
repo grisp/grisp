@@ -481,13 +481,13 @@ set_activation(PWMId, Active) when is_number(PWMId), is_atom(Active) ->
     ?MODULE:set_register(Address, RegisterWithActivation),
     ok.
 
--spec sample_to_bin(sample(), period()) -> {ok, <<_:32>>} | {error, _}.
-sample_to_bin(+0.0, _) -> {ok, <<0:32>>};
-sample_to_bin(-0.0, _) -> {ok, <<0:32>>};
+-spec sample_to_bin(sample(), period()) -> {ok, <<_:16>>} | {error, _}.
+sample_to_bin(+0.0, _) -> {ok, <<0:16>>};
+sample_to_bin(-0.0, _) -> {ok, <<0:16>>};
 sample_to_bin(1.0, Period) -> {ok, Period};
-sample_to_bin(Sample, Period = <<PeriodInt:32>>) when is_float(Sample), Sample >= 0.0, Sample =< 1.0 ->
+sample_to_bin(Sample, Period = <<PeriodInt:16>>) when is_float(Sample), Sample >= 0.0, Sample =< 1.0 ->
     SampleInt = trunc(PeriodInt * Sample),
-    sample_to_bin(<<SampleInt:32>>, Period);
+    sample_to_bin(<<SampleInt:16>>, Period);
 sample_to_bin(Sample, Period) when is_binary(Sample), Sample =< Period ->
     {ok, Sample};
 sample_to_bin(_, _) ->
