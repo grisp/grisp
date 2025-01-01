@@ -178,10 +178,10 @@
         jtag_8   => #{pmw_id => 6, register => 16#20E_0050, value => <<4:32>>}
 }).
 
+%% API
 start_driver() ->
     grisp:add_device(pwm, ?MODULE, #{}).
 
-%% API
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
@@ -257,6 +257,10 @@ default_interrupt_config() ->
 
 %% gen_server callbacks
 init([]) ->
+    % Since this might be a restart we reset all PWM units to a known state.
+    % This might stop running units but at least it ensures that the server
+    % state matches the state of the hardware.
+    [reset(PWMId) || PWMId <- lists:seq(1, 8)],
     ok = grisp_devices:register(pwm, ?MODULE),
     {ok, #state{pin_states = #{}}}.
 
