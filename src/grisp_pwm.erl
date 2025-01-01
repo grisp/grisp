@@ -11,7 +11,7 @@
     open/3,
     close/1,
     set_sample/2,
-    default_pwm_config/0
+    default_config/0
 ]).
 
 % gen_server callbacks
@@ -204,8 +204,10 @@ close(Pin) when is_atom(Pin) ->
 set_sample(Pin, Sample) when is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
     gen_server:call(?MODULE, {set_sample, Pin, Sample}).
 
--spec default_pwm_config() -> pwm_config().
-default_pwm_config() ->
+% this config gives a cycle time of 155.5μs (6.43 MHz)
+% and a resolutin of 10 bit
+-spec default_config() -> pwm_config().
+default_config() ->
     #pwm_config{
         sample_repeat = 1,
         prescale = 10,
