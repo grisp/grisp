@@ -299,7 +299,7 @@ start_link(pwm, #{}) ->
 % ok
 % '''
 % === Clock, Prescale and Period Config Example ===
-% This sets a low frequency clock and results in a 500μs cycle time (2Hz) and a 4bit resolution.
+% This sets a low frequency clock and results in a 500μs cycle time (2Hz) and 4bit resolution.
 % ```
 % 1> grisp_pwm:open(gpio1_8, {ipg_clk_32k, 1, <<16:16>>}, 0.5).
 % ok
