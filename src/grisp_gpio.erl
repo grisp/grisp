@@ -34,6 +34,7 @@
 %   <tr><td>`gpio1_7'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>7</td>  <td>X1404.7</td>    <td>In/Out</td> <td></td></tr>
 %   <tr><td>`gpio1_8'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>8</td>  <td>X1404.8</td>    <td>In/Out</td> <td></td></tr>
 %   <tr><td>`gpio1_9'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>9</td>  <td>X1404.9</td>    <td>In/Out</td> <td></td></tr>
+%   <tr><td>`gpio1_10'</td>   <td>GPIO1</td>    <td>PMOD 1A</td>  <td>10</td> <td>X1404.10</td>   <td>In/Out</td> <td></td></tr>
 %   <tr><td>`gpio_1_3'</td>   <td>GPIO_1</td>   <td>Generic</td>  <td></td>   <td>X1300.3</td>    <td>In/Out</td> <td></td></tr>
 %   <tr><td>`gpio_1_4'</td>   <td>GPIO_1</td>   <td>Generic</td>  <td></td>   <td>X1300.4</td>    <td>In/Out</td> <td></td></tr>
 %   <tr><td>`gpio_1_5'</td>   <td>GPIO_1</td>   <td>Generic</td>  <td></td>   <td>X1300.5</td>    <td>In/Out</td> <td></td></tr>
