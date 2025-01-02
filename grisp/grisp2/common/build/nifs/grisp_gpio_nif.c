@@ -152,78 +152,6 @@ static ERL_NIF_TERM gpio_set_nif(ErlNifEnv *env, int argc,
   return am_ok;
 }
 
-static ERL_NIF_TERM gpio_get_register32_nif(ErlNifEnv *env, int argc,
-                                 const ERL_NIF_TERM argv[]) {
-  uint32_t address;
-  uint32_t value;
-
-  if (!enif_get_uint(env, argv[0], &address)) {
-    return RAISE_TERM(am_invalid_value, argv[0]);
-  }
-  value = *(uint32_t *)(uintptr_t)address;
-  return enif_make_uint(env, value);
-}
-
-static ERL_NIF_TERM gpio_set_register32_nif(ErlNifEnv *env, int argc,
-                                 const ERL_NIF_TERM argv[]) {
-  uint32_t address;
-  uint32_t value;
-
-  if (!enif_get_uint(env, argv[0], &address)) {
-    return RAISE_TERM(am_invalid_value, argv[0]);
-  }
-
-  if (!enif_get_int(env, argv[1], &value)) {
-    return RAISE_TERM(am_invalid_value, argv[1]);
-  }
-  *(uint32_t *)(uintptr_t)address = value;
-  return am_ok;
-}
-
-static void pattern_loop(rtems_task_argument arg) {
-  gpio_pin *pin = (gpio_pin *)arg;
-  for (int i = 0; i < 10000; i++) {
-        imx_gpio_set_output(&(pin->imx), 1);
-        imx_gpio_set_output(&(pin->imx), 0);
-    }
-  rtems_task_delete(RTEMS_SELF);
-}
-
-static ERL_NIF_TERM gpio_set_pattern_nif(ErlNifEnv *env, int argc,
-                                 const ERL_NIF_TERM argv[]) {
-  gpio_pin *pin;
-  rtems_id task_id;
-  rtems_status_code status;
-
-  if (!enif_get_resource(env, argv[0], gpio_pin_rt, (void **)&pin)) {
-    return RAISE_TERM(am_invalid_pin, argv[0]);
-  }
-
-
-    // Create the task
-    status = rtems_task_create(
-        rtems_build_name('T', 'S', 'K', '1'),
-        1,                          // priority
-        RTEMS_MINIMUM_STACK_SIZE,    // stack size
-        RTEMS_DEFAULT_MODES,
-        RTEMS_DEFAULT_ATTRIBUTES,
-        &task_id
-    );
-
-    if (status != RTEMS_SUCCESSFUL) {
-        printf("Pattern task creation failed with status: %d\n", status);
-        return;
-    }
-
-    // Start the task
-    status = rtems_task_start(task_id, pattern_loop, (rtems_task_argument)(uintptr_t)pin);
-    if (status != RTEMS_SUCCESSFUL) {
-        printf("Pattern task start failed with status: %d\n", status);
-    }
-
-  return am_ok;
-}
-
 static ERL_NIF_TERM gpio_get_nif(ErlNifEnv *env, int argc,
                                  const ERL_NIF_TERM argv[]) {
   gpio_pin *pin;
@@ -240,8 +168,6 @@ static ERL_NIF_TERM gpio_get_nif(ErlNifEnv *env, int argc,
 
 static ErlNifFunc nif_funcs[] = {{"gpio_open_nif", 2, &gpio_open_nif},
                                  {"gpio_set_nif", 2, &gpio_set_nif},
-                                 {"gpio_get_register32_nif", 1, &gpio_get_register32_nif},
-                                 {"gpio_set_register32_nif", 2, &gpio_set_register32_nif},
                                  {"gpio_get_nif", 1, &gpio_get_nif}};
 
 ERL_NIF_INIT(grisp_gpio, nif_funcs, &gpio_load, NULL, NULL, NULL)

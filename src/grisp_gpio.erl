@@ -139,8 +139,6 @@
 -export([open/2]).
 -export([set/2]).
 -export([get/1]).
--export([get_register32/1]).
--export([set_register32/2]).
 
 % Callbacks
 -export([on_load/0]).
@@ -212,9 +210,6 @@ open(Pin, UserOpts) ->
 -spec set(ref(), value()) -> ok.
 set(Pin, Value) when is_integer(Value) -> gpio_set_nif(Pin, Value).
 
-set_register32(Address, Value) when is_integer(Address), is_integer(Value) -> gpio_set_register32_nif(Address, Value).
-get_register32(Address) when is_integer(Address) -> gpio_get_register32_nif(Address).
-
 % @doc Returns the current value of a pin.
 %
 % Returns the actual value for input pins or the currently set value for output
@@ -257,8 +252,6 @@ on_load() -> ?NIF_LOAD.
 
 gpio_open_nif(Attributes, Mode) -> ?NIF_STUB([Attributes, Mode]).
 
-gpio_get_register32_nif(Address) -> ?NIF_STUB([Address]).
-gpio_set_register32_nif(Address, Value) -> ?NIF_STUB([Address, Value]).
 gpio_set_nif(Pin, Value) -> ?NIF_STUB([Pin, Value]).
 
 gpio_get_nif(Pin) -> ?NIF_STUB([Pin]).

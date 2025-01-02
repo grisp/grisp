@@ -86,6 +86,7 @@
 
 -module(grisp_pwm).
 -behaviour(gen_server).
+-include("grisp_nif.hrl").
 
 % driver
 -export([start_driver/0]).
@@ -108,6 +109,10 @@
     terminate/2,
     code_change/3
 ]).
+
+% Callbacks
+-export([on_load/0]).
+-on_load(on_load/0).
 
 % export for testability
 -export([get_register/1, set_register/2, setup/3]).
@@ -667,11 +672,18 @@ sample_to_bin(_, _) ->
 address(PWMId, Key) when is_number(PWMId), is_list(Key) ->
     maps:get(("PWM" ++ integer_to_list(PWMId) ++ "_" ++ Key), ?ADDRESSES).
 
+% @private
+on_load() -> ?NIF_LOAD.
+
 %% @private
 set_register(Address, <<Value:32/big>>) when is_number(Address) ->
-    grisp_gpio:set_register32(Address, Value).
+    pwm_set_register32_nif(Address, Value).
 
 %% @private
 get_register(Address) when is_number(Address) ->
-    Value = grisp_gpio:get_register32(Address),
+    Value = pwm_get_register32_nif(Address),
     <<Value:32/big>>.
+
+pwm_get_register32_nif(Address) -> ?NIF_STUB([Address]).
+
+pwm_set_register32_nif(Address, Value) -> ?NIF_STUB([Address, Value]).
