@@ -29,12 +29,12 @@ platform() -> hw_platform_nif().
 % === Example ===
 % ```
 % 1> grisp_hw:eeprom_read().
-% #{grisp_batch => 1,
-%   grisp_pcb_variant => 1,
-%   grisp_pcb_version => "1.2",
-%   grisp_prod_date => {{2021,8,27},{0,0,0}},
-%   grisp_serial => 1002,
-%   grisp_version => "2"}
+% {ok, #{grisp_batch => 1,
+%        grisp_pcb_variant => 1,
+%        grisp_pcb_version => "1.2",
+%        grisp_prod_date => {{2021,8,27},{0,0,0}},
+%        grisp_serial => 1002,
+%        grisp_version => "2"}}
 % '''
 eeprom_read() ->
     <<_SigVersion:8,

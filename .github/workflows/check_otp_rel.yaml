@@ -9,25 +9,26 @@ jobs:
   check-otp:
     runs-on: ubuntu-latest
     steps:
+      - name: Get latest version
+        run: |
+          curl -sL https://api.github.com/repos/erlang/otp/releases/latest | \
+          jq -r ".tag_name" > last_seen_ver.txt
+          echo "LAST_OTP=$(cat last_seen_ver.txt)" >> $GITHUB_ENV
       - uses: actions/cache@v4
         id: version-cache
         env:
           cache-name: cached-version
         with:
           path: last_cached_ver.txt
-          key: ${{env.cache-name}}
-      - name: Cache latest version
-        if: steps.version-cache.outputs.cache-hit != 'true'
-        run: |
-          curl -sL https://api.github.com/repos/erlang/otp/releases/latest | \
-          jq -r ".tag_name" > last_cached_ver.txt
+          key: ${{env.LAST_OTP}}
       - name: Compare with Latest Release Number
         id: compare-vsn
         continue-on-error: true
         run: |
-          curl -sL https://api.github.com/repos/erlang/otp/releases/latest | \
-          jq -r ".tag_name" > last_seen_ver.txt
           diff last_cached_ver.txt last_seen_ver.txt
+      - name: Update cached Version
+        run: |
+          cp last_seen_ver.txt last_cached_ver.txt
       - name: Trigger OTP package build
         if: ${{ steps.compare-vsn.outcome == 'failure' }}
         run: |
@@ -37,4 +38,4 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.everest-preview+json" \
             https://api.github.com/repos/grisp/grisp/dispatches \
-            -d "{\"event_type\":\"new-otp-release\",\"client_payload\":{\"otp\":\"[\\\\\\\"${OTP}\\\\\\\"]\",\"unit\":false,\"integration\":true}}"
+            -d "{\"event_type\":\"new-otp-release\",\"client_payload\":{\"otp\":\"\\\\\\\"${OTP}\\\\\\\"\",\"unit\":false,\"integration\":true}}"
