@@ -1,3 +1,89 @@
+% @doc GriSP Pulse Width Modulation (PWM) API.
+%
+% Pulse Width Modulation (PWM) is used to generate a rectangular wave with a varying duty cycle
+% to control the average power or amplitude delivered.
+% The ARM Cortex-A7 has eight PWM units that can be multiplexed to drive a few different pins.
+%
+% === Typical Use ===
+% ```
+% 1> grisp_pwm:start_driver().
+% {device,pwm,grisp_pwm,<0.353.0>,
+%         #Ref<0.838610995.3080454145.146844>}
+% 2> grisp_pwm:open(gpio1_8, grisp_pwm:default_config(), 0.75).
+% ok
+% '''
+%
+% This creates a rectangular wave on pin `gpio1_8' with a 155.5μs cycle time (6.43MHz) and a duty cycle of 75%
+% (see <a href="#figure_1">Figure 1</a>).
+%
+% You can change the duty cycle by setting a new sample:
+% ```
+% 3> grisp_pwm:set_sample(gpio1_8, 0.5).
+% ok
+% '''
+% If you want to stop using PWM on this pin you can call:
+% ```
+%  4> grisp_pwm:close(gpio1_8).
+%  ok
+% '''
+%
+% <figure id="figure_1">
+%   <img src="images/pmw_example.png" width="1000px" alt=""/>
+%   <figcaption><em>Figure 1. Oscilloscope trace with a 0.75 % duty cycle and the default configuration.</em></figcaption>
+% </figure>
+%
+% === Ramp Example ===
+% You can ramp up the duty cycle from 0% to 100% in one second like this:
+% ```
+% 1> RampSample = fun(X) -> grisp_pwm:set_sample(gpio1_8, (X/100)), timer:sleep(10) end.
+% #Fun<erl_eval.42.39164016>
+% 2> [RampSample(X) || X <- lists:seq(1, 100)].
+% [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,
+% ok,ok,ok,ok,ok,ok,ok,ok,ok,ok|...]
+% '''
+% === Sinusoidal Example ===
+% You can create a sine wave with 1 Hz like this:
+% ```
+% SinSample = fun(X) -> grisp_pwm:set_sample(gpio1_8, math:sin(math:pi()*2*(X/100))), timer:sleep(10) end.
+% 1> [SinSample(X) || X <- lists:seq(1, 1000)].
+% #Fun<erl_eval.42.39164016>
+% 2> [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,
+% ok,ok,ok,ok,ok,ok,ok,ok,ok,ok|...]
+% '''
+% === Pin Mappings ===
+%
+% <table border="1" cellpadding="8">
+%   <caption>GRiSP 2 Pin Mappings</caption>
+%   <tr>
+%     <th rowspan="2">ID</th>
+%     <th colspan="4">Mapping</th>
+%   </tr>
+%   <tr>
+%     <th>Slot</th>
+%     <th>Type</th>
+%     <th>#</th>
+%     <th>Schematic</th>
+%   </tr>
+%   <tr><td>`gpio1_2'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>2</td> <td>X1404.2</td></tr>
+%   <tr><td>`gpio1_4'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>4</td> <td>X1404.4</td></tr>
+%   <tr><td>`gpio1_8'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>8</td> <td>X1404.8</td></tr>
+%   <tr><td>`gpio_2_6'</td>   <td>GPIO_2/4</td> <td>Generic</td>  <td></td>  <td>X1301.6</td></tr>
+%   <tr><td>`spi2_7'</td>     <td>SPI2</td>     <td>SPI</td>      <td></td>  <td>X1402.7</td></tr>
+%   <tr><td>`uart_8'</td>     <td>UART</td>     <td>UART</td>     <td></td>  <td>X1405.8</td></tr>
+%   <tr><td>`uart_9'</td>     <td>UART</td>     <td>UART</td>     <td></td>  <td>X1405.9</td></tr>
+%   <tr><td>`jtag_4'</td>     <td>JTAG</td>     <td>JTAG</td>     <td></td>  <td>X1503.4</td></tr>
+%   <tr><td>`jtag_8'</td>     <td>JTAG</td>     <td>JTAG</td>     <td></td>  <td>X1503.8</td></tr>
+% </table><br/>
+%
+%
+% === Other drivers ===
+% This driver might use pins that are also used by other drivers (GPIO, SPI, UART). When opening a pin the PWM driver
+% takes control and configures the multixplexing so the pin is wired to the corresponding PWM unit.
+% When closing the pin the driver will restore the pevious multiplexing setting, handing back control.
+%
+% Example: `grisp_gpio' is used to set a pin to high, then `grisp_pwm:open/3' is used to drive the pin.
+% After `grisp_pwm:close/1' is called, the pin is set to high and `grisp_gpio' is again in control.
+
 -module(grisp_pwm).
 -behaviour(gen_server).
 
@@ -179,15 +265,26 @@
 }).
 
 %% API
+% @doc Starts the driver and registers a PWM device.
 start_driver() ->
     grisp:add_device(pwm, ?MODULE, #{}).
 
+%% @private
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
+%% @private
 % interface for grisp_devices
 start_link(pwm, #{}) ->
     start_link().
+
+% @doc Opens a pin and sets a configuration and a sample.
+%
+% === Example ===
+% ```
+% 1> grisp_pwm:open(gpio1_8, grisp_pwm:default_config(), 0.75).
+% 2> ok
+% '''
 
 -spec open(pin(), pwm_config(), sample()) -> ok | {error, _}.
 open(Pin, Config = #pwm_config{}, Sample) when is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
@@ -198,16 +295,23 @@ open(Pin, Config = #pwm_config{}, Sample) when is_atom(Pin), is_binary(Sample) o
             Error
         end.
 
+% @doc Closes a pin.
 -spec close(pin()) -> ok.
 close(Pin) when is_atom(Pin) ->
     gen_server:call(?MODULE, {close, Pin}).
 
+% @doc Sets a sample to define the duty cycle.
+%
+% You can pass a float between 0.0 and 1.0 or a 16bit binary.
+% The binary value must be below or equal to the period (`<<1024:16>>' by default).
 -spec set_sample(pin(), sample()) -> ok | {error | _}.
 set_sample(Pin, Sample) when is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
     gen_server:call(?MODULE, {set_sample, Pin, Sample}).
 
-% this config gives a cycle time of 155.5μs (6.43 MHz)
-% and a resolutin of 10 bit
+% @doc Creates a default configuration for PWM.
+%
+% This configuration defines a cycle time of 155.5μs (6.43 MHz)
+% and a resolutin of 10 bit (phase `<<1024:16>>').
 -spec default_config() -> pwm_config().
 default_config() ->
     #pwm_config{
@@ -225,10 +329,19 @@ default_config() ->
         flag_empty_water_mark = 2
       }.
 
+% @doc Creates a custom configuration for PWM.
+%
+% This creates a configuration with a given prescale and period.
+% This is useful if you want to define the cycle time or the duty cycle resolution.
 -spec config(prescale(), period()) -> pwm_config().
 config(Prescale, Period = <<_:16>>) when is_integer(Prescale), Prescale >= 1  ->
     config(ipg_clk, Prescale, Period).
 
+% @doc Creates a custom configuration for PWM.
+%
+% This creates a configuration with a given clock, prescale and period.
+% This is useful if you want to define the cycle time or the duty cycle resolution.
+% Different clocks can be selected to provide different source frequencies.
 -spec config(clock(), prescale(), period()) -> pwm_config().
 config(Clock, Prescale, Period = <<_:16>>) when is_atom(Clock), is_integer(Prescale), Prescale >= 1  ->
     #pwm_config{
@@ -256,6 +369,7 @@ default_interrupt_config() ->
     }.
 
 %% gen_server callbacks
+%% @private
 init([]) ->
     % Since this might be a restart we reset all PWM units to a known state.
     % This might stop running units but at least it ensures that the server
@@ -264,6 +378,7 @@ init([]) ->
     ok = grisp_devices:register(pwm, ?MODULE),
     {ok, #state{pin_states = #{}}}.
 
+%% @private
 handle_call({open, Pin, Config, Sample}, _From, State) ->
     case maps:get(Pin, State#state.pin_states, nil) of
         nil ->
@@ -272,18 +387,24 @@ handle_call({open, Pin, Config, Sample}, _From, State) ->
                     {reply, {error, unknown_pin}, State};
                 #{pwm_id := PWMId, register := MuxRegister, value := MuxValue} ->
                     % we have to make sure that the PWM unit is not used already
-                    case [PinState || PinState <- maps:values(State#state.pin_states), PinState#pin_state.pwm_id==PWMId] of
+                    case [PinState || PinState <- maps:values(State#state.pin_states), PinState#pin_state.pwm_id == PWMId] of
                         [#pin_state{pin = ConflictingPin}] ->
                             {reply, {error, conflicting_pin, ConflictingPin}, State};
                         [] ->
+                            % looks good, we can go ahead
+                            % lets remember the current pin multiplexing
+                            % so we can restore it on close/1
+                            PreviousMuxValue = ?MODULE:get_register(MuxRegister),
+                            % set the multiplexing options to connect
+                            % the desired pin with the appropriate PWM unit
+                            ?MODULE:set_register(MuxRegister, MuxValue),
                             PinState = #pin_state{
                                 pin = Pin,
                                 pwm_id = PWMId,
                                 mux_register = MuxRegister,
-                                previous_mux_value = ?MODULE:get_register(MuxRegister),
+                                previous_mux_value = PreviousMuxValue,
                                 config = Config
                             },
-                            ?MODULE:set_register(MuxRegister, MuxValue),
                             ok = ?MODULE:setup(PWMId, Config, Sample),
                             NextState = State#state{ pin_states = maps:put(Pin, PinState, State#state.pin_states)},
                             {reply, ok, NextState}
@@ -326,20 +447,25 @@ handle_call({set_sample, Pin, Sample}, _From, State) ->
     end,
     {reply, Reply, State}.
 
+%% @private
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
+%% @private
 handle_info(_Info, State) ->
     {noreply, State}.
 
+%% @private
 terminate(_Reason, _State) ->
     ok.
 
+%% @private
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 % internal functions
 
+%% @private
 -spec setup(pwm_id(), pwm_config(), sample()) -> ok.
 setup(PWMId, Config = #pwm_config{}, Sample) when is_number(PWMId), is_binary(Sample) ->
     % make sure PMW is disabled
@@ -367,7 +493,6 @@ setup(PWMId, Config = #pwm_config{}, Sample) when is_number(PWMId), is_binary(Sa
 -spec set_pwm_period(pwm_id(), period()) -> ok.
 set_pwm_period(PWMId, Period) when is_integer(PWMId), is_binary(Period) ->
     ?MODULE:set_register(address(PWMId, "PWMPR"), <<0:16, Period/binary>>).
-
 
 -spec status(pwm_id()) -> status().
 status(PWMId) ->
@@ -535,9 +660,11 @@ sample_to_bin(_, _) ->
 address(PWMId, Key) when is_number(PWMId), is_list(Key) ->
     maps:get(("PWM" ++ integer_to_list(PWMId) ++ "_" ++ Key), ?ADDRESSES).
 
+%% @private
 set_register(Address, <<Value:32/big>>) when is_number(Address) ->
     grisp_gpio:set_register32(Address, Value).
 
+%% @private
 get_register(Address) when is_number(Address) ->
     Value = grisp_gpio:get_register32(Address),
     <<Value:32/big>>.
