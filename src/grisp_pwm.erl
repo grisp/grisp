@@ -9,7 +9,7 @@
 % 1> grisp_pwm:start_driver().
 % {device,pwm,grisp_pwm,<0.353.0>,
 %         #Ref<0.838610995.3080454145.146844>}
-% 2> grisp_pwm:open(gpio1_8, grisp_pwm:default_config(), 0.75).
+% 2> grisp_pwm:open(gpio1_8, default, 0.75).
 % ok
 % '''
 %
@@ -32,7 +32,7 @@
 %   <figcaption><em>Figure 1. Oscilloscope trace with a 0.75 % duty cycle and the default configuration.</em></figcaption>
 % </figure>
 %
-% === Ramp Example ===
+% === Ramp Up Example ===
 % You can ramp up the duty cycle from 0% to 100% in one second like this:
 % ```
 % 1> RampSample = fun(X) -> grisp_pwm:set_sample(gpio1_8, (X/100)), timer:sleep(10) end.
@@ -42,12 +42,12 @@
 % ok,ok,ok,ok,ok,ok,ok,ok,ok,ok|...]
 % '''
 % === Sinusoidal Example ===
-% You can create a sine wave with 1 Hz like this:
+% You can create a sine wave like this:
 % ```
-% SinSample = fun(X) -> grisp_pwm:set_sample(gpio1_8, math:sin(math:pi()*2*(X/100))), timer:sleep(10) end.
-% 1> [SinSample(X) || X <- lists:seq(1, 1000)].
+% 1> SinSample = fun(X) -> V = math:sin(math:pi()/2*(X/10))/2+0.5, grisp_pwm:set_sample(gpio1_8, V), timer:sleep(10) end.
 % #Fun<erl_eval.42.39164016>
-% 2> [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,
+% 2> [SinSample(X) || X <- lists:seq(1, 1000)].
+% [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,
 % ok,ok,ok,ok,ok,ok,ok,ok,ok,ok|...]
 % '''
 % === Pin Mappings ===
@@ -284,17 +284,32 @@ start_link(pwm, #{}) ->
 
 % @doc Opens a pin and sets a configuration and a sample.
 %
-% === Example ===
+% === Default Config Example ===
+% The default configuratin uses the `ipg_clk' clock, a prescale of 10 and a period of `<<1024:16>>'.
+% This results in a 155.5μs cycle time (6.43MHz) and 10bit resolution.
 % ```
-% 1> grisp_pwm:open(gpio1_8, grisp_pwm:default_config(), 0.75).
-% 2> ok
+% 1> grisp_pwm:open(gpio1_8, default, 0.75).
+% ok
+% '''
+% === Prescale and Period Config Example ===
+% Here we set the prescaler to 1 (10 times higher frequency than the default) and the period to `<<512:16>>' (further doubling the frequency and halfing the resolution).
+% The result is a 7,775μs cycle time (128.6MHz) and 9bit resolution.
+% ```
+% 1> grisp_pwm:open(gpio1_8, {1, <<512:16>>}, 0.5).
+% ok
+% '''
+% === Clock, Prescale and Period Config Example ===
+% This sets a low frequency clock and results in a 500μs cycle time (2Hz) and a 4bit resolution.
+% ```
+% 1> grisp_pwm:open(gpio1_8, {ipg_clk_32k, 1, <<16:16>>}, 0.5).
+% ok
 % '''
 
 -spec open(pin(), config(), sample()) -> ok | {error, _}.
 open(Pin, default, Sample) when is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
-    open_with_pwm_config(Pin, default_config(), Sample);
+    open(Pin, {10, <<1024:16>>}, Sample);
 open(Pin, {Prescale, Period = <<_:16>>}, Sample) when is_number(Prescale), is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
-    open_with_pwm_config(Pin, config(Prescale, Period), Sample);
+    open(Pin, {ipg_clk, Prescale, Period}, Sample);
 open(Pin, {Clock, Prescale, Period = <<_:16>>}, Sample) when is_number(Prescale), is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
     open_with_pwm_config(Pin, config(Clock, Prescale, Period), Sample).
 
@@ -316,38 +331,21 @@ close(Pin) when is_atom(Pin) ->
 %
 % You can pass a float between 0.0 and 1.0 or a 16bit binary.
 % The binary value must be below or equal to the period (`<<1024:16>>' by default).
+% === Float Sample Example ===
+% This sets the duty cycle to 25%. This method is independent of the period used.
+% ```
+% 1> grisp_pwm:set_sample(gpio1_8, 0.25).
+% ok
+% '''
+% === Binary Sample Example ===
+% This sets the duty cycle to 25% given a period of `<<1024:16>>'.
+% ```
+% 1> grisp_pwm:set_sample(gpio1_8, <<256:16>>).
+% ok
+% '''
 -spec set_sample(pin(), sample()) -> ok | {error | _}.
 set_sample(Pin, Sample) when is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
     gen_server:call(?MODULE, {set_sample, Pin, Sample}).
-
-% @doc Creates a default configuration for PWM.
-%
-% This configuration defines a cycle time of 155.5μs (6.43 MHz)
-% and a resolutin of 10 bit (phase `<<1024:16>>').
--spec default_config() -> pwm_config().
-default_config() ->
-    #pwm_config{
-        sample_repeat = 1,
-        prescale = 10,
-        clock = ipg_clk,
-        period = <<1024:16>>,
-        output_config = set_at_rollover,
-        swap_half_word = false,
-        swap_sample = false,
-        run_if_debug = true,
-        run_if_wait = false,
-        run_if_doze = false,
-        run_if_stop = false,
-        flag_empty_water_mark = 2
-      }.
-
-% @doc Creates a custom configuration for PWM.
-%
-% This creates a configuration with a given prescale and period.
-% This is useful if you want to define the cycle time or the duty cycle resolution.
--spec config(prescale(), period()) -> pwm_config().
-config(Prescale, Period = <<_:16>>) when is_integer(Prescale), Prescale >= 1  ->
-    config(ipg_clk, Prescale, Period).
 
 % @doc Creates a custom configuration for PWM.
 %
