@@ -96,10 +96,7 @@
     start_link/2,
     open/3,
     close/1,
-    set_sample/2,
-    config/2,
-    config/3,
-    default_config/0
+    set_sample/2
 ]).
 
 % gen_server callbacks
@@ -159,6 +156,8 @@
 -type pin() :: gpio1_2 | gpio1_4 | gpio1_8 | gpio_2_6 | spi2_7 | uart_8 | uart_9 | jtag_4 | jtag_8.
 
 -type pwm_id() :: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8.
+
+-type config() :: default | {prescale(), period()} | {clock(), prescale(), period()}.
 
 -type pwm_activation() :: true | false.
 
@@ -286,8 +285,16 @@ start_link(pwm, #{}) ->
 % 2> ok
 % '''
 
--spec open(pin(), pwm_config(), sample()) -> ok | {error, _}.
-open(Pin, Config = #pwm_config{}, Sample) when is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
+-spec open(pin(), config(), sample()) -> ok | {error, _}.
+open(Pin, default, Sample) when is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
+    open_with_pwm_config(Pin, default_config(), Sample);
+open(Pin, {Prescale, Period = <<_:16>>}, Sample) when is_number(Prescale), is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
+    open_with_pwm_config(Pin, config(Prescale, Period), Sample);
+open(Pin, {Clock, Prescale, Period = <<_:16>>}, Sample) when is_number(Prescale), is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
+    open_with_pwm_config(Pin, config(Clock, Prescale, Period), Sample).
+
+-spec open_with_pwm_config(pin(), pwm_config(), sample()) -> ok | {error, _}.
+open_with_pwm_config(Pin, Config, Sample) when is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
     case sample_to_bin(Sample, Config#pwm_config.period) of
         {ok, SampleBin} ->
             gen_server:call(?MODULE, {open, Pin, Config, SampleBin});
