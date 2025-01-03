@@ -597,7 +597,7 @@ configure(PWMId, Config = #pwm_config{}) when is_integer(PWMId) ->
     case Config#pwm_config.output_config of
         set_at_rollover ->   <<0:1, 0:1>>;
         set_at_comparison -> <<0:1, 1:1>>;
-        disconnected ->      <<0:1, 0:0>>
+        disconnected ->      <<1:1, 0:1>>
     end,
     Clock =
     case Config#pwm_config.clock of
