@@ -530,21 +530,9 @@ fill_sample_fifo(PWMId, Sample) when is_integer(PWMId), is_binary(Sample) ->
 
 -spec configure_interrupts(pwm_id(), pwm_interrupt_config()) -> pwm_interrupt_config().
 configure_interrupts(PWMId, Interrupts = #pwm_interrupt_config{}) when is_integer(PWMId) ->
-    CompareInterrupt =
-    case Interrupts#pwm_interrupt_config.compare_interrupt of
-        false -> <<0:1>>;
-        true  -> <<1:1>>
-    end,
-    RolloverInterrupt =
-    case Interrupts#pwm_interrupt_config.rollover_interrupt of
-        false -> <<0:1>>;
-        true  -> <<1:1>>
-    end,
-    FifoEmptyInterrupt =
-    case Interrupts#pwm_interrupt_config.fifo_empty_interrupt of
-        false -> <<0:1>>;
-        true  -> <<1:1>>
-    end,
+    CompareInterrupt   = to_bit(Interrupts#pwm_interrupt_config.compare_interrupt),
+    RolloverInterrupt  = to_bit(Interrupts#pwm_interrupt_config.rollover_interrupt),
+    FifoEmptyInterrupt = to_bit(Interrupts#pwm_interrupt_config.fifo_empty_interrupt),
     Data = <<
         <<0:29>>/bitstring,
         CompareInterrupt/bitstring,
@@ -563,36 +551,12 @@ configure(PWMId, Config = #pwm_config{}) when is_integer(PWMId) ->
         3 -> <<1:1, 0:1>>;
         4 -> <<1:1, 1:1>>
     end,
-    RunIfStop =
-    case Config#pwm_config.run_if_stop of
-        false -> <<0:1>>;
-        true  -> <<1:1>>
-    end,
-    RunIfDoze =
-    case Config#pwm_config.run_if_doze of
-        false -> <<0:1>>;
-        true  -> <<1:1>>
-    end,
-    RunIfWait =
-    case Config#pwm_config.run_if_wait of
-        false -> <<0:1>>;
-        true  -> <<1:1>>
-    end,
-    RunIfDebug =
-    case Config#pwm_config.run_if_debug of
-        false -> <<0:1>>;
-        true  -> <<1:1>>
-    end,
-    SwapSample =
-    case Config#pwm_config.swap_sample of
-        false -> <<0:1>>;
-        true  -> <<1:1>>
-    end,
-    SwapHalfWord =
-    case Config#pwm_config.swap_half_word of
-        false -> <<0:1>>;
-        true  -> <<1:1>>
-    end,
+    RunIfStop    = to_bit(Config#pwm_config.run_if_stop),
+    RunIfDoze    = to_bit(Config#pwm_config.run_if_doze),
+    RunIfWait    = to_bit(Config#pwm_config.run_if_wait),
+    RunIfDebug   = to_bit(Config#pwm_config.run_if_debug),
+    SwapSample   = to_bit(Config#pwm_config.swap_sample),
+    SwapHalfWord = to_bit(Config#pwm_config.swap_half_word),
     OutputConfig =
     case Config#pwm_config.output_config of
         set_at_rollover ->   <<0:1, 0:1>>;
@@ -645,11 +609,7 @@ reset(PWMId) when is_integer(PWMId)->
 
 -spec set_activation(pwm_id(), pwm_activation()) -> ok.
 set_activation(PWMId, Active) when is_number(PWMId), is_atom(Active) ->
-    ActiveBit =
-    case Active of
-        true -> <<1:1>>;
-        false -> <<0:1>>
-    end,
+    ActiveBit = to_bit(Active),
     Address = address(PWMId, "PWMCR"),
     <<Rest:31, _:1>> = ?MODULE:get_register(Address),
     RegisterWithActivation = <<<<Rest:31>>/bitstring, ActiveBit/bitstring>>,
@@ -669,6 +629,9 @@ sample_to_bin(_, _) ->
 
 address(PWMId, Key) when is_number(PWMId), is_list(Key) ->
     maps:get(("PWM" ++ integer_to_list(PWMId) ++ "_" ++ Key), ?ADDRESSES).
+
+to_bit(false) -> <<0:1>>;
+to_bit(true)  -> <<1:1>>.
 
 % @private
 on_load() -> ?NIF_LOAD.
