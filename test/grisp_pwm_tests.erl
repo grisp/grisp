@@ -16,16 +16,10 @@ pwm_test_() ->
     ]}.
 
 setup() ->
-    meck:new(grisp_pwm, [unstick, passthrough]),
-    meck:expect( grisp_pwm, get_register, fun(_) -> <<42:32>> end),
-    meck:expect( grisp_pwm, set_register, fun(_, _) -> ok end),
-    meck:expect( grisp_pwm, setup, fun(_, _, _) -> ok end),
-    meck:expect( grisp_pwm, init, fun(_) -> {ok, {state, #{}}} end),
     grisp_pwm:start_link().
 
 teardown(_) ->
-    ok = gen_server:stop(grisp_pwm, normal, 100),
-    meck:unload(grisp_pwm).
+    ok = gen_server:stop(grisp_pwm, normal, 100).
 
 %--- Tests ---------------------------------------------------------------------
 

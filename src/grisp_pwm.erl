@@ -114,9 +114,6 @@
 -export([on_load/0]).
 -on_load(on_load/0).
 
-% export for testability
--export([get_register/1, set_register/2, setup/3]).
-
 -record(pwm_config, {
     sample_repeat :: sample_repeat(),
     prescale :: prescale(),
@@ -380,6 +377,9 @@ default_interrupt_config() ->
 
 %% gen_server callbacks
 %% @private
+-ifdef(TEST).
+init(_) -> {ok, #state{pin_states = #{}}}.
+-else.
 init([]) ->
     % Since this might be a restart we reset all PWM units to a known state.
     % This might stop running units but at least it ensures that the server
@@ -387,6 +387,7 @@ init([]) ->
     [reset(PWMId) || PWMId <- lists:seq(1, 8)],
     ok = grisp_devices:register(pwm, ?MODULE),
     {ok, #state{pin_states = #{}}}.
+-endif.
 
 %% @private
 handle_call({open, Pin, Config, Sample}, _From, State) ->
@@ -404,10 +405,10 @@ handle_call({open, Pin, Config, Sample}, _From, State) ->
                             % looks good, we can go ahead
                             % lets remember the current pin multiplexing
                             % so we can restore it on close/1
-                            PreviousMuxValue = ?MODULE:get_register(MuxRegister),
+                            PreviousMuxValue = get_register(MuxRegister),
                             % set the multiplexing options to connect
                             % the desired pin with the appropriate PWM unit
-                            ?MODULE:set_register(MuxRegister, MuxValue),
+                            set_register(MuxRegister, MuxValue),
                             PinState = #pin_state{
                                 pin = Pin,
                                 pwm_id = PWMId,
@@ -415,7 +416,7 @@ handle_call({open, Pin, Config, Sample}, _From, State) ->
                                 previous_mux_value = PreviousMuxValue,
                                 config = Config
                             },
-                            ok = ?MODULE:setup(PWMId, Config, Sample),
+                            ok = setup(PWMId, Config, Sample),
                             NextState = State#state{ pin_states = maps:put(Pin, PinState, State#state.pin_states)},
                             {reply, ok, NextState}
                     end
@@ -435,7 +436,7 @@ handle_call({close, Pin}, _From, State) ->
             previous_mux_value = PreviousMuxValue
         } ->
             reset(PWMId),
-            ?MODULE:set_register(MuxRegister, PreviousMuxValue),
+            set_register(MuxRegister, PreviousMuxValue),
             NextState = State#state{ pin_states = maps:remove(Pin, State#state.pin_states)},
             {reply, ok, NextState}
     end;
@@ -477,6 +478,9 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% @private
 -spec setup(pwm_id(), pwm_config(), sample()) -> ok.
+-ifdef(TEST).
+setup(_, _, _) -> ok.
+-else.
 setup(PWMId, Config = #pwm_config{}, Sample) when is_number(PWMId), is_binary(Sample) ->
     % make sure PMW is disabled
     set_activation(PWMId, false),
@@ -499,14 +503,15 @@ setup(PWMId, Config = #pwm_config{}, Sample) when is_number(PWMId), is_binary(Sa
     % enable PWM
     set_activation(PWMId, true),
     ok.
+-endif.
 
 -spec set_pwm_period(pwm_id(), period()) -> ok.
 set_pwm_period(PWMId, Period) when is_integer(PWMId), is_binary(Period) ->
-    ?MODULE:set_register(address(PWMId, "PWMPR"), <<0:16, Period/binary>>).
+    set_register(address(PWMId, "PWMPR"), <<0:16, Period/binary>>).
 
 -spec status(pwm_id()) -> status().
 status(PWMId) ->
-    <<_:25, FWE:1, CMP:1, ROV:1, FE:1, FIFOAV1:1, FIFOAV2:1, FIFOAV3:1>> = ?MODULE:get_register(address(PWMId, "PWMSR")),
+    <<_:25, FWE:1, CMP:1, ROV:1, FE:1, FIFOAV1:1, FIFOAV2:1, FIFOAV3:1>> = get_register(address(PWMId, "PWMSR")),
     FIFOAV =
     case {FIFOAV1, FIFOAV2, FIFOAV3} of
         {0, 0, 0} -> 0;
@@ -526,7 +531,7 @@ status(PWMId) ->
 -spec fill_sample_fifo(pwm_id(), sample()) -> ok.
 fill_sample_fifo(PWMId, Sample) when is_integer(PWMId), is_binary(Sample) ->
     % setting one of the slots of the FIFO is enough
-    ?MODULE:set_register(address(PWMId, "PWMSAR"), <<0:16, Sample/binary>>).
+    set_register(address(PWMId, "PWMSAR"), <<0:16, Sample/binary>>).
 
 -spec configure_interrupts(pwm_id(), pwm_interrupt_config()) -> pwm_interrupt_config().
 configure_interrupts(PWMId, Interrupts = #pwm_interrupt_config{}) when is_integer(PWMId) ->
@@ -539,7 +544,7 @@ configure_interrupts(PWMId, Interrupts = #pwm_interrupt_config{}) when is_intege
         RolloverInterrupt/bitstring,
         FifoEmptyInterrupt/bitstring
     >>,
-    ?MODULE:set_register(address(PWMId, "PWMIR"), Data).
+    set_register(address(PWMId, "PWMIR"), Data).
 
 
 -spec configure( pwm_id(), pwm_config()) -> ok.
@@ -596,24 +601,24 @@ configure(PWMId, Config = #pwm_config{}) when is_integer(PWMId) ->
         SampleRepeat/bitstring,
         Enable/bitstring
     >>,
-    ?MODULE:set_register(address(PWMId, "PWMCR"), Data),
+    set_register(address(PWMId, "PWMCR"), Data),
     ok.
 
 -spec reset(pwm_id()) -> ok.
 reset(PWMId) when is_integer(PWMId)->
     Address = address(PWMId, "PWMCR"),
-    <<Pre:28, _Reset:1, Post:3>> = ?MODULE:get_register(Address),
+    <<Pre:28, _Reset:1, Post:3>> = get_register(Address),
     Data = <<Pre:28, 1:1, Post:3>>,
-    ?MODULE:set_register(Address, Data).
+    set_register(Address, Data).
 
 
 -spec set_activation(pwm_id(), pwm_activation()) -> ok.
 set_activation(PWMId, Active) when is_number(PWMId), is_atom(Active) ->
     ActiveBit = to_bit(Active),
     Address = address(PWMId, "PWMCR"),
-    <<Rest:31, _:1>> = ?MODULE:get_register(Address),
+    <<Rest:31, _:1>> = get_register(Address),
     RegisterWithActivation = <<<<Rest:31>>/bitstring, ActiveBit/bitstring>>,
-    ?MODULE:set_register(Address, RegisterWithActivation).
+    set_register(Address, RegisterWithActivation).
 
 -spec sample_to_bin(sample(), period()) -> {ok, <<_:16>>} | {error, _}.
 sample_to_bin(+0.0, _) -> {ok, <<0:16>>};
@@ -645,6 +650,14 @@ get_register(Address) when is_number(Address) ->
     Value = pwm_get_register32_nif(Address),
     <<Value:32/big>>.
 
+-ifdef(TEST).
+pwm_get_register32_nif(_) -> 42.
+-else.
 pwm_get_register32_nif(Address) -> ?NIF_STUB([Address]).
+-endif.
 
+-ifdef(TEST).
+pwm_set_register32_nif(_, _) -> ok.
+-else.
 pwm_set_register32_nif(Address, Value) -> ?NIF_STUB([Address, Value]).
+-endif.
