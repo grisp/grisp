@@ -1,10 +1,16 @@
 %--- Erlang Inet Configuration -------------------------------------------------
 
-% Add hosts
-% {host, {X,X,X,X}, ["Host"]}.
+%% read the hosts file
+{file, hosts, "/etc/hosts"}.
 
 % Do not monitor the hosts file
 {hosts_file, ""}.
+
+% read and monitor nameserver config from here
+{resolv_conf, "/etc/resolv.conf"}.
+
+% % enable EDNS
+% {edns,0}.
 
 % Disable caching
 {cache_size, 0}.
