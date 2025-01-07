@@ -265,7 +265,7 @@
         jtag_8   => #{pmw_id => 6, register => 16#20E_0050, value => <<4:32>>}
 }).
 
-%% API
+%--- API -----------------------------------------------------------------------
 % @doc Starts the driver and registers a PWM device.
 start_driver() ->
     grisp:add_device(pwm, ?MODULE, #{}).
@@ -303,15 +303,21 @@ start_link(pwm, #{}) ->
 % '''
 
 -spec open(pin(), config(), sample()) -> ok | {error, _}.
-open(Pin, default, Sample) when is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
+open(Pin, default, Sample)
+  when is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
     open(Pin, {10, <<1024:16>>}, Sample);
-open(Pin, {Prescale, Period = <<_:16>>}, Sample) when is_number(Prescale), is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
+open(Pin, {Prescale, Period = <<_:16>>}, Sample)
+  when is_number(Prescale), is_atom(Pin),
+       is_binary(Sample) or is_float(Sample) ->
     open(Pin, {ipg_clk, Prescale, Period}, Sample);
-open(Pin, {Clock, Prescale, Period = <<_:16>>}, Sample) when is_number(Prescale), is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
+open(Pin, {Clock, Prescale, Period = <<_:16>>}, Sample)
+  when is_number(Prescale), is_atom(Pin),
+       is_binary(Sample) or is_float(Sample) ->
     open_with_pwm_config(Pin, config(Clock, Prescale, Period), Sample).
 
 -spec open_with_pwm_config(pin(), pwm_config(), sample()) -> ok | {error, _}.
-open_with_pwm_config(Pin, Config, Sample) when is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
+open_with_pwm_config(Pin, Config, Sample)
+  when is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
     case sample_to_bin(Sample, Config#pwm_config.period) of
         {ok, SampleBin} ->
             gen_server:call(?MODULE, {open, Pin, Config, SampleBin});
@@ -341,7 +347,8 @@ close(Pin) when is_atom(Pin) ->
 % ok
 % '''
 -spec set_sample(pin(), sample()) -> ok | {error | _}.
-set_sample(Pin, Sample) when is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
+set_sample(Pin, Sample)
+  when is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
     gen_server:call(?MODULE, {set_sample, Pin, Sample}).
 
 % @doc Creates a custom configuration for PWM.
@@ -350,7 +357,8 @@ set_sample(Pin, Sample) when is_atom(Pin), is_binary(Sample) or is_float(Sample)
 % This is useful if you want to define the cycle time or the duty cycle resolution.
 % Different clocks can be selected to provide different source frequencies.
 -spec config(clock(), prescale(), period()) -> pwm_config().
-config(Clock, Prescale, Period = <<_:16>>) when is_atom(Clock), is_integer(Prescale), Prescale >= 1  ->
+config(Clock, Prescale, Period = <<_:16>>)
+  when is_atom(Clock), is_integer(Prescale), Prescale >= 1  ->
     #pwm_config{
         sample_repeat = 1,
         prescale = Prescale,
@@ -375,7 +383,7 @@ default_interrupt_config() ->
        fifo_empty_interrupt = false
     }.
 
-%% gen_server callbacks
+%--- gen_server Calbacks -------------------------------------------------------
 %% @private
 -ifdef(TEST).
 init(_) -> {ok, #state{pin_states = #{}}}.
@@ -391,33 +399,40 @@ init([]) ->
 
 %% @private
 handle_call({open, Pin, Config, Sample}, _From, State) ->
-    case {maps:get(Pin, State#state.pin_states, nil), maps:get(Pin, ?PINMUXING, nil)} of
-        {_CurrentlyOpen, _MuxingInfo = nil} ->
+    case {maps:get(Pin, State#state.pin_states, nil),
+          maps:get(Pin, ?PINMUXING, nil)} of
+        {_CurrentlyOpen,
+         _Mux = nil} ->
             {reply, {error, unknown_pin}, State};
-        {_CurrentlyOpen = #pin_state{}, _MuxingInfo}   ->
+        {_CurrentlyOpen = #pin_state{},
+         _Mux}   ->
             {reply, {error, already_open}, State};
-        {_CurrentlyOpen = nil, _MuxingInfo = #{pwm_id := PWMId, register := MuxRegister, value := MuxValue}} ->
+        {_CurrentlyOpen = nil,
+         _Mux = #{pwm_id := PWMId, register := MuxReg, value := MuxValue}} ->
             % we have to make sure that the PWM unit is not used
             % already since some are shared between pins
-            case [PinState || PinState <- maps:values(State#state.pin_states), PinState#pin_state.pwm_id == PWMId] of
+            PinStates = maps:values(State#state.pin_states),
+            case [PS || PS <- PinStates, PS#pin_state.pwm_id == PWMId] of
                 [#pin_state{pin = ConflictingPin}] ->
                     {reply, {error, conflicting_pin, ConflictingPin}, State};
                 [] ->
                     % looks good, we can go ahead lets remember the current
                     % pin multiplexing so we can restore it on close/1
-                    PreviousMuxValue = get_register(MuxRegister),
+                    PreviousMuxValue = get_register(MuxReg),
                     % set the multiplexing options to connect the
                     % desired pin with the appropriate PWM unit
-                    ok = set_register(MuxRegister, MuxValue),
+                    ok = set_register(MuxReg, MuxValue),
                     PinState = #pin_state{
                         pin = Pin,
                         pwm_id = PWMId,
-                        mux_register = MuxRegister,
+                        mux_register = MuxReg,
                         previous_mux_value = PreviousMuxValue,
                         config = Config
                     },
                     ok = setup(PWMId, Config, Sample),
-                    NextState = State#state{ pin_states = maps:put(Pin, PinState, State#state.pin_states)},
+                    PinStatesMap = State#state.pin_states,
+                    NextPinStates = maps:put(Pin, PinState, PinStatesMap),
+                    NextState = State#state{ pin_states = NextPinStates},
                     {reply, ok, NextState}
             end
     end;
@@ -434,7 +449,8 @@ handle_call({close, Pin}, _From, State) ->
         } ->
             reset(PWMId),
             set_register(MuxRegister, PreviousMuxValue),
-            NextState = State#state{ pin_states = maps:remove(Pin, State#state.pin_states)},
+            PinStates = State#state.pin_states,
+            NextState = State#state{ pin_states = maps:remove(Pin, PinStates)},
             {reply, ok, NextState}
     end;
 handle_call({set_sample, Pin, Sample}, _From, State) ->
@@ -473,12 +489,14 @@ code_change(_OldVsn, State, _Extra) ->
 
 % internal functions
 
+%--- Internal ------------------------------------------------------------------
 %% @private
 -spec setup(pwm_id(), pwm_config(), sample()) -> ok.
 -ifdef(TEST).
 setup(_, _, _) -> ok.
 -else.
-setup(PWMId, Config = #pwm_config{}, Sample) when is_number(PWMId), is_binary(Sample) ->
+setup(PWMId, Config = #pwm_config{}, Sample)
+    when is_number(PWMId), is_binary(Sample) ->
     % This reflects section "38.5 Enable Sequence for the PWM"
     % of the i.MX 6UltraLite Applications Processor Reference Manual, Rev. 2, 03/2017
 
@@ -511,7 +529,8 @@ set_pwm_period(PWMId, Period) when is_integer(PWMId), is_binary(Period) ->
 
 -spec status(pwm_id()) -> status().
 status(PWMId) ->
-    <<_:25, FWE:1, CMP:1, ROV:1, FE:1, FIFOAV1:1, FIFOAV2:1, FIFOAV3:1>> = get_register(address(PWMId, "PWMSR")),
+    <<_:25, FWE:1, CMP:1, ROV:1, FE:1, FIFOAV1:1, FIFOAV2:1, FIFOAV3:1>> =
+    get_register(address(PWMId, "PWMSR")),
     FIFOAV =
     case {FIFOAV1, FIFOAV2, FIFOAV3} of
         {0, 0, 0} -> 0;
@@ -533,11 +552,13 @@ fill_sample_fifo(PWMId, Sample) when is_integer(PWMId), is_binary(Sample) ->
     % setting one of the slots of the FIFO is enough
     set_register(address(PWMId, "PWMSAR"), <<0:16, Sample/binary>>).
 
--spec configure_interrupts(pwm_id(), pwm_interrupt_config()) -> pwm_interrupt_config().
-configure_interrupts(PWMId, Interrupts = #pwm_interrupt_config{}) when is_integer(PWMId) ->
-    CompareInterrupt   = to_bit(Interrupts#pwm_interrupt_config.compare_interrupt),
-    RolloverInterrupt  = to_bit(Interrupts#pwm_interrupt_config.rollover_interrupt),
-    FifoEmptyInterrupt = to_bit(Interrupts#pwm_interrupt_config.fifo_empty_interrupt),
+-spec configure_interrupts( pwm_id(), pwm_interrupt_config())
+    -> pwm_interrupt_config().
+configure_interrupts(PWMId, IRs = #pwm_interrupt_config{})
+    when is_integer(PWMId) ->
+    CompareInterrupt   = to_bit(IRs#pwm_interrupt_config.compare_interrupt),
+    RolloverInterrupt  = to_bit(IRs#pwm_interrupt_config.rollover_interrupt),
+    FifoEmptyInterrupt = to_bit(IRs#pwm_interrupt_config.fifo_empty_interrupt),
     Data = <<
         <<0:29>>/bitstring,
         CompareInterrupt/bitstring,
@@ -622,7 +643,8 @@ set_activation(PWMId, Active) when is_number(PWMId), is_atom(Active) ->
 sample_to_bin(+0.0, _) -> {ok, <<0:16>>};
 sample_to_bin(-0.0, _) -> {ok, <<0:16>>};
 sample_to_bin(1.0, Period) -> {ok, Period};
-sample_to_bin(Sample, Period = <<PeriodInt:16>>) when is_float(Sample), Sample >= 0.0, Sample =< 1.0 ->
+sample_to_bin(Sample, Period = <<PeriodInt:16>>)
+  when is_float(Sample), Sample >= 0.0, Sample =< 1.0 ->
     SampleInt = trunc(PeriodInt * Sample),
     sample_to_bin(<<SampleInt:16>>, Period);
 sample_to_bin(Sample, Period) when is_binary(Sample), Sample =< Period ->
