@@ -498,7 +498,8 @@ setup(_, _, _) -> ok.
 setup(PWMId, Config = #pwm_config{}, Sample)
     when is_number(PWMId), is_binary(Sample) ->
     % This reflects section "38.5 Enable Sequence for the PWM"
-    % of the i.MX 6UltraLite Applications Processor Reference Manual, Rev. 2, 03/2017
+    % of the i.MX 6UltraLite Applications Processor Reference Manual,
+    % Rev. 2, 03/2017
 
     % make sure PMW is disabled
     set_activation(PWMId, false),
