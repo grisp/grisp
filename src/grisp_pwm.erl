@@ -391,38 +391,35 @@ init([]) ->
 
 %% @private
 handle_call({open, Pin, Config, Sample}, _From, State) ->
-    case maps:get(Pin, State#state.pin_states, nil) of
-        nil ->
-            case maps:get(Pin, ?PINMUXING, nil) of
-                nil ->
-                    {reply, {error, unknown_pin}, State};
-                #{pwm_id := PWMId, register := MuxRegister, value := MuxValue} ->
-                    % we have to make sure that the PWM unit is not used already
-                    case [PinState || PinState <- maps:values(State#state.pin_states), PinState#pin_state.pwm_id == PWMId] of
-                        [#pin_state{pin = ConflictingPin}] ->
-                            {reply, {error, conflicting_pin, ConflictingPin}, State};
-                        [] ->
-                            % looks good, we can go ahead
-                            % lets remember the current pin multiplexing
-                            % so we can restore it on close/1
-                            PreviousMuxValue = get_register(MuxRegister),
-                            % set the multiplexing options to connect
-                            % the desired pin with the appropriate PWM unit
-                            set_register(MuxRegister, MuxValue),
-                            PinState = #pin_state{
-                                pin = Pin,
-                                pwm_id = PWMId,
-                                mux_register = MuxRegister,
-                                previous_mux_value = PreviousMuxValue,
-                                config = Config
-                            },
-                            ok = setup(PWMId, Config, Sample),
-                            NextState = State#state{ pin_states = maps:put(Pin, PinState, State#state.pin_states)},
-                            {reply, ok, NextState}
-                    end
-            end;
-        _   ->
-            {reply, {error, already_open}, State}
+    case {maps:get(Pin, State#state.pin_states, nil), maps:get(Pin, ?PINMUXING, nil)} of
+        {_CurrentlyOpen, _MuxingInfo = nil} ->
+            {reply, {error, unknown_pin}, State};
+        {_CurrentlyOpen = #pin_state{}, _MuxingInfo}   ->
+            {reply, {error, already_open}, State};
+        {_CurrentlyOpen = nil, _MuxingInfo = #{pwm_id := PWMId, register := MuxRegister, value := MuxValue}} ->
+            % we have to make sure that the PWM unit is not used
+            % already since some are shared between pins
+            case [PinState || PinState <- maps:values(State#state.pin_states), PinState#pin_state.pwm_id == PWMId] of
+                [#pin_state{pin = ConflictingPin}] ->
+                    {reply, {error, conflicting_pin, ConflictingPin}, State};
+                [] ->
+                    % looks good, we can go ahead lets remember the current
+                    % pin multiplexing so we can restore it on close/1
+                    PreviousMuxValue = get_register(MuxRegister),
+                    % set the multiplexing options to connect the
+                    % desired pin with the appropriate PWM unit
+                    ok = set_register(MuxRegister, MuxValue),
+                    PinState = #pin_state{
+                        pin = Pin,
+                        pwm_id = PWMId,
+                        mux_register = MuxRegister,
+                        previous_mux_value = PreviousMuxValue,
+                        config = Config
+                    },
+                    ok = setup(PWMId, Config, Sample),
+                    NextState = State#state{ pin_states = maps:put(Pin, PinState, State#state.pin_states)},
+                    {reply, ok, NextState}
+            end
     end;
 handle_call({close, Pin}, _From, State) ->
     case maps:get(Pin, State#state.pin_states, nil) of
