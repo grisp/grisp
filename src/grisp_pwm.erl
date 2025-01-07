@@ -613,7 +613,6 @@ reset(PWMId) when is_integer(PWMId)->
     Data = <<Pre:28, 1:1, Post:3>>,
     set_register(Address, Data).
 
-
 -spec set_activation(pwm_id(), pwm_activation()) -> ok.
 set_activation(PWMId, Active) when is_number(PWMId), is_atom(Active) ->
     ActiveBit = to_bit(Active),
