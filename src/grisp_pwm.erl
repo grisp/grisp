@@ -604,8 +604,7 @@ configure(PWMId, Config = #pwm_config{}) when is_integer(PWMId) ->
         SampleRepeat/bitstring,
         Enable/bitstring
     >>,
-    set_register(address(PWMId, "PWMCR"), Data),
-    ok.
+    set_register(address(PWMId, "PWMCR"), Data).
 
 -spec reset(pwm_id()) -> ok.
 reset(PWMId) when is_integer(PWMId)->
