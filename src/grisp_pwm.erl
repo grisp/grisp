@@ -92,23 +92,19 @@
 -export([start_driver/0]).
 
 % API
--export([
-    start_link/0,
-    start_link/2,
-    open/3,
-    close/1,
-    set_sample/2
-]).
+-export([start_link/0]).
+-export([start_link/2]).
+-export([open/3]).
+-export([close/1]).
+-export([set_sample/2]).
 
 % gen_server callbacks
--export([
-    init/1,
-    handle_call/3,
-    handle_cast/2,
-    handle_info/2,
-    terminate/2,
-    code_change/3
-]).
+-export([init/1]).
+-export([handle_call/3]).
+-export([handle_cast/2]).
+-export([handle_info/2]).
+-export([terminate/2]).
+-export([code_change/3]).
 
 % Callbacks
 -export([on_load/0]).
