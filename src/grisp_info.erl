@@ -1,7 +1,7 @@
 % @doc GRiSP general information.
 %
 % When running grisp on a host machine during development, the functions return:
-% 
+%
 % ```
 % 1> grisp_info:hardware().
 % #{
@@ -36,7 +36,7 @@
 %     {rtems, [{version, <<"5">>}]},
 %     {otp, [{version, <<"26.2.5.4">>}]}
 % ]}.
-% ```
+% '''
 %
 % @end
 -module(grisp_info).
@@ -187,10 +187,10 @@ hardware_info() ->
         pcb_variant => PcbVariant,
         pcb_version => list_to_binary(PcbVersionStr),
         prod_date => ProdDate
-    }.    
+    }.
 
 software_info() ->
-    software_info(boot_source()).    
+    software_info(boot_source()).
 
 software_info(Source) ->
     Root = boot_root(Source),
