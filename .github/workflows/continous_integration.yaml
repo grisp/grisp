@@ -52,3 +52,6 @@ jobs:
 
       - name: Analyze
         run: rebar3 dialyzer
+
+      - name: Edoc
+        run: rebar3 edoc
