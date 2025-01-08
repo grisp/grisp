@@ -66,8 +66,9 @@
 -export([transfer/2]).
 
 % Callbacks
--export([on_load/0]).
+-ifndef(DOC).
 -on_load(on_load/0).
+-endif.
 
 -define(CPOL_HIGH, 1).
 -define(CPHA_TRAILING, 2).

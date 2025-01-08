@@ -112,7 +112,7 @@
 % === PMOD Pin Numbers ===
 %
 % <figure id="figure_1">
-%   <img src="images/pin-mapping.svg" width="700px" alt="PMOD connectors as seen
+%   <img src="assets/pin-mapping.svg" width="700px" alt="PMOD connectors as seen
 %     from the side of a GRiSP board with number mappings"/>
 %   <figcaption><em>Figure 1. PMOD connectors as seen from the side of a GRiSP
 %     board with number mappings</em></figcaption>
@@ -141,8 +141,9 @@
 -export([get/1]).
 
 % Callbacks
--export([on_load/0]).
+-ifndef(DOC).
 -on_load(on_load/0).
+-endif.
 
 % Macros
 -define(DEFAULT_OPTS, #{mode => {output, 0}}).
