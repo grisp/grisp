@@ -1,90 +1,84 @@
-% @doc GriSP Pulse Width Modulation (PWM) API.
-%
-% Pulse Width Modulation (PWM) is used to generate a rectangular wave with a varying duty cycle
-% to control the average power or amplitude delivered.
-% The ARM Cortex-A7 has eight PWM units that can be multiplexed to drive a few different pins.
-%
-% === Typical Use ===
-% ```
-% 1> grisp_pwm:start_driver().
-% {device,pwm,grisp_pwm,<0.353.0>,
-%         #Ref<0.838610995.3080454145.146844>}
-% 2> grisp_pwm:open(gpio1_8, default, 0.75).
-% ok
-% '''
-%
-% This creates a rectangular wave on pin `gpio1_8' with a 155.5μs cycle time (6.43MHz) and a duty cycle of 75%
-% (see <a href="#figure_1">Figure 1</a>).
-%
-% You can change the duty cycle by setting a new sample:
-% ```
-% 3> grisp_pwm:set_sample(gpio1_8, 0.5).
-% ok
-% '''
-% If you want to stop using PWM on this pin you can call:
-% ```
-%  4> grisp_pwm:close(gpio1_8).
-%  ok
-% '''
-%
-% <figure id="figure_1">
-%   <img src="images/pmw_example.png" width="1000px" alt=""/>
-%   <figcaption><em>Figure 1. Oscilloscope trace with a 0.75 % duty cycle and the default configuration.</em></figcaption>
-% </figure>
-%
-% === Ramp Up Example ===
-% You can ramp up the duty cycle from 0% to 100% in one second like this:
-% ```
-% 1> RampSample = fun(X) -> grisp_pwm:set_sample(gpio1_8, (X/100)), timer:sleep(10) end.
-% #Fun<erl_eval.42.39164016>
-% 2> [RampSample(X) || X <- lists:seq(1, 100)].
-% [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,
-% ok,ok,ok,ok,ok,ok,ok,ok,ok,ok|...]
-% '''
-% === Sinusoidal Example ===
-% You can create a sine wave like this:
-% ```
-% 1> SinSample = fun(X) -> V = math:sin(math:pi()/2*(X/10))/2+0.5, grisp_pwm:set_sample(gpio1_8, V), timer:sleep(10) end.
-% #Fun<erl_eval.42.39164016>
-% 2> [SinSample(X) || X <- lists:seq(1, 1000)].
-% [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,
-% ok,ok,ok,ok,ok,ok,ok,ok,ok,ok|...]
-% '''
-% === Pin Mappings ===
-%
-% <table border="1" cellpadding="8">
-%   <caption>GRiSP 2 Pin Mappings</caption>
-%   <tr>
-%     <th rowspan="2">ID</th>
-%     <th colspan="4">Mapping</th>
-%   </tr>
-%   <tr>
-%     <th>Slot</th>
-%     <th>Type</th>
-%     <th>#</th>
-%     <th>Schematic</th>
-%   </tr>
-%   <tr><td>`gpio1_2'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>2</td> <td>X1404.2</td></tr>
-%   <tr><td>`gpio1_4'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>4</td> <td>X1404.4</td></tr>
-%   <tr><td>`gpio1_8'</td>    <td>GPIO1</td>    <td>PMOD 1A</td>  <td>8</td> <td>X1404.8</td></tr>
-%   <tr><td>`gpio_2_6'</td>   <td>GPIO_2/4</td> <td>Generic</td>  <td></td>  <td>X1301.6</td></tr>
-%   <tr><td>`spi2_7'</td>     <td>SPI2</td>     <td>SPI</td>      <td></td>  <td>X1402.7</td></tr>
-%   <tr><td>`uart_8'</td>     <td>UART</td>     <td>UART</td>     <td></td>  <td>X1405.8</td></tr>
-%   <tr><td>`uart_9'</td>     <td>UART</td>     <td>UART</td>     <td></td>  <td>X1405.9</td></tr>
-%   <tr><td>`jtag_4'</td>     <td>JTAG</td>     <td>JTAG</td>     <td></td>  <td>X1503.4</td></tr>
-%   <tr><td>`jtag_8'</td>     <td>JTAG</td>     <td>JTAG</td>     <td></td>  <td>X1503.8</td></tr>
-% </table><br/>
-%
-%
-% === Other drivers ===
-% This driver might use pins that are also used by other drivers (GPIO, SPI, UART). When opening a pin the PWM driver
-% takes control and configures the multixplexing so the pin is wired to the corresponding PWM unit.
-% When closing the pin the driver will restore the pevious multiplexing setting, handing back control.
-%
-% Example: `grisp_gpio' is used to set a pin to high, then `grisp_pwm:open/3' is used to drive the pin.
-% After `grisp_pwm:close/1' is called, the pin is set to high and `grisp_gpio' is again in control.
-
 -module(grisp_pwm).
+-moduledoc """
+## GriSP Pulse Width Modulation (PWM) API.
+
+Pulse Width Modulation (PWM) is used to generate a rectangular wave with a varying duty cycle
+to control the average power or amplitude delivered.
+The ARM Cortex-A7 has eight PWM units that can be multiplexed to drive a few different pins.
+```erlang
+  1> grisp_pwm:start_driver().
+  {device,pwm,grisp_pwm,<0.353.0>,
+        #Ref<0.838610995.3080454145.146844>}
+  2> grisp_pwm:open(gpio1_8, default, 0.75).
+  ok
+```
+
+This creates a rectangular wave on pin `gpio1_8` with a 155.5μs cycle time (6.43MHz) and a duty cycle of 75%
+(see [Figure 1](#figure_1)).
+
+You can change the duty cycle by setting a new sample:
+```erlang
+3> grisp_pwm:set_sample(gpio1_8, 0.5).
+ok
+```
+
+If you want to stop using PWM on this pin you can call:
+```erlang
+ 4> grisp_pwm:close(gpio1_8).
+ ok
+```
+
+<a name="figure_1"/>
+![image](../assets/pwm_example.png)
+Figure 1. Oscilloscope trace with a 0.75 % duty cycle and the default configuration.
+
+### Examples
+
+<!-- tabs-open -->
+### Ramp Up Example
+You can ramp up the duty cycle from 0% to 100% in one second like this:
+```
+1> RampSample = fun(X) -> grisp_pwm:set_sample(gpio1_8, (X/100)), timer:sleep(10) end.
+#Fun<erl_eval.42.39164016>
+2> [RampSample(X) || X <- lists:seq(1, 100)].
+[ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,
+ok,ok,ok,ok,ok,ok,ok,ok,ok,ok|...]
+```
+
+### Sinusoidal Example
+You can create a sine wave like this:
+```
+1> SinSample = fun(X) -> V = math:sin(math:pi()/2*(X/10))/2+0.5, grisp_pwm:set_sample(gpio1_8, V), timer:sleep(10) end.
+#Fun<erl_eval.42.39164016>
+2> [SinSample(X) || X <- lists:seq(1, 1000)].
+[ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,
+ok,ok,ok,ok,ok,ok,ok,ok,ok,ok|...]
+```
+<!-- tabs-close -->
+
+### Pin Mappings
+
+| ID        | Slot    | Type    | # | Schematic |
+| --------- | ------- | ------- | - | --------- |
+| `gpio1_2` | GPIO1   | PMOD 1A | 2 | X1404.2   |
+| `gpio1_4` | GPIO1   | PMOD 1A | 4 | X1404.4   |
+| `gpio1_8` | GPIO1   | PMOD 1A | 8 | X1404.8   |
+| `gpio_2_6`| GPIO_2/4| Generic |   | X1301.6   |
+| `spi2_7`  | SPI2    | SPI     |   | X1402.7   |
+| `uart_8`  | UART    | UART    |   | X1405.8   |
+| `uart_9`  | UART    | UART    |   | X1405.9   |
+| `jtag_4`  | JTAG    | JTAG    |   | X1503.4   |
+| `jtag_8`  | JTAG    | JTAG    |   | X1503.8   |
+
+> #### Other Drivers {: .tip}
+> This driver might use pins that are also used by other drivers (GPIO, SPI, UART). When opening a pin the PWM driver
+> takes control and configures the multixplexing so the pin is wired to the corresponding PWM unit.
+> When closing the pin the driver will restore the pevious multiplexing setting, handing back control.
+>
+> Example: `grisp_gpio` is used to set a pin to high, then `grisp_pwm:open/3` is used to drive the pin.
+> After `grisp_pwm:close/1` is called, the pin is set to high and `grisp_gpio` is again in control.
+""".
+
 -behaviour(gen_server).
 -include("grisp_nif.hrl").
 
@@ -107,8 +101,9 @@
 -export([code_change/3]).
 
 % Callbacks
--export([on_load/0]).
+-ifndef(DOC).
 -on_load(on_load/0).
+-endif.
 
 -record(pwm_config, {
     sample_repeat :: sample_repeat(),
@@ -262,41 +257,52 @@
 }).
 
 %--- API -----------------------------------------------------------------------
-% @doc Starts the driver and registers a PWM device.
+-doc """
+*Starts the driver and registers a PWM device.*
+""".
+
 start_driver() ->
     grisp:add_device(pwm, ?MODULE, #{}).
 
-%% @private
+-doc(false).
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-%% @private
+-doc(false).
 % interface for grisp_devices
 start_link(pwm, #{}) ->
     start_link().
 
-% @doc Opens a pin and sets a configuration and a sample.
-%
-% === Default Config Example ===
-% The default configuratin uses the `ipg_clk' clock, a prescale of 10 and a period of `<<1024:16>>'.
-% This results in a 155.5μs cycle time (6.43MHz) and 10bit resolution.
-% ```
-% 1> grisp_pwm:open(gpio1_8, default, 0.75).
-% ok
-% '''
-% === Prescale and Period Config Example ===
-% Here we set the prescaler to 1 (10 times higher frequency than the default) and the period to `<<512:16>>' (further doubling the frequency and halfing the resolution).
-% The result is a 7,775μs cycle time (128.6MHz) and 9bit resolution.
-% ```
-% 1> grisp_pwm:open(gpio1_8, {1, <<512:16>>}, 0.5).
-% ok
-% '''
-% === Clock, Prescale and Period Config Example ===
-% This sets a low frequency clock and results in a 500ms cycle time (2Hz) and 4bit resolution.
-% ```
-% 1> grisp_pwm:open(gpio1_8, {ipg_clk_32k, 1, <<16:16>>}, 0.5).
-% ok
-% '''
+-doc """
+*Opens a pin and sets a configuration and a sample.*
+
+### Examples
+
+<!-- tabs-open -->
+### Default Config
+The default configuratin uses the `ipg_clk` clock, a prescale of 10 and a period of `<<1024:16>>`.
+This results in a 155.5μs cycle time (6.43MHz) and 10bit resolution.
+```
+1> grisp_pwm:open(gpio1_8, default, 0.75).
+ok
+```
+
+### Prescale and Period Config
+Here we set the prescaler to 1 (10 times higher frequency than the default) and the period to `<<512:16>>` (further doubling the frequency and halfing the resolution).
+The result is a 7,775μs cycle time (128.6MHz) and 9bit resolution.
+```
+1> grisp_pwm:open(gpio1_8, {1, <<512:16>>}, 0.5).
+ok
+```
+
+### Clock, Prescale and Period Config
+This sets a low frequency clock and results in a 500ms cycle time (2Hz) and 4bit resolution.
+```
+1> grisp_pwm:open(gpio1_8, {ipg_clk_32k, 1, <<16:16>>}, 0.5).
+ok
+```
+<!-- tabs-close -->
+""".
 
 -spec open(pin(), config(), sample()) -> ok | {error, _}.
 open(Pin, default, Sample)
@@ -320,38 +326,51 @@ open_with_pwm_config(Pin, Config, Sample)
         Error ->
             Error
         end.
+-doc """
+*Closes a pin.*
+""".
 
-% @doc Closes a pin.
 -spec close(pin()) -> ok.
 close(Pin) when is_atom(Pin) ->
     gen_server:call(?MODULE, {close, Pin}).
 
-% @doc Sets a sample to define the duty cycle.
-%
-% You can pass a float between 0.0 and 1.0 or a 16bit binary.
-% The binary value must be below or equal to the period (`<<1024:16>>' by default).
-% === Float Sample Example ===
-% This sets the duty cycle to 25%. This method is independent of the period used.
-% ```
-% 1> grisp_pwm:set_sample(gpio1_8, 0.25).
-% ok
-% '''
-% === Binary Sample Example ===
-% This sets the duty cycle to 25% given a period of `<<1024:16>>'.
-% ```
-% 1> grisp_pwm:set_sample(gpio1_8, <<256:16>>).
-% ok
-% '''
+-doc """
+*Sets a sample to define the duty cycle.*
+
+You can pass a float between 0.0 and 1.0 or a 16bit binary.
+The binary value must be below or equal to the period (`<<1024:16>>` by default).
+
+### Examples
+<!-- tabs-open -->
+### Float Sample
+This sets the duty cycle to 25%. This method is independent of the period used.
+```
+1> grisp_pwm:set_sample(gpio1_8, 0.25).
+ok
+```
+
+### Binary Sample
+This sets the duty cycle to 25% given a period of `<<1024:16>>`.
+```
+1> grisp_pwm:set_sample(gpio1_8, <<256:16>>).
+ok
+```
+<!-- tabs-close -->
+""".
+
 -spec set_sample(pin(), sample()) -> ok | {error | _}.
 set_sample(Pin, Sample)
   when is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
     gen_server:call(?MODULE, {set_sample, Pin, Sample}).
 
-% @doc Creates a custom configuration for PWM.
-%
-% This creates a configuration with a given clock, prescale and period.
-% This is useful if you want to define the cycle time or the duty cycle resolution.
-% Different clocks can be selected to provide different source frequencies.
+-doc """
+*Creates a custom configuration for PWM.*
+
+This creates a configuration with a given clock, prescale and period.
+This is useful if you want to define the cycle time or the duty cycle resolution.
+Different clocks can be selected to provide different source frequencies.
+""".
+
 -spec config(clock(), prescale(), period()) -> pwm_config().
 config(Clock, Prescale, Period = <<_:16>>)
   when is_atom(Clock), is_integer(Prescale), Prescale >= 1  ->
@@ -380,7 +399,7 @@ default_interrupt_config() ->
     }.
 
 %--- gen_server Calbacks -------------------------------------------------------
-%% @private
+-doc(false).
 -ifdef(TEST).
 init(_) -> {ok, #state{pin_states = #{}}}.
 -else.
@@ -393,7 +412,7 @@ init([]) ->
     {ok, #state{pin_states = #{}}}.
 -endif.
 
-%% @private
+-doc(false).
 handle_call({open, Pin, Config, Sample}, _From, State) ->
     case {maps:get(Pin, State#state.pin_states, nil),
           maps:get(Pin, ?PINMUXING, nil)} of
@@ -467,26 +486,25 @@ handle_call({set_sample, Pin, Sample}, _From, State) ->
     end,
     {reply, Reply, State}.
 
-%% @private
+-doc(false).
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-%% @private
+-doc(false).
 handle_info(_Info, State) ->
     {noreply, State}.
 
-%% @private
+-doc(false).
 terminate(_Reason, _State) ->
     ok.
 
-%% @private
+-doc(false).
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 % internal functions
 
 %--- Internal ------------------------------------------------------------------
-%% @private
 -spec setup(pwm_id(), pwm_config(), sample()) -> ok.
 -ifdef(TEST).
 setup(_, _, _) -> ok.
@@ -655,14 +673,12 @@ address(PWMId, Key) when is_number(PWMId), is_list(Key) ->
 to_bit(false) -> <<0:1>>;
 to_bit(true)  -> <<1:1>>.
 
-% @private
+-doc(false).
 on_load() -> ?NIF_LOAD.
 
-%% @private
 set_register(Address, <<Value:32/big>>) when is_number(Address) ->
     pwm_set_register32_nif(Address, Value).
 
-%% @private
 get_register(Address) when is_number(Address) ->
     Value = pwm_get_register32_nif(Address),
     <<Value:32/big>>.
