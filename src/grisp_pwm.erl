@@ -32,8 +32,6 @@ If you want to stop using PWM on this pin you can call:
 ![image](../assets/pwm_example.png)
 Figure 1. Oscilloscope trace with a 0.75 % duty cycle and the default configuration.
 
-### Examples
-
 <!-- tabs-open -->
 ### Ramp Up Example
 You can ramp up the duty cycle from 0% to 100% in one second like this:
@@ -70,7 +68,7 @@ ok,ok,ok,ok,ok,ok,ok,ok,ok,ok|...]
 | `jtag_4`  | JTAG    | JTAG    |   | X1503.4   |
 | `jtag_8`  | JTAG    | JTAG    |   | X1503.8   |
 
-> #### Other Drivers {: .tip}
+> #### Note {: .tip}
 > This driver might use pins that are also used by other drivers (GPIO, SPI, UART). When opening a pin the PWM driver
 > takes control and configures the multixplexing so the pin is wired to the corresponding PWM unit.
 > When closing the pin the driver will restore the pevious multiplexing setting, handing back control.
@@ -258,7 +256,7 @@ ok,ok,ok,ok,ok,ok,ok,ok,ok,ok|...]
 
 %--- API -----------------------------------------------------------------------
 -doc """
-*Starts the driver and registers a PWM device.*
+Starts the driver and registers a PWM device.
 """.
 
 start_driver() ->
@@ -274,9 +272,7 @@ start_link(pwm, #{}) ->
     start_link().
 
 -doc """
-*Opens a pin and sets a configuration and a sample.*
-
-### Examples
+Opens a pin and sets a configuration and a sample.
 
 <!-- tabs-open -->
 ### Default Config
@@ -327,7 +323,7 @@ open_with_pwm_config(Pin, Config, Sample)
             Error
         end.
 -doc """
-*Closes a pin.*
+Closes a pin.
 """.
 
 -spec close(pin()) -> ok.
@@ -335,12 +331,11 @@ close(Pin) when is_atom(Pin) ->
     gen_server:call(?MODULE, {close, Pin}).
 
 -doc """
-*Sets a sample to define the duty cycle.*
+Sets a sample to define the duty cycle.
 
 You can pass a float between 0.0 and 1.0 or a 16bit binary.
 The binary value must be below or equal to the period (`<<1024:16>>` by default).
 
-### Examples
 <!-- tabs-open -->
 ### Float Sample
 This sets the duty cycle to 25%. This method is independent of the period used.
@@ -364,7 +359,7 @@ set_sample(Pin, Sample)
     gen_server:call(?MODULE, {set_sample, Pin, Sample}).
 
 -doc """
-*Creates a custom configuration for PWM.*
+Creates a custom configuration for PWM.
 
 This creates a configuration with a given clock, prescale and period.
 This is useful if you want to define the cycle time or the duty cycle resolution.
