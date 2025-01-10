@@ -1,9 +1,9 @@
 <p>
   <a href="#readme">
-    <img alt="GRiSP Erlang Runtime" src="assets/GRiSP_Logotype_positiv.svg"/ style="width: 80%;">
+    <img src="assets/GRiSP_Logotype_positive.svg#gh-light-mode-only" alt="Fancy logo" style="width: 80%;">
+    <img src="assets/GRiSP_Logotype_negative.svg#gh-dark-mode-only" alt="Fancy logo" style="width: 80%;">
   </a>
 </p>
-
 
 <p align="center">
   <a href="https://github.com/grisp/grisp/actions/workflows/continous_integration.yaml?query=branch%3Amaster">
@@ -72,7 +72,7 @@ GRiSP hardware supports many different connection standards:
 * GPIO
 * SPI
 * UART
-* I<sup>2</sup>C
+* I²C
 * 1-Wire
 
 Peripherals can be connected to either [PMOD] ports or I/O
@@ -84,19 +84,19 @@ pins directly.
 
 GRiSP 2 ships with the following features:
 
-* 1 &times; 100 Mbit/s Ethernet port
-* 1 &times; Wi-Fi 802.11b/g/n WLAN
-* 1 &times; GPIO PMOD Type 1A (12-pin)
-* 2 &times; GPIO pins (14-pin & 6-pin)
-* 1 &times; SPI1 PMOD Type 2 (6-pin)
-* 1 &times; SPI2 PMOD Type 2A (12-pin)
-* 1 &times; UART PMOD Type 3A (12-pin)
-* 1 &times; I<sup>2</sup>C PMOD Type 6 (6-pin)
-* 1 &times; I<sup>2</sup>C Bus (8-pin)
-* 1 &times; 1-Wire Bus (3-pin)
-* 1 &times; USB Bus (5-pin)
-* 5 &times; mode DIP switches
-* 1 &times; JTAG connector
+* 1 × 100 Mbit/s Ethernet port
+* 1 × Wi-Fi 802.11b/g/n WLAN
+* 1 × GPIO PMOD Type 1A (12-pin)
+* 2 × GPIO pins (14-pin & 6-pin)
+* 1 × SPI1 PMOD Type 2 (6-pin)
+* 1 × SPI2 PMOD Type 2A (12-pin)
+* 1 × UART PMOD Type 3A (12-pin)
+* 1 × I²C PMOD Type 6 (6-pin)
+* 1 × I²C Bus (8-pin)
+* 1 × 1-Wire Bus (3-pin)
+* 1 × USB Bus (5-pin)
+* 5 × mode DIP switches
+* 1 × JTAG connector
 
 ## GRiSP 1 (`grisp_base`)
 
@@ -104,15 +104,15 @@ GRiSP 2 ships with the following features:
 
 GRiSP 1 ships with the following features:
 
-* 1 &times; Wi-Fi 802.11b/g/n WLAN
-* 2 &times; GPIO PMOD Type 1 (6-pin)
-* 1 &times; UART PMOD Type 3 (6-pin)
-* 1 &times; SPI1 PMOD Type 2A (12-pin)
-* 1 &times; SPI2 PMOD Type 2 (6-pin)
-* 1 &times; I<sup>2</sup>C Bus (8-pin)
-* 1 &times; 1-Wire Bus (3-pin)
-* 5 &times; mode DIP switches
-* 1 &times; JTAG connector
+* 1 × Wi-Fi 802.11b/g/n WLAN
+* 2 × GPIO PMOD Type 1 (6-pin)
+* 1 × UART PMOD Type 3 (6-pin)
+* 1 × SPI1 PMOD Type 2A (12-pin)
+* 1 × SPI2 PMOD Type 2 (6-pin)
+* 1 × I²C Bus (8-pin)
+* 1 × 1-Wire Bus (3-pin)
+* 5 × mode DIP switches
+* 1 × JTAG connector
 
 # Testing
 
@@ -134,7 +134,7 @@ $ rebar3 as test shell
     General Purpose Input/Output. Digital signal pin interface used to
     interface with single pins.
   </dd>
-  <dt>I<sup>2</sup>C</dt><dd>
+  <dt>I²C</dt><dd>
     Inter-Intergrated Circuit. Short-distance synchronous serial computer bus.
   </dd>
   <dt>JTAG</dt><dd>
