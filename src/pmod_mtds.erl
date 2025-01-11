@@ -17,12 +17,11 @@
     move_to/2, line_to/2,
     stock_font/1
 ]).
--export([start_link/1]).  % public, server management
+-export([start_link/2]).  % public, server management
 -export([  % private: gen_server callbacks
     init/1, terminate/2, code_change/3,
     handle_call/3, handle_cast/2, handle_info/2
 ]).
--export([poll_loop/1]).  % private
 -behavior(gen_server).
 -include("grisp_internal.hrl").  % for device record definition
 
@@ -187,7 +186,12 @@ font(Handle) ->
 text(DSHandle, Text, _Pos = {X, Y}) ->
     EncodedText = iolist_to_binary(Text),
     TotalSize = size(EncodedText),
-    Parameter = <<DSHandle:32/little, X:16/little, Y:16/little, TotalSize:16/little>>,
+    Parameter = <<
+        DSHandle:32/little,
+        X:16/little,
+        Y:16/little,
+        TotalSize:16/little
+    >>,
     {ok, <<>>} = send_command({graphics, 16#41}, Parameter, EncodedText),
     ok.
 
@@ -228,8 +232,9 @@ line_to(Handle, _Position = {X, Y}) ->
 %
 
 % @doc Launch the MTDS driver.
--spec start_link(grisp_spi:bus()) -> {ok, pid()} | ignore | {error, term()}.
-start_link(Interface) ->
+-spec start_link(grisp_spi:bus(), any()) ->
+    {ok, pid()} | ignore | {error, term()}.
+start_link(Interface, _Opts) ->
     gen_server:start_link(?MODULE, [Interface], []).
 
 %
@@ -245,7 +250,8 @@ start_link(Interface) ->
 % we retain bytes received from the bus in a buffer for asynchronous processing.
 -record(state, {
     % link with MTDS
-    bus, buffer = << >>,
+    bus,
+    buffer = << >>,
     % windowing system
     listeners = #{}
 }).
@@ -266,13 +272,11 @@ start_link(Interface) ->
 % initialization to a timeout (see handle_info/2) so as not to get in the way of
 % any supervisor tree.
 init([Interface]) ->
-    % NOTE: MTDS wants to put freq in 3.5–4 MHz, whereas GRiSP runs at 0.1 MHz.
-    ok = grisp_devices:register(Interface, ?MODULE),
     {ok, Interface, 0}.
 
 % Process a command directive.
-handle_call({command, {Class, Command}, Parameters, Packet}, _From, State) ->
-    {ok, NewState, Reply} = command(State, {Class, Command}, Parameters, Packet),
+handle_call({command, CommandPair, Parameters, Packet}, _From, State) ->
+    {ok, NewState, Reply} = command(State, CommandPair, Parameters, Packet),
     {reply, {ok, Reply}, NewState};
 % Process a touch enregistration.
 handle_call({register, PID, Window}, _From, State) ->
@@ -308,12 +312,19 @@ handle_cast(_Request, State) ->
 
 % Complete initialization.
 handle_info(timeout, Interface) when is_atom(Interface) ->
+    % NOTE: MTDS wants to put freq in 3.5–4 MHz, whereas GRiSP runs at 0.1 MHz.
+    ok = grisp_devices:register(Interface, ?MODULE),
+
     Bus = grisp_spi:open(Interface),
     State = #state{bus = Bus},
     % NOTE: Reference driver toggles the reset pin, but we don't have access.
     {ok, SyncedState} = sync(State),
     {ok, StartedState, _Reply} = command(SyncedState, {2#01, 16#2}),
-    spawn_link(?MODULE, poll_loop, [self()]),  % set up touch poll
+
+    % set up touch poll
+    Self = self(),
+    spawn_link(fun() -> poll_loop(Self) end),
+
     {noreply, StartedState}.
 
 code_change(_OldVsn, State, _Extra) ->

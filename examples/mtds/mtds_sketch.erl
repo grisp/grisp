@@ -1,11 +1,10 @@
--module(mtds_sketch).
--moduledoc """
-Demonstration of MTDS touch events.
+% @doc Demonstration of MTDS touch events.
+%
+% To use:
+% > grisp:add_device(spi2, pmod_mtds).
+% > mtds_sketch:start_link().
 
-To use:
-> pmod_mtds:start_link(spi2).
-> mtds_sketch:start_link().
-""".
+-module(mtds_sketch).
 -export([start_link/0]).
 -export([
     init/1, code_change/3, terminate/2,

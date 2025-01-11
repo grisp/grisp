@@ -1,9 +1,8 @@
--module(mtds_hello).
--moduledoc """
-Writes 'Hello, World!' to the MTDS display.
+% @doc Writes 'Hello, World!' to the MTDS display.
+%
+% Run grisp:add_device(spi2, pmod_mtds) before running this demo.
 
-Run pmod_mtds:start_link/1 before running this demo.
-""".
+-module(mtds_hello).
 -export([run/0]).
 
 run() ->
