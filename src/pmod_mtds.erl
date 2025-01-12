@@ -24,6 +24,7 @@
 ]).
 -behavior(gen_server).
 -include("grisp_internal.hrl").  % for device record definition
+-include("pmod_mtds.hrl").  % protocol constants
 
 -define(TOUCH_POLL_PERIOD, 100).  % milliseconds between touch event queries
 
@@ -35,10 +36,11 @@
 -type color() :: {R :: float(), G :: float(), B :: float()}.
 
 % Various handle types.
--type window() :: integer().
--type surface() :: integer().
--type bitmap() :: integer().
--type font() :: integer().
+-type surface() :: ?REGION_SURFACE .. (?REGION_SURFACE + ?HANDLE_SPACE).
+-type bitmap()  :: ?REGION_BITMAP  .. (?REGION_BITMAP  + ?HANDLE_SPACE).
+-type font()    :: ?REGION_FONT    .. (?REGION_FONT    + ?HANDLE_SPACE).
+-type window()  :: ?REGION_WINDOW  .. (?REGION_WINDOW  + ?HANDLE_SPACE).
+
 -type position() :: {X :: integer(), Y :: integer()}.
 
 % @doc Shape of touch event messages sent to registered listeners.
@@ -54,8 +56,8 @@
 % @doc Names of built-in fonts.
 -type stock_font() :: console.
 
-% @doc Toplevel categorization of what kind of thing we're asking MTDS to do.
--type class_atom() :: utility | graphics.
+% @doc Opcode enum.
+-type command() :: 0..(16#3FFF) .
 
 %
 % Public interface for MTDS
@@ -64,7 +66,7 @@
 % @doc Registers the caller for touch events for the indicated window.
 -spec register(window()) -> ok.
 register() ->
-    pmod_mtds:register(16#C4400000).
+    pmod_mtds:register(?REGION_WINDOW bor ?STOCK_WINDOW).
 register(Window) ->
     #device{pid = PID} = grisp_devices:default(?MODULE),
     gen_server:call(PID, {register, self(), Window}).
@@ -78,7 +80,7 @@ clear(_Color = {R, G, B}) ->
     GG = round(G * 2#111111),
     BB = round(B * 2#11111),
     <<BigEndian:16>> = <<RR:5, GG:6, BB:5>>,
-    {ok, <<>>} = send_command({utility, 16#b}, <<BigEndian:16/little>>),
+    {ok, <<>>} = send_command(?UTILITY_CLEAR, <<BigEndian:16/little>>),
     ok.
 
 % @doc Set the foreground draw color of a surface.
@@ -91,7 +93,7 @@ color_fg(Handle, _Color = {R, G, B}) ->
         (round(R*255)):8,
         0:8
     >>,
-    {ok, <<>>} = send_command({graphics, 16#10}, Parameter),
+    {ok, <<>>} = send_command(?GRAPHICS_DS_FG_SET, Parameter),
     ok.
 
 % @doc Set the background draw color of a surface.
@@ -104,7 +106,7 @@ color_bg(Handle, _Color = {R, G, B}) ->
         (round(R*255)):8,
         0:8
     >>,
-    {ok, <<>>} = send_command({graphics, 16#12}, Parameter),
+    {ok, <<>>} = send_command(?GRAPHICS_DS_BG_SET, Parameter),
     ok.
 
 % @doc Set the bitwise operator used to combine pen + bitmap when drawing.
@@ -112,25 +114,25 @@ color_bg(Handle, _Color = {R, G, B}) ->
 % TODO: Hide the raw opcodes.
 draw_rop(Handle, OpCode) ->
     Parameter = <<Handle:32/little, OpCode:16/little>>,
-    {ok, <<>>} = send_command({graphics, 16#1c}, Parameter),
+    {ok, <<>>} = send_command(?GRAPHICS_DS_ROP_SET, Parameter),
     ok.
 
 % @doc Retrieve a surface handle to the global display.
 -spec surface_display() -> {ok, surface()}.
 surface_display() ->
-    {ok, <<Handle:32/little, _Rest/binary>>} = send_command({graphics, 16#1}),
+    {ok, <<Handle:32/little, _/binary>>} = send_command(?GRAPHICS_DS_DISPLAY),
     {ok, Handle}.
 
 % @doc Generate a new surface (with no underlying bitmap).
 -spec surface() -> {ok, surface()}.
 surface() ->
-    {ok, <<Handle:32/little, _Rest/binary>>} = send_command({graphics, 16#2}),
+    {ok, <<Handle:32/little, _Rest/binary>>} = send_command(?GRAPHICS_DS_NEW),
     {ok, Handle}.
 
 % @doc Release a surface handle.
 -spec surface_release(surface()) -> ok.
 surface_release(Handle) ->
-    {ok, <<>>} = send_command({graphics, 16#3}, <<Handle:32/little>>),
+    {ok, <<>>} = send_command(?GRAPHICS_DS_RELEASE, <<Handle:32/little>>),
     ok.
 
 % @doc Allocate a new bitmap (usually to back a surface).
@@ -141,45 +143,36 @@ bitmap(X, Y, Color) ->
         color -> 16
     end,
     Parameter = <<X:16/little, Y:16/little, EncodedColor:16/little>>,
-    {ok, Reply} = send_command({graphics, 16#9}, Parameter),
+    {ok, Reply} = send_command(?GRAPHICS_BITMAP_NEW, Parameter),
     <<Handle:32/little, _Rest/binary>> = Reply,
     {ok, Handle}.
 
 % @doc Release a bitmap.
 -spec bitmap_release(bitmap()) -> ok.
 bitmap_release(Handle) ->
-    {ok, <<>>} = send_command({graphics, 16#a}, <<Handle:32/little>>),
+    {ok, <<>>} = send_command(?GRAPHICS_BITMAP_RELEASE, <<Handle:32/little>>),
     ok.
 
 % @doc Tether a surface to a backing bitmap.
 -spec surface_bitmap(surface(), bitmap()) -> ok.
 surface_bitmap(DSHandle, BitmapHandle) ->
     Parameter = <<DSHandle:32/little, BitmapHandle:32/little>>,
-    {ok, <<>>} = send_command({graphics, 16#22}, Parameter),
+    {ok, <<>>} = send_command(?GRAPHICS_DS_BITMAP_SET, Parameter),
     ok.
 
 % @doc Set the active font for a surface.
 -spec font(surface(), font()) -> ok.
 font(Handle, Font) ->
     Parameter = <<Handle:32/little, Font:32/little>>,
-    {ok, <<>>} = send_command({graphics, 16#20}, Parameter),
+    {ok, <<>>} = send_command(?GRAPHICS_DS_FONT_SET, Parameter),
     ok.
 
 % @doc Retrieve the current font of a surface.
 -spec font(surface()) -> {ok, font()}.
 font(Handle) ->
     Parameter = <<Handle:32/little>>,
-    {ok, <<Font:32/little>>} = send_command({graphics, 16#21}, Parameter),
+    {ok, <<Font:32/little>>} = send_command(?GRAPHICS_DS_FONT_GET, Parameter),
     {ok, Font}.
-
-% TODO: This crashes with error code 0x81.  Don't know why or what that means.
-% % @doc Write text on a surface at the current cursor position.
-% text(DSHandle, Text) ->
-%     EncodedText = iolist_to_binary(Text),
-%     TotalSize = size(EncodedText),
-%     Parameter = <<DSHandle:32/little, TotalSize:16/little>>,
-%     {ok, <<>>} = send_command({graphics, 16#40}, Parameter, EncodedText),
-%     ok.
 
 % @doc Write text on a surface at a given position.
 -spec text(surface(), iolist(), position()) -> ok.
@@ -192,7 +185,7 @@ text(DSHandle, Text, _Pos = {X, Y}) ->
         Y:16/little,
         TotalSize:16/little
     >>,
-    {ok, <<>>} = send_command({graphics, 16#41}, Parameter, EncodedText),
+    {ok, <<>>} = send_command(?GRAPHICS_TEXT, Parameter, EncodedText),
     ok.
 
 % @doc Write the contents of one bitmap onto another.
@@ -210,21 +203,21 @@ bitmap_draw(DestDS, {DX, DY}, SourceDS, {SX, SY}, {Width, Height}) ->
         SX:16/little-signed,
         SY:16/little-signed
     >>,
-    {ok, <<>>} = send_command({graphics, 16#4a}, Parameter),
+    {ok, <<>>} = send_command(?GRAPHICS_DS_DRAW, Parameter),
     ok.
 
 % @doc Move the cursor position on a surface.
 -spec move_to(surface(), position()) -> ok.
 move_to(Handle, _Position = {X, Y}) ->
     Parameter = <<Handle:32/little, X:16/little, Y:16/little>>,
-    {ok, <<>>} = send_command({graphics, 16#33}, Parameter),
+    {ok, <<>>} = send_command(?GRAPHICS_DS_MOVE, Parameter),
     ok.
 
 % @doc Draw a line on a surface from the current cursor position to a new one.
 -spec line_to(surface(), position()) -> ok.
 line_to(Handle, _Position = {X, Y}) ->
     Parameter = <<Handle:32/little, X:16/little, Y:16/little>>,
-    {ok, <<>>} = send_command({graphics, 16#35}, Parameter),
+    {ok, <<>>} = send_command(?GRAPHICS_DS_LINE_TO, Parameter),
     ok.
 
 %
@@ -319,7 +312,7 @@ handle_info(timeout, Interface) when is_atom(Interface) ->
     State = #state{bus = Bus},
     % NOTE: Reference driver toggles the reset pin, but we don't have access.
     {ok, SyncedState} = sync(State),
-    {ok, StartedState, _Reply} = command(SyncedState, {2#01, 16#2}),
+    {ok, StartedState, _Reply} = command(SyncedState, ?UTILITY_INIT),
 
     % set up touch poll
     Self = self(),
@@ -346,61 +339,26 @@ poll_loop(PID) ->
 % Underlying device comms
 %
 
-% Various protocol constants.
--define(SPI_MODE, #{clock => {low, leading}}).
-
--define(HEADER_COMMAND, 2#01).
--define(HEADER_STATUS,  2#10).
--define(HEADER_DATA,    2#11).
-
--define(CONTROL_READ,  16#1).
--define(CONTROL_START, 16#2).
--define(CONTROL_SYNC,  16#3).
-
--define(CONTROL_READY,          16#20).
--define(CONTROL_BUSY,           16#21).
--define(CONTROL_DONE,           16#22).
--define(CONTROL_READY_FOR_DATA, 16#23).
--define(CONTROL_SYNCING,        16#25).
-
--define(STATUS_OK, 16#0).
-
--define(CLASS_UTILITY,  2#01).
--define(CLASS_GRAPHICS, 2#10).
-
--define(PACKET_OUT_MAX_SIZE, 512).
-
--type class() :: 0..3 .
--type command() :: 0..63 .
-
-% Device-side memory region constants.
--define(REGION_FONT,   16#C3000000).
--define(REGION_WINDOW, 16#C4000000).
-
--define(STOCK_FONT,   16#00300000).
--define(STOCK_WINDOW, 16#00400000).
-
 % @doc Package a command sequence into a binary payload.
--spec command_payload(integer(), integer(), binary()) -> binary().
-command_payload(Class, Command, Parameters) ->
+-spec command_payload(command(), binary()) -> binary().
+command_payload(Command, Parameters) ->
     Size = size(Parameters),
     <<
         ?HEADER_COMMAND:2,
-        Class:6,
-        Command:8,
+        Command:14,
         Size:16/little,
         Parameters/binary
     >>.
 
 % @doc Send a command to MTDS and confirm delivery.
--spec command(state(), {class(), command()}, binary(), binary()) ->
+-spec command(state(), command(), binary(), binary()) ->
     {ok, state(), binary()} | {error, any()}.
-command(State, {Class, Command}) ->
-    command(State, {Class, Command}, << >>).
-command(State, {Class, Command}, Parameters) ->
-    command(State, {Class, Command}, Parameters, << >>).
-command(State, {Class, Command}, Parameters, DataPacket) ->
-    Payload = command_payload(Class, Command, Parameters),
+command(State, Command) ->
+    command(State, Command, << >>).
+command(State, Command, Parameters) ->
+    command(State, Command, Parameters, << >>).
+command(State, Command, Parameters, DataPacket) ->
+    Payload = command_payload(Command, Parameters),
     CommandState = transfer(State, Payload),
     BusyState = drop(wait_until(CommandState, <<?CONTROL_BUSY>>)),
 
@@ -409,13 +367,15 @@ command(State, {Class, Command}, Parameters, DataPacket) ->
     DoneState = drop(wait_until(PacketState, <<?CONTROL_DONE>>)),
 
     % retrieve status
-    QueryPayload = command_payload(?CLASS_UTILITY, 16#1, << >>),
+    QueryPayload = command_payload(?UTILITY_READ_STATUS, << >>),
     StatusState = transfer(DoneState, QueryPayload),
     PreheaderState = wait_until(StatusState, <<?HEADER_STATUS:2>>),
     {ok, PostheaderState, Header} = read(PreheaderState, 4),
     case Header of
-        <<?HEADER_STATUS:2, Class:6, Command:8, ?STATUS_OK:8, ByteCount:8>> ->
+        <<?HEADER_STATUS:2, Command:14, ?STATUS_OK:8, ByteCount:8>> ->
             read(PostheaderState, ByteCount);
+        % TODO: could add more nuanced error accounting here,
+        %       see eg ProtoDefs.h:staCmdNotSupported
         _ ->
             {error, bad_status}
     end.
@@ -434,8 +394,8 @@ send_data(State, Command, Packet) ->
     ChunkSize = size(Chunk),
     TransferredState = transfer(ReadyState, <<
         ?HEADER_DATA:2,
-        16#1:6,  % data out
-        Command:8,
+        ?DATA_OUT:6,
+        Command:8,  % deliberately discards the "class" high-order bits!
         ChunkSize:16/little,
         Chunk/binary
     >>),
@@ -484,12 +444,12 @@ sync_exit(State, TrialsToGo) ->
 % TODO: Could limit the recursion here if it interferes with draw commands.
 -spec poll_touch_events(state()) -> {state(), [touch_event()]}.
 poll_touch_events(State) ->
-    {ok, QueriedState, Status} = command(State, {?CLASS_UTILITY, 16#11}),
+    {ok, QueriedState, Status} = command(State, ?UTILITY_EVENT_CHECK),
     case Status of
         <<0:32/little>> -> {QueriedState, []};
         _ ->
             {ok, PolledState, RawResult} = command(
-                QueriedState, {?CLASS_UTILITY, 16#14}
+                QueriedState, ?UTILITY_EVENT_POP
             ),
             Result = parse_touch_event(RawResult),
             {UltimateState, Results} = poll_touch_events(PolledState),
@@ -518,7 +478,7 @@ parse_touch_event(RawResult) ->
     },
     {touch, WindowHandle, Maneuver, {X, Y}, Weight, Speed}.
 
-% @doc Poll MTDS until we see some Goal prefix.
+% @doc Poll MTDS, discarding until we see some Goal prefix.
 -spec wait_until(state(), bitstring()) -> state().
 wait_until(State = #state{buffer = << >>}, Goal) ->
     NewState = transfer(State, <<?CONTROL_READ>>),
@@ -532,7 +492,7 @@ wait_until(State = #state{buffer = Buffer}, Goal) ->
             wait_until(State#state{buffer = Rest}, Goal)
     end.
 
-% @doc Poll AtLeast bytes from the MTDS.
+% @doc Poll AtLeast bytes from MTDS.
 -spec read(state(), integer()) -> {ok, state(), binary()}.
 read(State = #state{buffer = Buffer}, AtLeast) when size(Buffer) >= AtLeast ->
     #state{buffer = <<Read:AtLeast/binary, Rest/binary>>} = State,
@@ -561,21 +521,14 @@ drop(State) ->
 %
 
 % @doc Shorthand to send a command directive to the MTDS driver.
--spec send_command({class_atom(), command()}, binary(), binary()) ->
-    {ok, binary()}.
+-spec send_command(command(), binary(), binary()) -> {ok, binary()}.
 send_command(Selector) ->
     send_command(Selector, << >>).
 send_command(Selector, Parameter) ->
     send_command(Selector, Parameter, << >>).
-send_command({ClassAtom, Command}, Parameter, DataPacket) ->
+send_command(Selector, Parameter, DataPacket) ->
     #device{pid = PID} = grisp_devices:default(?MODULE),
-    Class = class_from_atom(ClassAtom),
-    gen_server:call(PID, {command, {Class, Command}, Parameter, DataPacket}).
-
-% @doc Convert a human-readable class atom into a class() instance.
--spec class_from_atom(class_atom()) -> class().
-class_from_atom(utility)  -> ?CLASS_UTILITY;
-class_from_atom(graphics) -> ?CLASS_GRAPHICS.
+    gen_server:call(PID, {command, Selector, Parameter, DataPacket}).
 
 % @doc Convert a human-readable font atom to a font() instance.
 -spec stock_font(stock_font()) -> font().
