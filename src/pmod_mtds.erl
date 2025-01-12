@@ -9,19 +9,41 @@
 % For manuals and a C++ reference driver, see
 % https://github.com/Digilent/vivado-library/tree/master/ip/Pmods/PmodMTDS_v1_0
 -module(pmod_mtds).
--export([register/0, register/1]).  % public, touch events
--export([  % public, MTDS commands
-    clear/1, color_fg/2, color_bg/2, draw_rop/2,
-    surface_display/0, surface/0, surface_release/1, bitmap/3, bitmap_release/1,
-    surface_bitmap/2, font/1, font/2, text/3, bitmap_draw/5,
-    move_to/2, line_to/2,
-    stock_font/1
-]).
--export([start_link/2]).  % public, server management
--export([  % private: gen_server callbacks
-    init/1, terminate/2, code_change/3,
-    handle_call/3, handle_cast/2, handle_info/2
-]).
+
+% Erlang-facing touch event API
+-export([register/0]).
+-export([register/1]).
+
+% MTDS commands
+-export([bitmap/3]).
+-export([bitmap_draw/5]).
+-export([bitmap_release/1]).
+-export([clear/1]).
+-export([color_fg/2]).
+-export([color_bg/2]).
+-export([draw_rop/2]).
+-export([font/1]).
+-export([font/2]).
+-export([line_to/2]).
+-export([move_to/2]).
+-export([stock_font/1]).
+-export([surface/0]).
+-export([surface_display/0]).
+-export([surface_release/1]).
+-export([surface_bitmap/2]).
+-export([text/3]).
+
+% server management
+-export([start_link/2]).
+
+% gen_server callbacks
+-export([init/1]).
+-export([terminate/2]).
+-export([code_change/3]).
+-export([handle_call/3]).
+-export([handle_cast/2]).
+-export([handle_info/2]).
+
 -behavior(gen_server).
 -include("grisp_internal.hrl").  % for device record definition
 -include("pmod_mtds.hrl").  % protocol constants
