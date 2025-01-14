@@ -1,18 +1,17 @@
-% @doc
-% <a href="https://store.digilentinc.com/pmodmaxsonar-maxbotix-ultrasonic-range-finder/">
-% Pmod MAXSONAR
-% </a>
-% module.
-%
-% The Pmod MAXSONAR cyclically sends measurements via the UART interface.
-% This module converts and stores the latest measurement.
-%
-% Start the driver with
-%  ```
-%  1> grisp:add_device(uart, pmod_maxsonar).
-%  '''
-% @end
 -module(pmod_maxsonar).
+-moduledoc """
+
+[Pmod MAXSONAR](https://store.digilentinc.com/pmodmaxsonar-maxbotix-ultrasonic-range-finder/)
+module.
+
+The Pmod MAXSONAR cyclically sends measurements via the UART interface.
+This module converts and stores the latest measurement.
+
+Start the driver with
+```
+1> grisp:add_device(uart, pmod_maxsonar).
+```
+""".
 
 -behaviour(gen_server).
 
@@ -34,31 +33,33 @@
 
 %--- API -----------------------------------------------------------------------
 
-% @private
+-doc(false).
 start_link(Slot, _Opts) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Slot, []).
 
-% @doc Get the latest measured distance in inches.
+-doc """
+Get the latest measured distance in inches.
+""".
 -spec get() -> integer().
 get() ->
     gen_server:call(?MODULE, get_value).
 
 %--- Callbacks -----------------------------------------------------------------
 
-% @private
+-doc(false).
 init(Slot = uart) ->
     Port = open_port({spawn_driver, "grisp_termios_drv"}, [binary]),
     grisp_devices:register(Slot, ?MODULE),
     {ok, #state{port = Port}}.
 
-% @private
+-doc(false).
 handle_call(get_value, _From, #state{last_val = Val} = State) ->
     {reply, Val, State}.
 
-% @private
+-doc(false).
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
-% @private
+-doc(false).
 handle_info({Port, {data, Data}}, #state{port = Port} = State) ->
     case Data of
         % Format of response is 'Rxxx\n' where xxx is the decimal
@@ -85,8 +86,8 @@ handle_info({Port, {data, Data}}, #state{port = Port} = State) ->
 
 
 
-% @private
+-doc(false).
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
-% @private
+-doc(false).
 terminate(_Reason, _State) -> ok.

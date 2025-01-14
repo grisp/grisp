@@ -1,11 +1,11 @@
 -module(grisp_pwm).
 -moduledoc """
-## GriSP Pulse Width Modulation (PWM) API
+GriSP Pulse Width Modulation (PWM) API.
 
 Pulse Width Modulation (PWM) is used to generate a rectangular wave with a varying duty cycle
 to control the average power or amplitude delivered.
 The ARM Cortex-A7 has eight PWM units that can be multiplexed to drive a few different pins.
-```erlang
+```
   1> grisp_pwm:start_driver().
   {device,pwm,grisp_pwm,<0.353.0>,
         #Ref<0.838610995.3080454145.146844>}
@@ -17,13 +17,13 @@ This creates a rectangular wave on pin `gpio1_8` with a 155.5μs cycle time (6.4
 (see [Figure 1](#figure_1)).
 
 You can change the duty cycle by setting a new sample:
-```erlang
+```
 3> grisp_pwm:set_sample(gpio1_8, 0.5).
 ok
 ```
 
 If you want to stop using PWM on this pin you can call:
-```erlang
+```
  4> grisp_pwm:close(gpio1_8).
  ok
 ```
@@ -34,7 +34,7 @@ Figure 1. Oscilloscope trace with a 0.75 % duty cycle and the default configurat
 
 <!-- tabs-open -->
 ### Ramp Up Example
-You can ramp up the duty cycle from 0% to 100% in one second like this:
+Youn can ramp up the duty cycle from 0% to 100% in one second like this:
 ```
 1> RampSample = fun(X) -> grisp_pwm:set_sample(gpio1_8, (X/100)), timer:sleep(10) end.
 #Fun<erl_eval.42.39164016>
@@ -45,6 +45,7 @@ ok,ok,ok,ok,ok,ok,ok,ok,ok,ok|...]
 
 ### Sinusoidal Example
 You can create a sine wave like this:
+
 ```
 1> SinSample = fun(X) -> V = math:sin(math:pi()/2*(X/10))/2+0.5, grisp_pwm:set_sample(gpio1_8, V), timer:sleep(10) end.
 #Fun<erl_eval.42.39164016>
@@ -668,8 +669,10 @@ address(PWMId, Key) when is_number(PWMId), is_list(Key) ->
 to_bit(false) -> <<0:1>>;
 to_bit(true)  -> <<1:1>>.
 
--doc(false).
+
+-ifndef(DOC).
 on_load() -> ?NIF_LOAD.
+-endif.
 
 set_register(Address, <<Value:32/big>>) when is_number(Address) ->
     pwm_set_register32_nif(Address, Value).

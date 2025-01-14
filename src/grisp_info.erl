@@ -1,46 +1,45 @@
-% @doc GRiSP general information.
-%
-% When running grisp on a host machine during development, the functions return:
-%
-% ```
-% 1> grisp_info:hardware().
-% #{
-%     platform => host,
-%     version => <<"1">>,
-%     serial => <<"0000">>
-%     batch => 1,
-%     pcb_variant => 1
-%     pcb_version => <<"1">>,
-%     prod_date => {{2022, 1, 28},{0,0,0}}
-% }
-% 2> grisp_info:boot().
-% #{
-%     boot => host,
-%     valid => host,
-%     next => host
-% }
-% '''
-%
-% For grisp_info:software() to be defined during local development, a term file
-% named `MANIFEST' must exists in the current directory and looks like:
-%
-% ```
-% %% coding: utf-8
-% {platform, <<"grisp2">>}.
-% {id, <<"83613140847d62b47c3f220b6f43e2de561be441">>}.
-% {relname, <<"my_app">>}.
-% {relvsn, <<"0.1.0">>}.
-% {profiles, [dev]}.
-% {package, [
-%     {toolchain, [{revision, <<"516707805fd33285679e9e64585b995d31d926ec">>}]},
-%     {rtems, [{version, <<"5">>}]},
-%     {otp, [{version, <<"26.2.5.4">>}]}
-% ]}.
-% '''
-%
-% @end
 -module(grisp_info).
+-moduledoc """
+GRiSP general information.
 
+When running grisp on a host machine during development, the functions return:
+
+```
+1> grisp_info:hardware().
+#{
+    platform => host,
+    version => <<"1">>,
+    serial => <<"0000">>
+    batch => 1,
+    pcb_variant => 1
+    pcb_version => <<"1">>,
+    prod_date => {{2022, 1, 28},{0,0,0}}
+}
+2> grisp_info:boot().
+#{
+    boot => host,
+    valid => host,
+    next => host
+}
+```
+
+For grisp_info:software() to be defined during local development, a term file
+named `MANIFEST` must exists in the current directory and looks like:
+
+```
+%% coding: utf-8
+{platform, <<"grisp2">>}.
+{id, <<"83613140847d62b47c3f220b6f43e2de561be441">>}.
+{relname, <<"my_app">>}.
+{relvsn, <<"0.1.0">>}.
+{profiles, [dev]}.
+{package, [
+    {toolchain, [{revision, <<"516707805fd33285679e9e64585b995d31d926ec">>}]},
+    {rtems, [{version, <<"5">>}]},
+    {otp, [{version, <<"26.2.5.4">>}]}
+]}.
+```
+""".
 -include("grisp.hrl").
 
 % API Functions
