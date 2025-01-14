@@ -1,7 +1,9 @@
 <p>
   <a href="#readme">
-    <img src="assets/GRiSP_Logotype_positive.svg#gh-light-mode-only" alt="Fancy logo" style="width: 80%;">
-    <img src="assets/GRiSP_Logotype_negative.svg#gh-dark-mode-only" alt="Fancy logo" style="width: 80%;">
+    <picture>
+      <source media="(prefers-color-scheme: dark)"  srcset="assets/GRiSP_Logotype_negative.svg">
+      <img src="assets/GRiSP_Logotype_positive.svg" style="width: 80%;">
+    </picture>
   </a>
 </p>
 
