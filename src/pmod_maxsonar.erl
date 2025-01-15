@@ -1,6 +1,7 @@
 -module(pmod_maxsonar).
--moduledoc """
+-include("grisp_docs.hrl").
 
+?moduledoc("""
 [Pmod MAXSONAR](https://store.digilentinc.com/pmodmaxsonar-maxbotix-ultrasonic-range-finder/)
 module.
 
@@ -11,7 +12,7 @@ Start the driver with
 ```
 1> grisp:add_device(uart, pmod_maxsonar).
 ```
-""".
+""").
 
 -behaviour(gen_server).
 
@@ -33,33 +34,33 @@ Start the driver with
 
 %--- API -----------------------------------------------------------------------
 
--doc(false).
+?doc(false).
 start_link(Slot, _Opts) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Slot, []).
 
--doc """
+?doc("""
 Get the latest measured distance in inches.
-""".
+""").
 -spec get() -> integer().
 get() ->
     gen_server:call(?MODULE, get_value).
 
 %--- Callbacks -----------------------------------------------------------------
 
--doc(false).
+?doc(false).
 init(Slot = uart) ->
     Port = open_port({spawn_driver, "grisp_termios_drv"}, [binary]),
     grisp_devices:register(Slot, ?MODULE),
     {ok, #state{port = Port}}.
 
--doc(false).
+?doc(false).
 handle_call(get_value, _From, #state{last_val = Val} = State) ->
     {reply, Val, State}.
 
--doc(false).
+?doc(false).
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
--doc(false).
+?doc(false).
 handle_info({Port, {data, Data}}, #state{port = Port} = State) ->
     case Data of
         % Format of response is 'Rxxx\n' where xxx is the decimal
@@ -86,8 +87,8 @@ handle_info({Port, {data, Data}}, #state{port = Port} = State) ->
 
 
 
--doc(false).
+?doc(false).
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
--doc(false).
+?doc(false).
 terminate(_Reason, _State) -> ok.

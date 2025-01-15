@@ -1,4 +1,5 @@
 -module(grisp_led).
+-include("grisp_docs.hrl").
 
 -behavior(gen_server).
 
@@ -55,11 +56,11 @@
 
 %--- API -----------------------------------------------------------------------
 
--doc(false).
+?doc(false).
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, undefined, []).
 
--doc """
+?doc("""
 Set the color of an LED.
 
 ### Examples
@@ -69,18 +70,18 @@ ok
 2> grisp_led:color(2, {0, 1, 0}).
 ok
 ```
-""".
+""").
 -spec color(position(), color()) -> ok.
 color(Pos, Color) -> pattern(Pos, [{infinity, Color}]).
 
--doc """
+?doc("""
 Turn off an LED.
-""".
--doc #{equiv => grisp_led:color(Pos, off)}.
+""").
+?doc(#{equiv => grisp_led:color(Pos, off)}).
 -spec off(position()) -> ok.
 off(Pos) -> pattern(Pos, [{infinity, off}]).
 
--doc """
+?doc("""
 Flash an LED in an on/off pattern with the specified color.
 
 ### Examples
@@ -88,13 +89,13 @@ Flash an LED in an on/off pattern with the specified color.
 1> grisp_led:flash(2, blue, 500).
 ok
 ```
-""".
--doc #{equiv => grisp_led:pattern(Position, [{Time, Color}, {Time, off}])}.
+""").
+?doc(#{equiv => grisp_led:pattern(Position, [{Time, Color}, {Time, off}])}).
 -spec flash(position(), color(), time()) -> ok.
 flash(Pos, Color, Interval) ->
     pattern(Pos, [{Interval, Color}, {Interval, off}]).
 
--doc """
+?doc("""
 Animate an LED with a pattern of colors and intervals.
 
 ## Examples
@@ -133,7 +134,7 @@ As well as by composing lists of intervals and pattern functions :
 [{1000,#Fun<erl_eval.20.128620087>},...
 7> grisp_led:pattern(1, Result).
 ```
-""".
+""").
 -spec pattern(position(), pattern()) -> ok.
 pattern(Pos, Pattern) -> gen_server:cast(?MODULE, {pattern, Pos, Pattern}).
 
@@ -141,7 +142,7 @@ read(Pos) -> gen_server:call(?MODULE, {read, Pos}).
 
 %--- Callbacks -----------------------------------------------------------------
 
--doc(false).
+?doc(false).
 init(undefined) ->
     LED1 = #{
         timer => undefined,
@@ -164,29 +165,29 @@ init(undefined) ->
         2 => LED2#{pattern => [{infinity, color_get(LED2)}]}
     }}.
 
--doc(false).
+?doc(false).
 handle_call({read, Pos}, _From, State) ->
     LED = maps:get(Pos, State),
     {reply, color_get(LED), State}.
 
--doc(false).
+?doc(false).
 handle_cast({pattern, Pos, NewPattern}, State) ->
     NewState = maps:update_with(Pos, fun(LED) ->
         tick_pattern(Pos, LED#{pattern := NewPattern})
     end, State),
     {noreply, NewState}.
 
--doc(false).
+?doc(false).
 handle_info({tick, Pos}, State) ->
     NewState = maps:update_with(Pos, fun(LED) ->
         tick_pattern(Pos, LED)
     end, State),
     {noreply, NewState}.
 
--doc(false).
+?doc(false).
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
--doc(false).
+?doc(false).
 terminate(_Reason, _State) -> ok.
 
 %--- Internal ------------------------------------------------------------------

@@ -1,6 +1,7 @@
 -module(pmod_gps).
--moduledoc """
+-include("grisp_docs.hrl").
 
+?moduledoc("""
 [PmodGPS](https://reference.digilentinc.com/reference/pmod/pmodgps/reference-manual)
 module.
 
@@ -10,7 +11,7 @@ Start the driver with
 ```
 1> grisp:add_device(uart, pmod_gps).
 ```
-""".
+""").
 
 -behaviour(gen_server).
 
@@ -47,11 +48,11 @@ Start the driver with
 
 %--- API -----------------------------------------------------------------------
 
--doc(false).
+?doc(false).
 start_link(Slot, _Opts) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Slot, []).
 
--doc """
+?doc("""
 Get the GPS data.
 
 The input parameter specifies which type of sentence to get.
@@ -67,15 +68,15 @@ extended to support more types.
  2> pmod_gps:get(gga).
  {gps,gga,#{alt => 61.9,fixed => true,lat => 52.122661666666666,long => 11.594928333333334,time => 53912000}}}
  3> pmod_gps:get(gsa).
- {gps,gsa,<<"A,3,17,06,19,02,24,,,,,,,,2.69,2.51,0.97">>}
+ {gps,gsa,<<\"A,3,17,06,19,02,24,,,,,,,,2.69,2.51,0.97\">>}
  4> pmod_gps:get(gsv).
- {gps,gsv,<<"3,3,12,14,22,317,17,17,10,040,35,29,09,203,,22,02,351">>}
+ {gps,gsv,<<\"3,3,12,14,22,317,17,17,10,040,35,29,09,203,,22,02,351\">>}
  5> pmod_gps:get(rmc).
- {gps,rmc,<<"150007.000,A,5207.3592,N,01135.6895,E,0.46,255.74,120220,,,A">>}
+ {gps,rmc,<<\"150007.000,A,5207.3592,N,01135.6895,E,0.46,255.74,120220,,,A\">>}
  6> pmod_gps:get(vtg).
- {gps,vtg,<<"297.56,T,,M,0.65,N,1.21,K,A">>}
+ {gps,vtg,<<\"297.56,T,,M,0.65,N,1.21,K,A\">>}
 ```
-""".
+""").
 -spec get(grisp_nmea:message_id()) ->
     {grisp_nmea:talker_id(), grisp_nmea:message_id(), map() | binary()} | undefined.
 get(MessageId) ->
@@ -84,7 +85,7 @@ get(MessageId) ->
 
 %--- Callbacks -----------------------------------------------------------------
 
--doc(false).
+?doc(false).
 init(Slot = uart) ->
     Port = open_port({spawn_driver, "grisp_termios_drv"}, [binary]),
     grisp_devices:register(Slot, ?MODULE),
@@ -94,16 +95,16 @@ init(Slot = uart) ->
     ]]),
     {ok, #state{port = Port, last_sentences = Sentences}}.
 
--doc(false).
+?doc(false).
 handle_call(Call, _From, State) ->
     try execute_call(Call, State)
     catch throw:Reason -> {reply, {error, Reason}, State}
     end.
 
--doc(false).
+?doc(false).
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
--doc(false).
+?doc(false).
 % We need to support at least one message failing parsing, because
 % when starting to read randomly in the stream of sentences, the first
 % one may be truncated. For now, we fail after a maximum number of
@@ -125,10 +126,10 @@ handle_info({Port, {data, Data}},
 handle_info(_Any, State) ->
     {noreply, State}.
 
--doc(false).
+?doc(false).
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
--doc(false).
+?doc(false).
 terminate(_Reason, _State) -> ok.
 
 

@@ -1,11 +1,13 @@
 -module(pmod_nav).
+-include("grisp_docs.hrl").
+
 % LSM9DS1 3-axis accelerometer, 3-axis gyroscope, 3-axis magnetometer:
 % http://www.st.com/web/en/resource/technical/document/datasheet/DM00103319.pdf
 %
 % LPS25HB digital barometer
 % http://www.st.com/web/en/resource/technical/document/datasheet/DM00141379.pdf
 
--moduledoc """
+?moduledoc("""
 Driver module for the [PmodNAV](https://store.digilentinc.com/pmod-nav-9-axis-imu-plus-barometer/) 9-axis IMU plus barometer device.
 
 For more information see the Tutorial at the GRiSP Wiki: [PmodNAV Tutorial](https://github.com/grisp/grisp/wiki/PmodNAV-Tutorial).
@@ -14,7 +16,7 @@ Start the driver with
 ```
 1> grisp:add_device(spi1, pmod_nav).
 ```
-""".
+""").
 
 -behaviour(gen_server).
 
@@ -45,10 +47,10 @@ Start the driver with
 
 %--- API -----------------------------------------------------------------------
 
--doc(false).
+?doc(false).
 start_link(Slot, Opts) -> gen_server:start_link(?MODULE, [Slot, Opts], []).
 
--doc """
+?doc("""
 Change configurations.
 
 ## Examples
@@ -67,19 +69,19 @@ ok
 For more possible configurations see the datasheets
 [LSM9DS1](http://www.st.com/web/en/resource/technical/document/datasheet/DM00103319.pdf)
 and
-[LPS25HB](http://www.st.com/web/en/resource/technical/document/datasheet/DM00141379.pdf").
+[LPS25HB](http://www.st.com/web/en/resource/technical/document/datasheet/DM00141379.pdf).
 
 Use `registers/0` and `registers/1` to see the mapping between
 Erlang expressions and the bits on the hardware.
-""".
+""").
 -spec config(component(), #{}) -> ok.
 config(Comp, Options) when is_map(Options) -> call({config, Comp, Options}).
 
--doc #{equiv => read(Comp, Registers, #{})}.
+?doc(#{equiv => read(Comp, Registers, #{})}).
 -spec read(component(), [register()]) -> any() | {error, any()}.
 read(Comp, Registers) -> read(Comp, Registers, #{}).
 
--doc """
+?doc("""
 Read registers of a component.
 
 ### Examples
@@ -105,14 +107,14 @@ and use the datasheets
 and
 [LPS25HB](http://www.st.com/web/en/resource/technical/document/datasheet/DM00141379.pdf)
 for a complete description.
-""".
+""").
 -spec read(component(), [register()], opts()) -> any() | {error, any()}.
 read(Comp, Registers, Opts) when is_list(Registers) ->
     call({read, Comp, Registers, Opts}).
 
 %--- Callbacks -----------------------------------------------------------------
 
--doc(false).
+?doc(false).
 init([Slot, Opts]) ->
     case {grisp_hw:platform(), Slot} of
         {grisp_base, spi1} -> ok;
@@ -135,22 +137,22 @@ init([Slot, Opts]) ->
     grisp_devices:register(Slot, ?MODULE),
     {ok, State2}.
 
--doc(false).
+?doc(false).
 handle_call(Call, _From, State) ->
     try execute_call(Call, State)
     catch throw:Reason -> {reply, {error, Reason}, State}
     end.
 
--doc(false).
+?doc(false).
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
--doc(false).
+?doc(false).
 handle_info(Info, _State) -> error({unknown_info, Info}).
 
--doc(false).
+?doc(false).
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
--doc(false).
+?doc(false).
 terminate(_Reason, State) -> deinitialize_device(State).
 
 %--- Internal ------------------------------------------------------------------
@@ -453,9 +455,9 @@ pin(Slot, alt) -> atom_join(Slot, '_pin10').
 atom_join(Atom1, Atom2) ->
     list_to_atom(atom_to_list(Atom1) ++ atom_to_list(Atom2)).
 
--doc """
+?doc("""
 Get the registers (with the possible entries) of all components.
-""".
+""").
 - spec registers() -> #{component() => #{}}.
 registers() ->
     #{
@@ -464,7 +466,7 @@ registers() ->
         alt => registers(alt)
     }.
 
--doc """
+?doc("""
 Get the registers (with the possible entries) of one component.
 
 ### Example
@@ -484,7 +486,7 @@ To see the possible configurations in `ctrl_reg1_g` use:
       {0,1},
       {bw_g,2,raw}]}}
 ```
-""".
+""").
 
 -spec registers(component()) -> #{atom() => any()}.
 registers(acc) ->

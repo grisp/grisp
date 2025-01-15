@@ -1,5 +1,6 @@
 -module(grisp_spi).
--moduledoc """
+-include("grisp_docs.hrl").
+?moduledoc("""
 GRiSP SPI API.
 
 [Serial Peripheral Interface (SPI)](https://en.wikipedia.org/wiki/Serial_Peripheral_Interface)
@@ -58,7 +59,7 @@ The other format (`t:message_simple/0`) automatically pads the request so
 that response bytes can be received, and strips the response of an initial
 number of bytes. This makes it simpler to communicate with responder devices
 that wait for a fully received request before replying.
-""".
+""").
 
 -include("grisp_nif.hrl").
 
@@ -79,33 +80,33 @@ that wait for a fully received request before replying.
 %--- Types ---------------------------------------------------------------------
 
 -type pin() :: {cs, integer()} | {gpio, grisp_gpio:pin()}.
--doc "SPI bus identifier.".
+?doc("SPI bus identifier.").
 -type bus() :: spi1 | spi2.
--doc "SPI clock configuration.".
+?doc("SPI clock configuration.").
 -type clock() :: {Polarity :: low | high, Phase :: leading | trailing}.
--doc "SPI transfer mode.".
+?doc("SPI transfer mode.").
 -type mode() :: #{clock := clock()}.
--doc """
+?doc("""
 A message where the request is unmodified and which will yield a response
 binary of the same size.
-""".
+""").
 -type message_raw() :: {Mode::mode(), Message::binary()}.
--doc """
+?doc("""
 A message where the request itself is padded with `Pad` number of `0` bytes,
 and will yield a response binary that is stripped of its first `Skip`
 number of bytes.
-""".
+""").
 -type message_simple() :: {
     Mode::mode(),
     Message::binary(),
     Skip::non_neg_integer(),
     Pad::non_neg_integer()
 }.
--doc "SPI message".
+?doc("SPI message").
 -type message() :: message_raw() | message_simple().
--doc "SPI response.".
+?doc("SPI response.").
 -type response() :: binary().
--doc "Reference to an opened SPI bus.".
+?doc("Reference to an opened SPI bus.").
 -opaque ref() :: {reference(), pin()}.
 
 -export_type([bus/0]).
@@ -117,28 +118,28 @@ number of bytes.
 
 %--- API -----------------------------------------------------------------------
 
--doc """
+?doc("""
 Opens an SPI bus with the default chip select pin.
 
 The respective pin 1 is used as `DefaultPin` for each slot.
 See `m:grisp_gpio`.
-""".
--doc #{equiv => open(Slot, DefaultPin)}.
+""").
+?doc(#{equiv => open(Slot, DefaultPin)}).
 -spec open(Bus::bus()) -> ref().
 open(spi1) -> open(spi1, spi1_pin1);
 open(spi2) -> open(spi2, spi2_pin1).
 
--doc """
+?doc("""
 Opens an SPI bus.
 
 Chip select pin `CS` can be any valid GPIO output pin.
 
 See `m:grisp_gpio`.
-""".
+""").
 -spec open(bus(), grisp_gpio:pin()) -> ref().
 open(_Bus, CS) -> {open_nif(), pin(grisp_hw:platform(), CS)}.
 
--doc """
+?doc("""
 Transfers SPI messages on a bus.
 
 A list of responses is returned in the same order as their respective
@@ -152,7 +153,7 @@ padding and skipping.
 
 See [Request & Response](#module-request-response) for more
 information.
-""".
+""").
 -spec transfer(ref(), [message()]) -> [response()].
 transfer(Ref, Messages) -> [message(Ref, M) || M <- Messages].
 

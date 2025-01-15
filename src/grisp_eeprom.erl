@@ -1,4 +1,5 @@
 -module(grisp_eeprom).
+-include("grisp_docs.hrl").
 
 -behaviour(gen_server).
 
@@ -32,7 +33,7 @@
 
 %--- API FUNCTIONS -------------------------------------------------------------
 
--doc(false).
+?doc(false).
 start_link(Name)->
     gen_server:start_link({local, eeprom_proc(Name)}, ?MODULE, [
         grisp_i2c:open(eeprom_bus(Name)),
@@ -58,12 +59,12 @@ write(Name, WriteAddr, Data) ->
 
 %--- BEHAVIOUR gen_server CALLBACK FUNCTIONS -----------------------------------
 
--doc(false).
+?doc(false).
 init([Bus, ChipAddress, Wait, AddrSize, PageSize]) ->
     {ok, #state{bus = Bus, addr = ChipAddress, wait = Wait,
                 addr_size = AddrSize, page_size = PageSize}}.
 
--doc(false).
+?doc(false).
 handle_call({read, ReadAddr, ReadSize}, _From,
             #state{bus = Bus, addr = ChipAddr, addr_size = AddrSize} = State) ->
     {reply, eeprom_read(Bus, ChipAddr, AddrSize, ReadAddr, ReadSize), State};
@@ -75,19 +76,19 @@ handle_call({write, WriteAddr, Data}, _From,
 handle_call(Call, _From, _State) ->
     error({unknown_call, Call}).
 
--doc(false).
+?doc(false).
 handle_cast(Request, _State) ->
     error({unknown_cast, Request}).
 
--doc(false).
+?doc(false).
 handle_info(Info, _State) ->
     error({unknown_info, Info}).
 
--doc(false).
+?doc(false).
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
--doc(false).
+?doc(false).
 terminate(_Reason, _State) ->
     ok.
 

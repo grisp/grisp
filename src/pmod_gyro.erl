@@ -1,5 +1,7 @@
 -module(pmod_gyro).
--moduledoc """
+-include("grisp_docs.hrl").
+
+?moduledoc("""
 [PmodGYRO](https://reference.digilentinc.com/reference/pmod/pmodgyro/reference-manual)
 module that gets the gyroscopes data via SPI.
 
@@ -7,7 +9,7 @@ Start the driver with
 ```
 1> grisp:add_device(spi1, pmod_gyro).
 ```
-""".
+""").
 
 -behaviour(gen_server).
 
@@ -30,11 +32,11 @@ Start the driver with
 
 %--- API -----------------------------------------------------------------------
 
--doc(false).
+?doc(false).
 start_link(Slot, Opts) ->
     gen_server:start_link(?MODULE, [Slot, Opts], []).
 
--doc """
+?doc("""
 Read the gyroscopes X, Y and Z values in degrees per second.
 
 ## Example
@@ -42,7 +44,7 @@ Read the gyroscopes X, Y and Z values in degrees per second.
  2> pmod_gyro:read().
  {249.28279313922965,-26.078862235243843,12.764756149667337}
 ```
-""".
+""").
 -spec read() -> {X::float(), Y::float(), Z::float()}.
 read() ->
     Dev = grisp_devices:default(?MODULE),
@@ -53,7 +55,7 @@ read() ->
 
 %--- Callbacks -----------------------------------------------------------------
 
--doc(false).
+?doc(false).
 init([Slot, Opts]) ->
     Bus = grisp_spi:open(Slot),
     verify_device(Bus),
@@ -71,7 +73,7 @@ init([Slot, Opts]) ->
     grisp_devices:register(Slot, ?MODULE),
     {ok, #{bus => Bus, unit_degree => (32766 / Res)}}.
 
--doc(false).
+?doc(false).
 handle_call(read, _From, #{bus := Bus, unit_degree := UnitDeg} = State) ->
     <<X:16/signed-little, Y:16/signed-little, Z:16/signed-little>>
         = read(Bus, ?OUT_X_L, 6),
@@ -79,16 +81,16 @@ handle_call(read, _From, #{bus := Bus, unit_degree := UnitDeg} = State) ->
 handle_call(Request, From, _State) ->
     error({unknown_request, Request, From}).
 
--doc(false).
+?doc(false).
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
--doc(false).
+?doc(false).
 handle_info(Info, _State) -> error({unknown_info, Info}).
 
--doc(false).
+?doc(false).
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
--doc(false).
+?doc(false).
 terminate(_Reason, _State) -> ok.
 
 %--- Internal ------------------------------------------------------------------

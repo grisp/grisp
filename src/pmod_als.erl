@@ -1,5 +1,7 @@
 -module(pmod_als).
--moduledoc """
+-include("grisp_docs.hrl").
+
+?moduledoc("""
 Digilent Pmod_ALS module.
 
 This component provides ambient light-to-digital
@@ -19,7 +21,7 @@ Start the driver with
 ```
  1> grisp:add_device(spi2, pmod_als).
 ```
-""".
+""").
 
 -behaviour(gen_server).
 
@@ -51,10 +53,10 @@ Start the driver with
 
 %--- API -----------------------------------------------------------------------
 
--doc(false).
+?doc(false).
 start_link(Slot, _Opts) -> gen_server:start_link(?MODULE, Slot, []).
 
--doc """
+?doc("""
 Returns the ambient light value that is currently sensed
 by the ALS module. On success, the return value is a number
 in the 0..255 range that is proportional to the luminous
@@ -70,7 +72,7 @@ The peak wavelength sensitivity of the module is at 570nm
 making it close to the human eye (555nm). This implies that
 return values will be the highest when the ALS is exposed to
 wavelengths of green light with a slight yellow tint.
-""".
+""").
 -spec read() -> 0..255 | no_return().
 read() ->
     Dev = grisp_devices:default(?MODULE),
@@ -79,11 +81,11 @@ read() ->
         Result          -> Result
     end.
 
--doc """
+?doc("""
 Returns a the percentage of current ambient light
 based on the `read/0` function. The value
 is rounded to the closest integer.
-""".
+""").
 -spec percentage() -> 0..100.
 percentage() ->
     Raw = read(),
@@ -91,27 +93,27 @@ percentage() ->
 
 %--- Callbacks -----------------------------------------------------------------
 
--doc(false).
+?doc(false).
 init(Slot) ->
     ok = grisp_devices:register(Slot, ?MODULE),
     {ok, #state{bus = grisp_spi:open(Slot)}}.
 
--doc(false).
+?doc(false).
 handle_call(read, _From, #state{bus = Bus} = State) ->
     Val = get_value(Bus),
     {reply, Val, State};
 handle_call(Request, _From, _State) -> error({unknown_call, Request}).
 
--doc(false).
+?doc(false).
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
--doc(false).
+?doc(false).
 handle_info(Info, _State) -> error({unknown_info, Info}).
 
--doc(false).
+?doc(false).
 terminate(_Reason, _State) -> ok.
 
--doc(false).
+?doc(false).
 code_change(_OldVsn, State, _Extra) -> {ok , State}.
 
 %--- Internal ------------------------------------------------------------------

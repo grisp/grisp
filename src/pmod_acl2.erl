@@ -1,4 +1,5 @@
 -module(pmod_acl2).
+-include("grisp_docs.hrl").
 
 -behavior(gen_server).
 
@@ -29,7 +30,7 @@
 
 %--- API -----------------------------------------------------------------------
 
--doc(false).
+?doc(false).
 start_link(Slot, _Opts) -> gen_server:start_link(?MODULE, Slot, []).
 
 raw() ->
@@ -42,7 +43,7 @@ g() ->
 
 %--- Callbacks -----------------------------------------------------------------
 
--doc(false).
+?doc(false).
 init(Slot) ->
     Bus = grisp_spi:open(Slot),
     verify_device(Bus),
@@ -52,21 +53,21 @@ init(Slot) ->
     ),
     {ok, #state{bus = Bus}}.
 
--doc(false).
+?doc(false).
 handle_call(raw, _From, State) ->
     Raw = xyz(State#state.bus),
     {reply, {State#state.mode, Raw}, State}.
 
--doc(false).
+?doc(false).
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
--doc(false).
+?doc(false).
 handle_info(Info, _State) -> error({unknown_info, Info}).
 
--doc(false).
+?doc(false).
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
--doc(false).
+?doc(false).
 terminate(_Reason, _State) -> ok.
 
 %--- Internal ------------------------------------------------------------------

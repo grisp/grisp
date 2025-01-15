@@ -1,5 +1,7 @@
 -module(grisp_i2c).
--moduledoc """
+-include("grisp_docs.hrl").
+
+?moduledoc("""
 GRiSP I²C API.
 
 [Inter-Integrated Circuit (I²C)](https://en.wikipedia.org/wiki/I²C) is a
@@ -27,7 +29,7 @@ as a value, followed by a read message.
 > Please refer to the specification for a specific target chip for
 instructions of what messages to send and receive, and how the registers are
 structured.
-""".
+""").
 
 -include("grisp_nif.hrl").
 
@@ -67,7 +69,7 @@ structured.
 -export_type([message/0]).
 
 %--- API -----------------------------------------------------------------------
--doc """
+?doc("""
 Lists I²C buses.
 
 ### Example
@@ -76,7 +78,7 @@ Lists I²C buses.
 #{i2c0 => #{name => i2c0,path => <<"/dev/i2c-0">>},
   i2c1 => #{name => i2c1,path => <<"/dev/i2c-1">>}}
 ```
-""".
+""").
 -spec buses() -> #{bus_name() := #{name := bus_name(), path := bus_path()}}.
 buses() ->
     #{
@@ -84,7 +86,7 @@ buses() ->
         i2c1 => #{name => i2c1, path => <<"/dev/i2c-1">>}
     }.
 
--doc """
+?doc("""
 Opens an I²C bus device by name.
 
 ### Example
@@ -92,14 +94,14 @@ Opens an I²C bus device by name.
 2> I2C0 = grisp_i2c:open(i2c1).
 #Ref<0.4157010815.3886678017.238942>
 ```
-""".
+""").
 % @see buses/0
 -spec open(bus_name()) -> bus().
 open(Name) ->
     #{path := Path} = maps:get(Name, buses()),
     i2c_open_nif(null(Path)).
 
--doc """
+?doc("""
 Detects I²C devices on a bus.
 
 Returns the address of each found device.
@@ -109,11 +111,11 @@ Returns the address of each found device.
 3> [io_lib:format("0x~.16B", [Target]) || Target <- grisp_i2c:detect(I2C0)].
 ["0x18","0x36","0x37","0x52","0x57","0x5A","0x5F"]
 ```
-""".
+""").
 -spec detect(bus()) -> [target_addr()].
 detect(Bus) -> [Target || Target <- lists:seq(1, 127), present(Bus, Target)].
 
--doc """
+?doc("""
 Performs a simplified read from a register on an I²C chip.
 
 This function sends a write message with the single byte register address as
@@ -128,7 +130,7 @@ the target chip specification.
 4> grisp_i2c:read(I2C1, TargetAddr, RegAddr, 1).
 <<255>>
 ```
-""".
+""").
 -spec read(bus(), target_addr(), reg_addr(), length()) -> binary().
 read(Bus, Target, Register, Length) ->
     [ok, Resp] = transfer(Bus, [
@@ -137,7 +139,7 @@ read(Bus, Target, Register, Length) ->
     ]),
     Resp.
 
--doc """
+?doc("""
 Performs a simplified write to a register on an I²C chip.
 
 This function sends a write message with the single byte register address as
@@ -152,13 +154,13 @@ the target chip specification.
 5> grisp_i2c:write(I2C1, TargetAddr, RegAddr, <<Value:8>>).
 ok
 ```
-""".
+""").
 -spec write(bus(), target_addr(), reg_addr(), binary()) -> ok.
 write(Bus, Target, Register, Data) ->
     [ok] = transfer(Bus, [{write, Target, 0, <<Register, Data/binary>>}]),
     ok.
 
--doc """
+?doc("""
 Transfers I²C messages on a bus.
 
 ### Examples
@@ -168,7 +170,7 @@ Transfers I²C messages on a bus.
 7> grisp_i2c:transfer(I2C1, [{write, TargetAddr, RegAddr, <<Value:8>>}])
 ok
 ```
-""".
+""").
 -spec transfer(bus(), [message()]) -> [ok | binary()] | error().
 transfer(Bus, Messages) -> i2c_transfer_nif(Bus, Messages).
 

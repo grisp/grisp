@@ -1,5 +1,7 @@
 -module(grisp_onewire).
--moduledoc """
+-include("grisp_docs.hrl").
+
+?moduledoc("""
 Driver API for the
 [DS2482-100 Single-Channel 1-Wire Master](https://datasheets.maximintegrated.com/en/ds/DS2482-100.pdf)
 
@@ -7,7 +9,7 @@ The functions in this module refer to the function commands documented in the
 masters [data sheet](https://datasheets.maximintegrated.com/en/ds/DS2482-100.pdf).
 Each function has a hexadecimal command code that is referenced in the
 specification sheet.
-""".
+""").
 
 -behaviour(gen_server).
 
@@ -47,10 +49,10 @@ specification sheet.
 
 %--- API -----------------------------------------------------------------------
 
--doc(false).
+?doc(false).
 start_link() -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
--doc """
+?doc("""
 Run a 1-Wire transaction.
 
 Use this function to make sure that there is only one process running on the
@@ -64,7 +66,7 @@ Use this function to make sure that there is only one process running on the
                               end).
  ok
 ```
-""".
+""").
 -spec transaction(fun()) -> any().
 transaction(Fun) when is_function(Fun) ->
     case gen_server:call(?MODULE, {transaction, Fun}, ?TRANSACTION_TIMEOUT) of
@@ -74,13 +76,13 @@ transaction(Fun) when is_function(Fun) ->
             erlang:raise(Class, Reason, Stacktrace)
     end.
 
--doc """
+?doc("""
 Reset the 1-Wire Master and terminate any ongoing 1-Wire communication.
 
 This function can only be used inside of a `transaction/1` call.
 
 _Command code: `f0h`._
-""".
+""").
 % I2C messages to 1-Wire Master:
 % | S | AD,0 ‖ A ‖ DRST ‖ A ‖ Sr | AD,1 ‖ A | <byte> ‖ A\ | P |
 -spec reset() -> 'ok'.
@@ -96,7 +98,7 @@ reset() ->
         Any -> error({invalid_status, Any})
     end.
 
--doc """
+?doc("""
 Write configuration into 1-Wire master register.
 
 This function can only be used inside of a `transaction/1` call.
@@ -127,7 +129,7 @@ This is the same as:
 ```
 
 _Command code: `d2h`._
-""".
+""").
 % I2C messages to 1-Wire Master:
 % | S | AD,0 ‖ A ‖ WCFG ‖ A ‖ <byte> ‖ A ‖ Sr | AD,1 ‖ A | <byte> ‖ A\ | P |
 -spec write_config([apu | overdrive | spu] | integer()) -> ok.
@@ -145,20 +147,20 @@ write_config(Conf) when is_integer(Conf) ->
         Any -> error({read_back_config, Any, Val})
     end.
 
--doc """
+?doc("""
 Reset device and activate active pullup (APU).
 
 This function can only be used inside of a `transaction/1` call.
 
 See also: `reset/0`, `write_config/1`.
-""".
+""").
 -spec detect() -> 'ok'.
 detect() ->
     assert_transaction(),
     reset(),
     write_config([apu]).
 
--doc """
+?doc("""
 Reset the bus and check the register for devices.
 
 This function can only be used inside of a `transaction/1` call.
@@ -172,7 +174,7 @@ This function can only be used inside of a `transaction/1` call.
 | `short_detected`    | A short circuit between data and ground on the bus detected |
 
 _Command code: `b4h`._
-""".
+""").
 -spec bus_reset() -> 'nothing_present' | 'presence_detected' | 'short_detected'.
 bus_reset() ->
     Bus = assert_transaction(),
@@ -183,26 +185,26 @@ bus_reset() ->
     ]),
     check_status(Result).
 
--doc """
+?doc("""
 Write one data byte to the 1-Wire line.
 
 This function can only be used inside of a `transaction/1` call.
 
 _Command code: `a5h`__
-""".
+""").
 -spec write_byte(integer()) -> ok.
 write_byte(Byte) ->
     Bus = assert_transaction(),
     grisp_i2c:transfer(Bus, [{write, ?DS2482_I2C_ADR, 0, <<?CMD_1WWB, Byte>>}]),
     timer:sleep(1).
 
--doc """
+?doc("""
 Read one data byte from the 1-Wire line.
 
 This function can only be used inside of a `transaction/1` call.
 
 _Command codes: `96h`, `e1h`_
-""".
+""").
 read_byte() ->
     Bus = assert_transaction(),
     grisp_i2c:transfer(Bus, [{write, ?DS2482_I2C_ADR, 0, <<?CMD_1WRB>>}]),
@@ -212,7 +214,7 @@ read_byte() ->
         {read, ?DS2482_I2C_ADR, 0, 1}
     ]),
     Result.
--doc(false).
+?doc(false).
 % This function can only be used inside of a {@link transaction/1} call.
 %
 % _Command code:`78h`_.
@@ -227,7 +229,7 @@ write_triplet(Dir) ->
     ]),
     {D, T, S}.
 
--doc """
+?doc("""
 Search the bus for devices.
 
 This function can only be used inside of a `transaction/1` call.
@@ -250,7 +252,7 @@ IDs:
  [40,255,54,42,96,23,5,35],
  [40,255,18,91,96,23,3,62]]
 ```
-""".
+""").
 -spec search() -> 'fail' | 'nothing_present' | 'short_detected' | [[byte()]].
 search() ->
     assert_transaction(),
@@ -259,7 +261,7 @@ search() ->
 
 %--- Callbacks -----------------------------------------------------------------
 
--doc(false).
+?doc(false).
 init([]) ->
     Bus = grisp_i2c:open(i2c0),
     Detected = grisp_i2c:detect(Bus),
@@ -270,7 +272,7 @@ init([]) ->
     put(?TRANSACTION_KEY, Bus),
     {ok, []}.
 
--doc(false).
+?doc(false).
 handle_call({transaction, Fun}, _From, State) ->
     Reply = try
         {result, Fun()} % TODO: Implement timeout for transactions
@@ -280,10 +282,10 @@ handle_call({transaction, Fun}, _From, State) ->
     end,
     {reply, Reply, State}.
 
--doc(false).
+?doc(false).
 handle_cast(Cast, _State) -> error({unknown_cast, Cast}).
 
--doc(false).
+?doc(false).
 handle_info(Info, _State) -> error({unknown_info, Info}).
 
 %--- Internal ------------------------------------------------------------------

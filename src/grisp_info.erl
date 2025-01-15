@@ -1,5 +1,6 @@
 -module(grisp_info).
--moduledoc """
+-include("grisp_docs.hrl").
+?moduledoc("""
 GRiSP general information.
 
 When running grisp on a host machine during development, the functions return:
@@ -39,7 +40,7 @@ named `MANIFEST` must exists in the current directory and looks like:
     {otp, [{version, <<"26.2.5.4">>}]}
 ]}.
 ```
-""".
+""").
 -include("grisp.hrl").
 
 % API Functions

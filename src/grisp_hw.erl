@@ -1,7 +1,8 @@
 -module(grisp_hw).
--moduledoc """
+-include("grisp_docs.hrl").
+?moduledoc("""
 GRiSP hardware access.
-""".
+""").
 
 -include("grisp_nif.hrl").
 -include("grisp_hw.hrl").
@@ -23,13 +24,13 @@ GRiSP hardware access.
 
 %--- API -----------------------------------------------------------------------
 
--doc """
+?doc("""
 Returns the platform name as an atom.
-""".
+""").
 -spec platform() -> atom().
 platform() -> hw_platform_nif().
 
--doc """
+?doc("""
 Reads GRiSP meta data from EEPROM
 
 ### Example
@@ -42,7 +43,7 @@ Reads GRiSP meta data from EEPROM
        grisp_serial => 1002,
        grisp_version => "2"}}
 ```
-""".
+""").
 eeprom_read() ->
     <<_SigVersion:8,
       _Dummy1:3/binary,     %% unused
@@ -72,9 +73,9 @@ eeprom_read() ->
         false   -> {invalid_crc, MetaData}
     end.
 
--doc """
+?doc("""
 Fixes CRC bytes for pre-production boards
-""".
+""").
 -spec eeprom_reset_crc() -> ok.
 eeprom_reset_crc() ->
     <<DataToBeVerified:24/binary, _/binary>> =
@@ -95,11 +96,11 @@ on_load() -> ?NIF_LOAD.
 
 hw_platform_nif() -> ?NIF_STUB([]).
 
--doc(false).
+?doc(false).
 crc16(Cp) ->
     crc16(0, Cp).
 
--doc(false).
+?doc(false).
 crc16(Crc, <<>>) ->
     Crc;
 crc16(Crc, <<Cp:8, CpTail/binary>>) ->

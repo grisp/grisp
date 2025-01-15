@@ -1,5 +1,7 @@
 -module(grisp_gpio).
--moduledoc """
+-include("grisp_docs.hrl").
+
+?moduledoc("""
 GRiSP General Purpose Input/Output (GPIO) API.
 
 General Purpose Input / Output (GPIO) is used to control digital signals on a
@@ -110,7 +112,7 @@ PMOD Type B consists of:
  * 8 × data, pins #1-4 and #7-10</li>
  * 1 × ground, pins #5 and #11</li>
  * 1 × 3.3V power, pins #6 and #12</li>
-""".
+""").
 
 -include("grisp_nif.hrl").
 
@@ -148,11 +150,11 @@ PMOD Type B consists of:
 
 %--- API -----------------------------------------------------------------------
 
--doc #{equiv => open(Pin, #{})}.
+?doc(#{equiv => open(Pin, #{})}).
 -spec open(pin()) -> ref().
 open(Pin) -> open(Pin, #{}).
 
--doc """
+?doc("""
 Creates a reference to a GPIO pin.
 If no mode is given in the options, it defaults to `{output, 0}`.
 
@@ -172,13 +174,13 @@ Open the GPIO pin of Mode Jumper 1 as an input pin:
 #Ref<0.2691682867.116916226.176944>
 ```
 <!-- tabs-close -->
-""".
+""").
 -spec open(pin(), opts()) -> ref().
 open(Pin, UserOpts) ->
     #{mode := Mode} = maps:merge(?DEFAULT_OPTS, UserOpts),
     gpio_open_nif(pin(Pin), Mode).
 
--doc """
+?doc("""
 Sets the current value of an output pin.
 
 ### Example
@@ -194,11 +196,11 @@ Turn on the red component of LED 1:
 3> grisp_gpio:set(LED1R, 1).
 ok
 ```
-""".
+""").
 -spec set(ref(), value()) -> ok.
 set(Pin, Value) when is_integer(Value) -> gpio_set_nif(Pin, Value).
 
--doc """
+?doc("""
 Returns the current value of a pin.
 
 Returns the actual value for input pins or the currently set value for output
@@ -229,7 +231,7 @@ Flip the jumper
 3> grisp_gpio:get(Jumper1).
 1
 ```
-""".
+""").
 -spec get(ref()) -> value().
 get(Pin) -> gpio_get_nif(Pin).
 

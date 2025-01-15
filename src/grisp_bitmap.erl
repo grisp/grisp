@@ -1,7 +1,9 @@
 -module(grisp_bitmap).
--moduledoc """
+-include("grisp_docs.hrl").
+
+?moduledoc("""
 Bitstring editing and printing.
-""".
+""").
 
 
 % API
@@ -19,7 +21,7 @@ Bitstring editing and printing.
 
 %--- API -----------------------------------------------------------------------
 
--doc """
+?doc("""
 Replace a part of a bitsting.
 
 ### Example
@@ -28,14 +30,14 @@ Replace a part of a bitsting.
 00000010
 ok
 ```
-""".
+""").
 -spec set_bits(bitstring(),non_neg_integer(),bitstring()) -> bitstring().
 set_bits(Bin, Start, Value) when bit_size(Bin) >= Start + bit_size(Value) ->
     Len = bit_size(Value),
     <<Prefix:Start/bitstring, _:Len/bitstring, Postfix/bitstring>> = Bin,
     <<Prefix/bitstring, Value/bitstring, Postfix/bitstring>>.
 
--doc """
+?doc("""
 Get a part of a bitstring.
 
 ### Example
@@ -43,23 +45,23 @@ Get a part of a bitstring.
  1> grisp_bitmap:get_bits(<<1,2,3,4,5>>, 6, 2).
  <<1:2>>
 ```
-""".
+""").
 -spec get_bits(bitstring(),non_neg_integer(),non_neg_integer()) -> bitstring().
 get_bits(Bin, Start, Len) when bit_size(Bin) >= Start + Len ->
     <<_:Start/bitstring, Bytes:Len/bitstring, _/bitstring>> = Bin,
     Bytes.
 
--doc #{equiv => set_bits(Bin, Start * 8, Value)}.
+?doc(#{equiv => set_bits(Bin, Start * 8, Value)}).
 -spec set_bytes(binary(),non_neg_integer(),bitstring()) -> binary().
 set_bytes(Bin, Start, Value) when byte_size(Bin) >= Start + byte_size(Value) ->
     set_bits(Bin, Start * 8, Value).
 
--doc #{equiv => get_bits(Bin, Start * 8, Len * 8)}.
+?doc(#{equiv => get_bits(Bin, Start * 8, Len * 8)}).
 -spec get_bytes(binary(),non_neg_integer(),non_neg_integer()) -> binary().
 get_bytes(Bin, Start, Len) when byte_size(Bin) >= Start + Len ->
     get_bits(Bin, Start * 8, Len * 8).
 
--doc """
+?doc("""
 Print binary as hexadecimal numbers.
 
 ### Example
@@ -68,11 +70,11 @@ Print binary as hexadecimal numbers.
  F2 11
  ok
 ```
-""".
+""").
 -spec pp(bitstring()) -> ok.
 pp(Bin) -> pp(Bin, #{}).
 
--doc """
+?doc("""
 Print binary as numbers.
 
 ### Example
@@ -84,7 +86,7 @@ Print binary as numbers.
  1111 0010  0001 0001
  ok
 ```
-""".
+""").
 -spec pp(bitstring(), coding() | #{display => coding()}) -> ok.
 pp(Bin, Display) when is_atom(Display) ->
     pp(Bin, #{display => Display});

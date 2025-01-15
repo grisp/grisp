@@ -1,5 +1,7 @@
 -module(grisp_pwm).
--moduledoc """
+-include("grisp_docs.hrl").
+
+?moduledoc("""
 GriSP Pulse Width Modulation (PWM) API.
 
 Pulse Width Modulation (PWM) is used to generate a rectangular wave with a varying duty cycle
@@ -76,7 +78,7 @@ ok,ok,ok,ok,ok,ok,ok,ok,ok,ok|...]
 >
 > Example: `grisp_gpio` is used to set a pin to high, then `grisp_pwm:open/3` is used to drive the pin.
 > After `grisp_pwm:close/1` is called, the pin is set to high and `grisp_gpio` is again in control.
-""".
+""").
 
 -behaviour(gen_server).
 -include("grisp_nif.hrl").
@@ -256,23 +258,23 @@ ok,ok,ok,ok,ok,ok,ok,ok,ok,ok|...]
 }).
 
 %--- API -----------------------------------------------------------------------
--doc """
+?doc("""
 Starts the driver and registers a PWM device.
-""".
+""").
 
 start_driver() ->
     grisp:add_device(pwm, ?MODULE, #{}).
 
--doc(false).
+?doc(false).
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
--doc(false).
+?doc(false).
 % interface for grisp_devices
 start_link(pwm, #{}) ->
     start_link().
 
--doc """
+?doc("""
 Opens a pin and sets a configuration and a sample.
 
 <!-- tabs-open -->
@@ -299,7 +301,7 @@ This sets a low frequency clock and results in a 500ms cycle time (2Hz) and 4bit
 ok
 ```
 <!-- tabs-close -->
-""".
+""").
 
 -spec open(pin(), config(), sample()) -> ok | {error, _}.
 open(Pin, default, Sample)
@@ -323,15 +325,15 @@ open_with_pwm_config(Pin, Config, Sample)
         Error ->
             Error
         end.
--doc """
+?doc("""
 Closes a pin.
-""".
+""").
 
 -spec close(pin()) -> ok.
 close(Pin) when is_atom(Pin) ->
     gen_server:call(?MODULE, {close, Pin}).
 
--doc """
+?doc("""
 Sets a sample to define the duty cycle.
 
 You can pass a float between 0.0 and 1.0 or a 16bit binary.
@@ -352,20 +354,20 @@ This sets the duty cycle to 25% given a period of `<<1024:16>>`.
 ok
 ```
 <!-- tabs-close -->
-""".
+""").
 
 -spec set_sample(pin(), sample()) -> ok | {error | _}.
 set_sample(Pin, Sample)
   when is_atom(Pin), is_binary(Sample) or is_float(Sample) ->
     gen_server:call(?MODULE, {set_sample, Pin, Sample}).
 
--doc """
+?doc("""
 Creates a custom configuration for PWM.
 
 This creates a configuration with a given clock, prescale and period.
 This is useful if you want to define the cycle time or the duty cycle resolution.
 Different clocks can be selected to provide different source frequencies.
-""".
+""").
 
 -spec config(clock(), prescale(), period()) -> pwm_config().
 config(Clock, Prescale, Period = <<_:16>>)
@@ -395,7 +397,7 @@ default_interrupt_config() ->
     }.
 
 %--- gen_server Calbacks -------------------------------------------------------
--doc(false).
+?doc(false).
 -ifdef(TEST).
 init(_) -> {ok, #state{pin_states = #{}}}.
 -else.
@@ -408,7 +410,7 @@ init([]) ->
     {ok, #state{pin_states = #{}}}.
 -endif.
 
--doc(false).
+?doc(false).
 handle_call({open, Pin, Config, Sample}, _From, State) ->
     case {maps:get(Pin, State#state.pin_states, nil),
           maps:get(Pin, ?PINMUXING, nil)} of
@@ -482,19 +484,19 @@ handle_call({set_sample, Pin, Sample}, _From, State) ->
     end,
     {reply, Reply, State}.
 
--doc(false).
+?doc(false).
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
--doc(false).
+?doc(false).
 handle_info(_Info, State) ->
     {noreply, State}.
 
--doc(false).
+?doc(false).
 terminate(_Reason, _State) ->
     ok.
 
--doc(false).
+?doc(false).
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 

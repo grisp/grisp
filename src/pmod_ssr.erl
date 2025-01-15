@@ -1,5 +1,6 @@
 -module(pmod_ssr).
--moduledoc """
+-include("grisp_docs.hrl").
+?moduledoc("""
 [PmodSSR](https://digilent.com/reference/pmod/pmodssr/reference-manual) module.
 
 The Pmod SSR (Solid State Relay) module is designed to control high-power devices using a GPIO pin from a GRiSP board.
@@ -32,7 +33,7 @@ To turn back off, use:
 3> pmod_ssr:off().
 ok
 ```
-""".
+""").
 
 -behaviour(gen_server).
 
@@ -53,7 +54,7 @@ ok
 
 %--- API -----------------------------------------------------------------------
 
--doc(false).
+?doc(false).
 start_link(Slot, _Opts) ->
     gen_server:start_link(?MODULE, Slot, []).
 
@@ -68,7 +69,7 @@ off() ->
 
 %--- Callbacks -----------------------------------------------------------------
 
--doc(false).
+?doc(false).
 init(Slot) ->
     % TODO: expand for more possible Slots
     case {grisp_hw:platform(), Slot} of
@@ -80,16 +81,16 @@ init(Slot) ->
     grisp_devices:register(Slot, ?MODULE),
     {ok, #{pin => Pin1}}.
 
--doc(false).
+?doc(false).
 handle_call(Call, _From, State) ->
     try execute_call(Call, State)
         catch throw:Reason -> {reply, {error, Reason}, State}
     end.
 
--doc(false).
+?doc(false).
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
--doc(false).
+?doc(false).
 handle_info(_Any, State) ->
     {noreply, State}.
 

@@ -1,9 +1,11 @@
 -module(grisp_rtems).
--moduledoc """
+-include("grisp_docs.hrl").
+
+?moduledoc("""
 GRiSP RTEMS functions.
 
 NIF mappings to RTEMS functions.
-""".
+""").
 -include("grisp_nif.hrl").
 
 % API
@@ -31,58 +33,58 @@ NIF mappings to RTEMS functions.
 
 %--- API -----------------------------------------------------------------------
 
--doc """
+?doc("""
 Gets the number of clock ticks per second configured for the application.
 
 *Reference:* [rtems_clock_get_ticks_per_second](https://docs.rtems.org/branches/master/c-user/clock/directives.html#rtems-clock-get-ticks-per-second)
-""".
+""").
 -spec clock_get_ticks_per_second() -> integer().
 clock_get_ticks_per_second() -> erlang:nif_error("NIF library not loaded").
 
--doc """
+?doc("""
 Gets the number of clock ticks since some time point during the system
 initialization or the last overflow of the clock tick counter.
 
 *Reference:* [rtems_clock_get_ticks_since_boot](https://docs.rtems.org/branches/master/c-user/clock/directives.html#rtems-clock-get-ticks-since-boot)
-""".
+""").
                                                   -spec clock_get_ticks_since_boot() -> integer().
 clock_get_ticks_since_boot() -> erlang:nif_error("NIF library not loaded").
 
--doc """
+?doc("""
 Gets the time of day associated with the current `CLOCK_REALTIME`.
 
 *Reference:* [rtems_clock_get_tod](https://docs.rtems.org/branches/master/c-user/clock/directives.html#rtems-clock-get-tod)
-""".
+""").
 -spec clock_get_tod() -> time_of_day().
 clock_get_tod() ->
     {Year, Month, Day, Hour, Minute, Second, Ticks} = clock_get_tod_nif(),
     {{{Year, Month, Day}, {Hour, Minute, Second}}, Ticks}.
 
--doc """
+?doc("""
 Sets the `CLOCK_REALTIME` to the time of day.
 
 *Reference:* [rtems_clock_set](https://docs.rtems.org/branches/master/c-user/clock/directives.html#rtems-clock-set)
-""".
+""").
 -spec clock_set(time_of_day()) -> integer().
 clock_set({{{Year, Month, Day}, {Hour, Minute, Second}}, Ticks}) ->
     clock_set_nif({Year, Month, Day, Hour, Minute, Second, Ticks}).
 
--doc """
+?doc("""
 Unmounts the file system instance at the specified mount path.
 
 *Reference:* [rtems_unmount](https://docs.rtems.org/doxygen/branches/master/group__FileSystemTypesAndMount.html#ga4c8f87fc991f94992e0da1f87243f9e0)
-""".
+""").
 -spec unmount(iodata()) -> ok | {error, list()}.
 unmount(Path) ->
     unmount_nif([Path, 0]).
 
--doc(false).
+?doc(false).
 -spec write_file_to_device(string(), string())
     -> {ok, integer()} | {error, list()} | {error, atom(), term()}.
 write_file_to_device(FilePath, DevicePath) ->
     write_file_to_device(FilePath, DevicePath, ?DEFAULT_READ_CHUNK_SIZE, ?DEFAULT_WRITE_CHUNK_SIZE).
 
--doc(false).
+?doc(false).
 -spec write_file_to_device(string(), string(), non_neg_integer(), non_neg_integer())
     -> {ok, integer()} | {error, list()} | {error, atom(), term()}.
 write_file_to_device(FilePath, DevicePath, ReadChunkSize, WriteChunkSize) ->
@@ -97,7 +99,7 @@ write_file_to_device(FilePath, DevicePath, ReadChunkSize, WriteChunkSize) ->
             Error
     end.
 
--doc """
+?doc("""
 Perform a raw `pwrite` syscall to a device.
 
 The function is approximately equivalent to the C code:
@@ -108,7 +110,7 @@ pwrite(fd, buffer.data, buffer.size, offset);
 ```
 
 *Reference:* [pwrite](https://linux.die.net/man/2/pwrite)
-""".
+""").
 -spec pwrite(binary() | iolist(), binary() | iolist(), integer()) -> {ok, integer()} | {error, atom(), list()}.
 pwrite(DevicePath, Buffer, Offset) ->
     pwrite_nif([DevicePath, 0], [Buffer], Offset).

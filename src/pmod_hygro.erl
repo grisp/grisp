@@ -1,5 +1,7 @@
 -module(pmod_hygro).
--moduledoc """
+-include("grisp_docs.hrl").
+
+?moduledoc("""
 API for the
 [PmodHYGRO](https://reference.digilentinc.com/reference/pmod/pmodhygro/start).
 
@@ -7,7 +9,7 @@ Start the driver with
 ```
 1> grisp:add_device(i2c, pmod_hygro).
 ```
-""".
+""").
 
 -behaviour(gen_server).
 
@@ -41,11 +43,11 @@ Start the driver with
 
 %--- API -----------------------------------------------------------------------
 
--doc(false).
+?doc(false).
 start_link(Slot, _Opts) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Slot, []).
 
--doc """
+?doc("""
 Measure the temperature in °C.
 
 ### Example
@@ -53,12 +55,12 @@ Measure the temperature in °C.
 2> pmod_hygro:temp().
 [{temp,24.6746826171875}]
 ```
-""".
+""").
 -spec temp() -> [{temp, float()}].
 temp() ->
     gen_server:call(?MODULE, temp).
 
--doc """
+?doc("""
 Measure the humidity in %.
 
 ### Example
@@ -66,12 +68,12 @@ Measure the humidity in %.
 2> pmod_hygro:humid().
 [{humid,50.225830078125}]
 ```
-""".
+""").
 -spec humid() -> [{humid, float()}].
 humid() ->
     gen_server:call(?MODULE, humid).
 
--doc """
+?doc("""
 Measure the temperature and humidity.
 
 ### Example
@@ -79,21 +81,21 @@ Measure the temperature and humidity.
 2> pmod_hygro:measurements().
 [{temp,24.52362060546875},{humid,50.823974609375}]
 ```
-""".
+""").
 -spec measurements() -> [{temp, float()}|{humid, float()}].
 measurements() ->
     gen_server:call(?MODULE, measurements).
 
 %--- Callbacks -----------------------------------------------------------------
 
--doc(false).
+?doc(false).
 init(i2c = Slot) ->
     Bus = grisp_i2c:open(i2c1),
     verify_device(Bus),
     grisp_devices:register(Slot, ?MODULE),
     {ok, #state{bus = Bus}}.
 
--doc(false).
+?doc(false).
 handle_call(temp, _From, #state{bus = Bus} = State) ->
     {ok, <<T:14/unsigned-big, _:2>>} = device_request(Bus, ?REG_TEMPERATURE, ?DELAY_TIME, 2),
     Temp = evaluate_temp(T),
@@ -108,16 +110,16 @@ handle_call(measurements, _From, #state{bus = Bus} = State) ->
     Humid = evaluate_humid(H),
     {reply, [{temp, Temp}, {humid, Humid}], State}.
 
--doc(false).
+?doc(false).
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
--doc(false).
+?doc(false).
 handle_info(Info, _State) -> error({unknown_info, Info}).
 
--doc(false).
+?doc(false).
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
--doc(false).
+?doc(false).
 terminate(_Reason, _State) -> ok.
 
 %--- Internal ------------------------------------------------------------------
