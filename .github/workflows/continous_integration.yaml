@@ -54,4 +54,5 @@ jobs:
         run: rebar3 dialyzer
 
       - name: ExDoc
+        if: matrix.otp == '27'
         run: rebar3 ex_doc
