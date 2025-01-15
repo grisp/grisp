@@ -17,7 +17,6 @@ This module contains the main API for working with the GRiSP runtime.
 -include("grisp_internal.hrl").
 
 %--- Types ---------------------------------------------------------------------
-
 -export_type([slot/0, device/0]).
 
 ?doc("""
