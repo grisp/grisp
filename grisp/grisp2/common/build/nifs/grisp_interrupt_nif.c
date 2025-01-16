@@ -8,6 +8,7 @@
 static ERL_NIF_TERM am_error;
 static ERL_NIF_TERM am_invalid_value;
 static ERL_NIF_TERM am_ok;
+static ERL_NIF_TERM am_interrupt;
 
 typedef struct MessageData {
     ErlNifEnv* caller_env;
@@ -24,6 +25,7 @@ static int interrupt_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_in
     am_error = enif_make_atom(env, "error");
     am_invalid_value = enif_make_atom(env, "invalid_value");
     am_ok = enif_make_atom(env, "ok");
+    am_interrupt = enif_make_atom(env, "interrupt");
     return 0;
 }
 
@@ -44,7 +46,7 @@ static ERL_NIF_TERM interrupt_install_handler_nif(ErlNifEnv *env, int argc, cons
     }
     message_data.caller_env = env;
     message_data.to_pid = pid;
-    message_data.msg = am_ok;
+    message_data.msg = enif_make_tuple2(env, am_interrupt, enif_make_int(env, interrupt_vector));
     interrupt_handler(interrupt_vector, message_data);
     return am_ok;
 }
