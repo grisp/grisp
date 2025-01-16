@@ -176,8 +176,9 @@ transfer(Bus, Messages) -> i2c_transfer_nif(Bus, Messages).
 
 %--- Callbacks -----------------------------------------------------------------
 
-% @private
+-ifndef(DOC).
 on_load() -> ?NIF_LOAD.
+-endif.
 
 %--- Internal ------------------------------------------------------------------
 
