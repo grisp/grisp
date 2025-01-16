@@ -42,7 +42,6 @@
 -export([code_change/3]).
 -export([handle_call/3]).
 -export([handle_cast/2]).
--export([handle_info/2]).
 
 -behavior(gen_server).
 -include("grisp_internal.hrl").  % for device record definition
@@ -283,11 +282,23 @@ start_link(Interface, _Opts) ->
     listeners :: #{window() => sets:set(pid())}
 }.
 
-% Initializes the bus object to form a driver state, but defers actual device
-% initialization to a timeout (see handle_info/2) so as not to get in the way of
-% any supervisor tree.
+% Initializes the bus object to form a driver state, syncs with the MTDS, and
+% launches the touch poll worker.
 init([Interface]) ->
-    {ok, Interface, 0}.
+    % NOTE: MTDS wants to put freq in 3.5–4 MHz, whereas GRiSP runs at 0.1 MHz.
+    ok = grisp_devices:register(Interface, ?MODULE),
+
+    Bus = grisp_spi:open(Interface),
+    State = #state{bus = Bus},
+    % NOTE: Reference driver toggles the reset pin, but we don't have access.
+    {ok, SyncedState} = sync(State),
+    {ok, StartedState, _Reply} = command(SyncedState, ?UTILITY_INIT),
+
+    % set up touch poll
+    Self = self(),
+    spawn_link(fun() -> poll_loop(Self) end),
+
+    {ok, StartedState}.
 
 % Process a command directive.
 handle_call({command, CommandPair, Parameters, Packet}, _From, State) ->
@@ -324,23 +335,6 @@ handle_call(poll_touch_events, _From, State = #state{}) ->
 
 handle_cast(_Request, State) ->
     {noreply, State}.
-
-% Complete initialization.
-handle_info(timeout, Interface) when is_atom(Interface) ->
-    % NOTE: MTDS wants to put freq in 3.5–4 MHz, whereas GRiSP runs at 0.1 MHz.
-    ok = grisp_devices:register(Interface, ?MODULE),
-
-    Bus = grisp_spi:open(Interface),
-    State = #state{bus = Bus},
-    % NOTE: Reference driver toggles the reset pin, but we don't have access.
-    {ok, SyncedState} = sync(State),
-    {ok, StartedState, _Reply} = command(SyncedState, ?UTILITY_INIT),
-
-    % set up touch poll
-    Self = self(),
-    spawn_link(fun() -> poll_loop(Self) end),
-
-    {noreply, StartedState}.
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
