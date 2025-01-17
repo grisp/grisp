@@ -1,12 +1,9 @@
 <p>
   <a href="#readme">
-    <picture width="20%" align="right">
-      <source media="(prefers-color-scheme: dark)" srcset="doc/images/GRiSP_Logotype_negativ.svg">
-      <img alt="GRiSP Erlang Runtime" src="doc/images/GRiSP_Logotype_positiv.svg"/ style="width: 80%;">
-    </picture>
+    <img src="assets/GRiSP_Logotype_negative.svg#gh-dark-mode-only" alt="GRiSP Logo">
+    <img src="assets/GRiSP_Logotype_positive.svg#gh-light-mode-only" alt="GRiSP Logo">
   </a>
 </p>
-
 
 <p align="center">
   <a href="https://github.com/grisp/grisp/actions/workflows/continous_integration.yaml?query=branch%3Amaster">
@@ -31,10 +28,10 @@
   <a href="https://erlangforums.com/c/erlang-platforms/grisp-forum/67">
     Forums
   </a>
-</p><br/>
+</p>
 
 <p align="center">
-  <img alt="GRiSP 2 board on wood" src="doc/images/code.png"/ style="width: 80%;" align="center">
+  <img alt="GRiSP 2 board on wood" src="assets/code.png"/ style="width: 80%;" align="center">
 </p>
 
 Create amazing Internet of Things designs without soldering or dropping down to
@@ -75,7 +72,7 @@ GRiSP hardware supports many different connection standards:
 * GPIO
 * SPI
 * UART
-* I<sup>2</sup>C
+* I²C
 * 1-Wire
 
 Peripherals can be connected to either [PMOD] ports or I/O
@@ -83,39 +80,39 @@ pins directly.
 
 ## GRiSP 2 (`grisp2`)
 
-<img alt="GRiSP 2 hardware" src="doc/images/GRiSP2v1.2@0.25x.jpg" style="width: 50%" align="right"/>
+<img alt="GRiSP 2 hardware" src="assets/GRiSP2v1.2@0.25x.jpg" style="width: 50%" align="right"/>
 
 GRiSP 2 ships with the following features:
 
-* 1 &times; 100 Mbit/s Ethernet port
-* 1 &times; Wi-Fi 802.11b/g/n WLAN
-* 1 &times; GPIO PMOD Type 1A (12-pin)
-* 2 &times; GPIO pins (14-pin & 6-pin)
-* 1 &times; SPI1 PMOD Type 2 (6-pin)
-* 1 &times; SPI2 PMOD Type 2A (12-pin)
-* 1 &times; UART PMOD Type 3A (12-pin)
-* 1 &times; I<sup>2</sup>C PMOD Type 6 (6-pin)
-* 1 &times; I<sup>2</sup>C Bus (8-pin)
-* 1 &times; 1-Wire Bus (3-pin)
-* 1 &times; USB Bus (5-pin)
-* 5 &times; mode DIP switches
-* 1 &times; JTAG connector
+* 1 × 100 Mbit/s Ethernet port
+* 1 × Wi-Fi 802.11b/g/n WLAN
+* 1 × GPIO PMOD Type 1A (12-pin)
+* 2 × GPIO pins (14-pin & 6-pin)
+* 1 × SPI1 PMOD Type 2 (6-pin)
+* 1 × SPI2 PMOD Type 2A (12-pin)
+* 1 × UART PMOD Type 3A (12-pin)
+* 1 × I²C PMOD Type 6 (6-pin)
+* 1 × I²C Bus (8-pin)
+* 1 × 1-Wire Bus (3-pin)
+* 1 × USB Bus (5-pin)
+* 5 × mode DIP switches
+* 1 × JTAG connector
 
 ## GRiSP 1 (`grisp_base`)
 
-<img alt="GRiSP 1 hardware" src="doc/images/GRiSP_basev1.2@0.25x.jpg" style="width: 40%" align="right"/>
+<img alt="GRiSP 1 hardware" src="assets/GRiSP_basev1.2@0.25x.jpg" style="width: 40%" align="right"/>
 
 GRiSP 1 ships with the following features:
 
-* 1 &times; Wi-Fi 802.11b/g/n WLAN
-* 2 &times; GPIO PMOD Type 1 (6-pin)
-* 1 &times; UART PMOD Type 3 (6-pin)
-* 1 &times; SPI1 PMOD Type 2A (12-pin)
-* 1 &times; SPI2 PMOD Type 2 (6-pin)
-* 1 &times; I<sup>2</sup>C Bus (8-pin)
-* 1 &times; 1-Wire Bus (3-pin)
-* 5 &times; mode DIP switches
-* 1 &times; JTAG connector
+* 1 × Wi-Fi 802.11b/g/n WLAN
+* 2 × GPIO PMOD Type 1 (6-pin)
+* 1 × UART PMOD Type 3 (6-pin)
+* 1 × SPI1 PMOD Type 2A (12-pin)
+* 1 × SPI2 PMOD Type 2 (6-pin)
+* 1 × I²C Bus (8-pin)
+* 1 × 1-Wire Bus (3-pin)
+* 5 × mode DIP switches
+* 1 × JTAG connector
 
 # Testing
 
@@ -137,7 +134,7 @@ $ rebar3 as test shell
     General Purpose Input/Output. Digital signal pin interface used to
     interface with single pins.
   </dd>
-  <dt>I<sup>2</sup>C</dt><dd>
+  <dt>I²C</dt><dd>
     Inter-Intergrated Circuit. Short-distance synchronous serial computer bus.
   </dd>
   <dt>JTAG</dt><dd>

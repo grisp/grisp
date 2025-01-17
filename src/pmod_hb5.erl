@@ -33,7 +33,7 @@ forward(State) ->
     start(State).
 
 backward(State) ->
-    stop(State),	  % Never change direction on a active H-bridge
+    stop(State),    % Never change direction on a active H-bridge
     direction(State, backward),
     start(State).
 

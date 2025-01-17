@@ -1,5 +1,8 @@
-% @doc GRiSP hardware access.
 -module(grisp_hw).
+-include("grisp_docs.hrl").
+?moduledoc("""
+GRiSP hardware access.
+""").
 
 -include("grisp_nif.hrl").
 -include("grisp_hw.hrl").
@@ -15,27 +18,32 @@
 -export([crc16/1]).
 
 % Callbacks
--export([on_load/0]).
+-ifndef(DOC).
 -on_load(on_load/0).
+-endif.
 
 %--- API -----------------------------------------------------------------------
 
-% @doc Returns the platform name as an atom.
+?doc("""
+Returns the platform name as an atom.
+""").
 -spec platform() -> atom().
 platform() -> hw_platform_nif().
 
-% @doc Reads GRiSP meta data from EEPROM
-%
-% === Example ===
-% ```
-% 1> grisp_hw:eeprom_read().
-% {ok, #{grisp_batch => 1,
-%        grisp_pcb_variant => 1,
-%        grisp_pcb_version => "1.2",
-%        grisp_prod_date => {{2021,8,27},{0,0,0}},
-%        grisp_serial => 1002,
-%        grisp_version => "2"}}
-% '''
+?doc("""
+Reads GRiSP meta data from EEPROM
+
+### Example
+```
+1> grisp_hw:eeprom_read().
+{ok, #{grisp_batch => 1,
+       grisp_pcb_variant => 1,
+       grisp_pcb_version => "1.2",
+       grisp_prod_date => {{2021,8,27},{0,0,0}},
+       grisp_serial => 1002,
+       grisp_version => "2"}}
+```
+""").
 eeprom_read() ->
     <<_SigVersion:8,
       _Dummy1:3/binary,     %% unused
@@ -65,7 +73,9 @@ eeprom_read() ->
         false   -> {invalid_crc, MetaData}
     end.
 
-% @doc Fixes CRC bytes for pre-production boards
+?doc("""
+Fixes CRC bytes for pre-production boards
+""").
 -spec eeprom_reset_crc() -> ok.
 eeprom_reset_crc() ->
     <<DataToBeVerified:24/binary, _/binary>> =
@@ -80,17 +90,19 @@ eeprom_reset_crc() ->
 
 %--- Callbacks -----------------------------------------------------------------
 
+-ifndef(DOC).
 on_load() -> ?NIF_LOAD.
+-endif.
 
 %--- Internal ------------------------------------------------------------------
 
 hw_platform_nif() -> ?NIF_STUB([]).
 
-% @private
+?doc(false).
 crc16(Cp) ->
     crc16(0, Cp).
 
-% @private
+?doc(false).
 crc16(Crc, <<>>) ->
     Crc;
 crc16(Crc, <<Cp:8, CpTail/binary>>) ->

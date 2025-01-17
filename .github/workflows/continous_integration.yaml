@@ -53,5 +53,6 @@ jobs:
       - name: Analyze
         run: rebar3 dialyzer
 
-      - name: Edoc
-        run: rebar3 edoc
+      - name: ExDoc
+        if: matrix.otp == '27'
+        run: rebar3 ex_doc

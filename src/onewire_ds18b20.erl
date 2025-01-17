@@ -1,9 +1,9 @@
-% @doc Communicate with the
-% <a href="https://datasheets.maximintegrated.com/en/ds/DS18B20.pdf">
-% DS18B20 - Programmable Resolution 1-Wire Digital Thermometer
-% </a>.
-% @end
 -module(onewire_ds18b20).
+-include("grisp_docs.hrl").
+?moduledoc("""
+Communicate with the
+[DS18B20 - Programmable Resolution 1-Wire Digital Thermometer](https://datasheets.maximintegrated.com/en/ds/DS18B20.pdf)
+""").
 
 % API
 -export([temp/1]).
@@ -15,13 +15,15 @@
 
 %--- API -----------------------------------------------------------------------
 
-% @doc Read the temperature in °C from the scratchpad.
-%
-% === Example ===
-% ```
-%  onewire_ds18b20:temp([40,255,190,25,96,23,3,203]).
-%  22.375
-% '''
+?doc("""
+Read the temperature in °C from the scratchpad.
+
+## Example
+```
+ onewire_ds18b20:temp([40,255,190,25,96,23,3,203]).
+ 22.375
+```
+""").
 -spec temp([byte()]) -> float().
 temp(ID) ->
     grisp_onewire:transaction(fun() ->
@@ -32,10 +34,12 @@ temp(ID) ->
         Temp / 16.0
     end).
 
-% @doc Read the scratchpad.
-%
-% Returns the two bytes of the temperature register (`LSB' and `MSB') and
-% the one byte of the configuration register.
+?doc("""
+Read the scratchpad.
+
+Returns the two bytes of the temperature register (`LSB` and `MSB`) and
+the one byte of the configuration register.
+""").
 -spec read_scratchpad([byte()]) -> {LSB::binary(), MSB::binary(),
                                    Config::binary()}.
 read_scratchpad(ID) ->
@@ -44,13 +48,15 @@ read_scratchpad(ID) ->
         read_scratchpad()
     end).
 
-% @doc Initiate a temperature measurement.
-%
-% === Example ===
-% ```
-%  1> onewire_ds18b20:convert([40,255,190,25,96,23,3,203], 500).
-%  ok
-% '''
+?doc("""
+Initiate a temperature measurement.
+
+## Example
+```
+ 1> onewire_ds18b20:convert([40,255,190,25,96,23,3,203], 500).
+ ok
+```
+""").
 -spec convert([byte()], any()) -> ok.
 convert(ID, Timeout) ->
     grisp_onewire:transaction(fun() ->

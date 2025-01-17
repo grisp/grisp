@@ -1,5 +1,3 @@
-% @doc
-% @end
 -module(grisp_barebox).
 
 -behaviour(gen_server).

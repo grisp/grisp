@@ -1,24 +1,39 @@
-% @doc
-% <a href="https://digilent.com/reference/pmod/pmodssr/reference-manual">
-% PmodSSR</a>
-% module.
-%
-% The Pmod SSR (Solid State Relay) module is designed to control high-power devices using a GPIO pin from a GRiSP board.
-%
-% Pin 1: ON/OFF control (connected to GPIO).
-% Pin 5: Ground (GND).
-% Pin 6: 3.3V Power Supply (VCC).
-%
-% This relay can be switched on or off by sending a control signal through a single GPIO pin (minimal setup needed for controlling high-power loads).
-% The driver allows you to easily turn the relay on and off through simple commands.
-%
-%
-% Start the driver with
-% ```
-% 1> grisp:add_device(gpio1, pmod_ssr).
-% '''
-% @end
 -module(pmod_ssr).
+-include("grisp_docs.hrl").
+?moduledoc("""
+[PmodSSR](https://digilent.com/reference/pmod/pmodssr/reference-manual) module.
+
+The Pmod SSR (Solid State Relay) module is designed to control high-power devices using a GPIO pin from a GRiSP board.
+
+| Pin | Function                           |
+| --- | ---------------------------------- |
+| 1   | ON/OFF control (connected to GPIO) |
+| 5   | Ground (GND)                       |
+| 6   | 3.3V Power Supply (VCC)            |
+
+This relay can be switched on or off by sending a control signal through a single GPIO pin (minimal setup needed for controlling high-power loads).
+The driver allows you to easily turn the relay on and off through simple commands.
+
+
+Start the driver with
+```
+1> grisp:add_device(gpio1, pmod_ssr).
+```
+
+### Examples
+
+To turn on, use:
+```
+2> pmod_ssr:on().
+ok
+```
+
+To turn back off, use:
+```
+3> pmod_ssr:off().
+ok
+```
+""").
 
 -behaviour(gen_server).
 
@@ -39,23 +54,9 @@
 
 %--- API -----------------------------------------------------------------------
 
-% @private
+?doc(false).
 start_link(Slot, _Opts) ->
     gen_server:start_link(?MODULE, Slot, []).
-
-% @doc Turn the relay on and off.
-%
-% === Examples ===
-% To turn on, use:
-% ```
-% 2> pmod_ssr:on().
-% ok
-% '''
-% To turn back off, use:
-% ```
-% 3> pmod_ssr:off().
-% ok
-% '''
 
 -spec on() -> ok | {error, any()}.
 on() ->
@@ -68,7 +69,7 @@ off() ->
 
 %--- Callbacks -----------------------------------------------------------------
 
-% @private
+?doc(false).
 init(Slot) ->
     % TODO: expand for more possible Slots
     case {grisp_hw:platform(), Slot} of
@@ -80,16 +81,16 @@ init(Slot) ->
     grisp_devices:register(Slot, ?MODULE),
     {ok, #{pin => Pin1}}.
 
-% @private
+?doc(false).
 handle_call(Call, _From, State) ->
     try execute_call(Call, State)
         catch throw:Reason -> {reply, {error, Reason}, State}
     end.
 
-% @private
+?doc(false).
 handle_cast(Request, _State) -> error({unknown_cast, Request}).
 
-% @private
+?doc(false).
 handle_info(_Any, State) ->
     {noreply, State}.
 

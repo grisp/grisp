@@ -1,6 +1,10 @@
-% @doc Bitstring editing and printing.
-% @end
 -module(grisp_bitmap).
+-include("grisp_docs.hrl").
+
+?moduledoc("""
+Bitstring editing and printing.
+""").
+
 
 % API
 -export([set_bits/3]).
@@ -17,64 +21,72 @@
 
 %--- API -----------------------------------------------------------------------
 
-% @doc Replace a part of a bitsting.
-%
-% === Example ===
-% ```
-%  5> grisp_bitmap:pp(grisp_bitmap:set_bits(<<2#00000000>>, 6, <<2#1:1>>), bin).
-%  00000010
-%  ok
-% '''
+?doc("""
+Replace a part of a bitsting.
+
+### Example
+```
+5> grisp_bitmap:pp(grisp_bitmap:set_bits(<<2#00000000>>, 6, <<2#1:1>>), bin).
+00000010
+ok
+```
+""").
 -spec set_bits(bitstring(),non_neg_integer(),bitstring()) -> bitstring().
 set_bits(Bin, Start, Value) when bit_size(Bin) >= Start + bit_size(Value) ->
     Len = bit_size(Value),
     <<Prefix:Start/bitstring, _:Len/bitstring, Postfix/bitstring>> = Bin,
     <<Prefix/bitstring, Value/bitstring, Postfix/bitstring>>.
 
-% @doc Get a part of a bitstring.
-%
-% === Example ===
-% ```
-%  1> grisp_bitmap:get_bits(<<1,2,3,4,5>>, 6, 2).
-%  <<1:2>>
-% '''
+?doc("""
+Get a part of a bitstring.
+
+### Example
+```
+ 1> grisp_bitmap:get_bits(<<1,2,3,4,5>>, 6, 2).
+ <<1:2>>
+```
+""").
 -spec get_bits(bitstring(),non_neg_integer(),non_neg_integer()) -> bitstring().
 get_bits(Bin, Start, Len) when bit_size(Bin) >= Start + Len ->
     <<_:Start/bitstring, Bytes:Len/bitstring, _/bitstring>> = Bin,
     Bytes.
 
-% @equiv set_bits(Bin, Start * 8, Value)
+?doc(#{equiv => set_bits(Bin, Start * 8, Value)}).
 -spec set_bytes(binary(),non_neg_integer(),bitstring()) -> binary().
 set_bytes(Bin, Start, Value) when byte_size(Bin) >= Start + byte_size(Value) ->
     set_bits(Bin, Start * 8, Value).
 
-% @equiv get_bits(Bin, Start * 8, Len * 8)
+?doc(#{equiv => get_bits(Bin, Start * 8, Len * 8)}).
 -spec get_bytes(binary(),non_neg_integer(),non_neg_integer()) -> binary().
 get_bytes(Bin, Start, Len) when byte_size(Bin) >= Start + Len ->
     get_bits(Bin, Start * 8, Len * 8).
 
-% @doc Print binary as hexadecimal numbers.
-%
-% === Example ===
-% ```
-%  2> grisp_bitmap:pp(<<16#f2, 17>>).
-%  F2 11
-%  ok
-% '''
+?doc("""
+Print binary as hexadecimal numbers.
+
+### Example
+```
+ 2> grisp_bitmap:pp(<<16#f2, 17>>).
+ F2 11
+ ok
+```
+""").
 -spec pp(bitstring()) -> ok.
 pp(Bin) -> pp(Bin, #{}).
 
-% @doc Print binary as numbers.
-%
-% === Example ===
-% ```
-%  3> grisp_bitmap:pp(<<16#f2, 17>>, nib).
-%  1111 0010  0001 0001
-%  ok
-%  4> grisp_bitmap:pp(<<16#f2, 17>>, #{display => bin}).
-%  1111 0010  0001 0001
-%  ok
-% '''
+?doc("""
+Print binary as numbers.
+
+### Example
+```
+ 3> grisp_bitmap:pp(<<16#f2, 17>>, nib).
+ 1111 0010  0001 0001
+ ok
+ 4> grisp_bitmap:pp(<<16#f2, 17>>, #{display => bin}).
+ 1111 0010  0001 0001
+ ok
+```
+""").
 -spec pp(bitstring(), coding() | #{display => coding()}) -> ok.
 pp(Bin, Display) when is_atom(Display) ->
     pp(Bin, #{display => Display});
