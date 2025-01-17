@@ -3,6 +3,9 @@
 #include <assert.h>
 #include <errno.h>
 #include <string.h>
+#include <rtems.h>
+#include <rtems/irq.h>
+#include <bsp/irq.h>
 #include <erl_nif.h>
 
 static ERL_NIF_TERM am_error;
@@ -35,9 +38,11 @@ static ERL_NIF_TERM interrupt_handler(uint32_t interrupt_vector, MessageData msg
 }
 
 static ERL_NIF_TERM interrupt_install_handler_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+    rtems_status_code status;
     uint32_t interrupt_vector;
     ErlNifPid pid;
     MessageData message_data;
+    char isr_name[12];
     if (!enif_get_uint(env, argv[0], &interrupt_vector)) {
         return RAISE_TERM(am_invalid_value, argv[0]);
     }
@@ -47,7 +52,19 @@ static ERL_NIF_TERM interrupt_install_handler_nif(ErlNifEnv *env, int argc, cons
     message_data.caller_env = env;
     message_data.to_pid = pid;
     message_data.msg = enif_make_tuple2(env, am_interrupt, enif_make_int(env, interrupt_vector));
-    interrupt_handler(interrupt_vector, message_data);
+    sprintf(isr_name, "ISR IRQ %d", interrupt_vector);
+
+    status = rtems_interrupt_handler_install(
+        interrupt_vector,       // IRQ number
+        &isr_name,              // ISR name
+        RTEMS_INTERRUPT_SHARED, // ISR mode
+        interrupt_handler,      // ISR handler function
+        &message_data           // Argument passed to the ISR (optional)
+    );
+
+    if (status != RTEMS_SUCCESSFUL) {
+        RAISE_TERM(am_invalid_value, argv[1]);
+    }
     return am_ok;
 }
 
