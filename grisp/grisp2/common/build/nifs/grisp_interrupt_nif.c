@@ -35,20 +35,19 @@ static int interrupt_load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_in
 }
 
 static ERL_NIF_TERM interrupt_handler(uint32_t interrupt_vector, MessageData msg) {
-
     *(uint32_t *)(uintptr_t)msg.status_register_address = msg.status_register_value;
     enif_send(msg.caller_env, &msg.to_pid, NULL, msg.msg);
     return am_ok;
 }
 
 static ERL_NIF_TERM interrupt_install_handler_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+    rtems_interrupt_level level;
     rtems_status_code status;
     uint32_t interrupt_vector;
     ErlNifPid pid;
     MessageData message_data;
     uint32_t status_register_address;
     uint32_t status_register_value;
-    char isr_name[12];
     if (!enif_get_uint(env, argv[0], &interrupt_vector)) {
         return RAISE_TERM(am_invalid_value, argv[0]);
     }
@@ -56,27 +55,30 @@ static ERL_NIF_TERM interrupt_install_handler_nif(ErlNifEnv *env, int argc, cons
         return RAISE_TERM(am_invalid_value, argv[1]);
     }
     if (!enif_get_uint(env, argv[2], &status_register_address)) {
-      return RAISE_TERM(am_invalid_value, argv[0]);
+      return RAISE_TERM(am_invalid_value, argv[2]);
     }
     if (!enif_get_int(env, argv[3], &status_register_value)) {
-      return RAISE_TERM(am_invalid_value, argv[1]);
+      return RAISE_TERM(am_invalid_value, argv[3]);
     }
     message_data.caller_env = env;
     message_data.to_pid = pid;
     message_data.msg = enif_make_tuple2(env, am_interrupt, enif_make_int(env, interrupt_vector));
     message_data.status_register_address = status_register_address;
     message_data.status_register_value = status_register_value;
-    sprintf(isr_name, "ISR IRQ %d", interrupt_vector);
+
+    rtems_interrupt_local_disable(level);
 
     *(uint32_t *)(uintptr_t)status_register_address = status_register_value;
 
     status = rtems_interrupt_handler_install(
-        interrupt_vector,       // IRQ number
-        &isr_name,              // ISR name
-        RTEMS_INTERRUPT_SHARED, // ISR mode
-        interrupt_handler,      // ISR handler function
-        &message_data           // Argument passed to the ISR (optional)
+        interrupt_vector,
+        "ISR #117",
+        RTEMS_INTERRUPT_SHARED,
+        interrupt_handler,
+        &message_data
     );
+
+    rtems_interrupt_local_enable(level);
 
     if (status != RTEMS_SUCCESSFUL) {
         RAISE_TERM(am_invalid_value, argv[1]);
