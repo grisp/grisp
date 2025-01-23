@@ -53,7 +53,7 @@
 % Types
 %
 
-% @doc "Color specified as RGB in [0.0, 1.0].
+% Color specified as RGB in [0.0, 1.0].
 -type color() :: {R :: float(), G :: float(), B :: float()}.
 
 % Various handle types.
@@ -64,7 +64,7 @@
 
 -type position() :: {X :: integer(), Y :: integer()}.
 
-% @doc Shape of touch event messages sent to registered listeners.
+% Shape of touch event messages sent to registered listeners.
 -type touch_event() :: {
     touch,
     WindowHandle :: window(),
@@ -74,10 +74,10 @@
     Speed :: integer()
 }.
 
-% @doc Names of built-in fonts.
+% Names of built-in fonts.
 -type stock_font() :: console.
 
-% @doc Opcode enum.
+% Opcode enum.
 -type command() :: 0..(16#3FFF) .
 
 %
