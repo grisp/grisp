@@ -26,7 +26,7 @@ For the GRiSP project we have several repositories covering different aspects of
 * [`rebar3_grisp`](https://github.com/grisp/rebar3_grisp)
 
   This is a Rebar 3 plug-in that provides GRiSP related tasks, such as building the Erlang VM and deploying a GRiSP application onto a device. Issues related to using the plug-in such as errors when building or deploying should be reported here.
-  
+
 * [`grisp-software`](https://github.com/grisp/grisp-software)
 
   This is the toolchain, that provides RTEMS for GRiSP and contains all the tools (compilers etc.) used to build the Erlang VM running on the device. Low-level issues related to RTEMS or the toolchain should be reported here.
@@ -34,7 +34,7 @@ For the GRiSP project we have several repositories covering different aspects of
 * [`otp`](https://github.com/grisp/otp)
 
   This is our fork of Erlang/OTP that contains GRiSP specific modifications to the build system necessary to get Erlang for GRiSP to build. Normally issues should be reported to one of the repositories above, unless you specifically know this is the right repository to report to.
-  
+
 Please take some time to figure out which is the correct repository to report to. When in doubt, report issues to the [`grisp`](https://github.com/grisp/grisp) repository.
 
 ## How Can I Contribute?
@@ -89,6 +89,13 @@ makes sense:
    to be fixed. A good example is to create a failing test case that exposes the issue you are trying to fix, before fixing it.
 4. Make sure the code and commit follow the [style guides](#styleguides).
 5. (Optional) Add type specifications and run Dialyzer where it makes sense.
+
+### Documention
+
+In case you are adding new features, you are always required to provide documentation.
+We use the `rebar3_ex_doc` plugin to generate docs.
+This allows you to write documentation using markdown.
+You can copy how we document our modules and use macros defined in [grisp_docs.hrl](https://github.com/grisp/grisp/blob/master/src/grisp_docs.hrl).
 
 ## Styleguides
 
