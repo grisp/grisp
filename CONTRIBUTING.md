@@ -95,7 +95,7 @@ makes sense:
 In case you are adding new features, you are always required to provide documentation.
 We use the `rebar3_ex_doc` plugin to generate docs.
 This allows you to write documentation using markdown.
-You can copy how we document our modules, we use macros defined in `grisp_docs.hrl`.
+You can copy how we document our modules and use macros defined in [grisp_docs.hrl](https://github.com/grisp/grisp/blob/master/src/grisp_docs.hrl).
 
 ## Styleguides
 
