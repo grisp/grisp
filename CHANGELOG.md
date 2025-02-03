@@ -8,10 +8,28 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.8.0] - 2025-02-03
+
 ### Added
 
-- Add the module grisp_info to get information about the grisp hardware, the
-boot status and the current software on system partions or sdcard.
+- Add issue trigger to otp_pkg.yaml [grisp/#147](https://github.com/grisp/grisp/pull/147)
+- Announce new package in Slack [grisp/#148](https://github.com/grisp/grisp/pull/148)
+- Add the module grisp_info to get information about the grisp hardware, the boot status and the current software on system partions or sdcard. [grisp/#149](https://github.com/grisp/grisp/pull/149)
+- Add PWM support [grisp/#153](https://github.com/grisp/grisp/pull/153)
+- Add missing pin in the docs [grisp/#152](https://github.com/grisp/grisp/pull/152)
+- Add MTDS driver [grisp/#151](https://github.com/grisp/grisp/pull/151)
+
+### Changed
+
+- Port documentation to ExDoc [grisp/#155](https://github.com/grisp/grisp/pull/155)
+
+### Fixed
+
+- Fix cached version for CI cron job [grisp/#145](https://github.com/grisp/grisp/pull/145)
+- Fix check_otp_rel.yaml [grisp/#146](https://github.com/grisp/grisp/pull/146)
+- Fix CI/CD package upload
+- Fix duplication of xcomp files in overlay [grisp/#150](https://github.com/grisp/grisp/pull/150)o
+- Fix edoc and check in CI [grisp/#154](https://github.com/grisp/grisp/pull/154)
 
 ## [2.7.0] - 2024-10-11
 
@@ -243,7 +261,8 @@ compatibility will get added in a later patch release.\*
 - Fixed wrong registers in rotation vector [\#9](https://github.com/grisp/grisp/pull/9) ([nextl00p](https://github.com/nextl00p))
 - Fix for \#2. Negative intervals are now treated by turning off leds [\#5](https://github.com/grisp/grisp/pull/5) ([nextl00p](https://github.com/nextl00p))
 
-[Unreleased]: https://github.com/grisp/grisp/compare/2.7.0...HEAD
+[Unreleased]: https://github.com/grisp/grisp/compare/2.8.0...HEAD
+[2.8.0]: https://github.com/grisp/grisp/compare/2.7.0...2.8.0
 [2.7.0]: https://github.com/grisp/grisp/compare/2.6.0...2.7.0
 [2.6.0]: https://github.com/grisp/grisp/compare/2.5.0...2.6.0
 [2.5.0]: https://github.com/grisp/grisp/compare/2.4.0...2.5.0
