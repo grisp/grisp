@@ -100,7 +100,7 @@ pin (see [Figure 1](#figure_1)).
 ### PMOD Pin Numbers
 
 <a name="figure_1"/>
-<img src="../assets/pin_mapping.svg" style="width: 700px;">
+<img src="assets/pin_mapping.svg" style="width: 700px;">
 Figure 1. PMOD connectors as seen from the side of a GRiSP board with number mappings
 
 PMOD Type A consists of:
