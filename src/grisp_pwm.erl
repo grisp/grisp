@@ -31,7 +31,7 @@ If you want to stop using PWM on this pin you can call:
 ```
 
 <a name="figure_1"/>
-![image](../assets/pwm_example.png)
+![image](assets/pwm_example.png)
 Figure 1. Oscilloscope trace with a 0.75 % duty cycle and the default configuration.
 
 <!-- tabs-open -->
