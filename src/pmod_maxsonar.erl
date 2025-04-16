@@ -16,6 +16,8 @@ Start the driver with
 
 -behaviour(gen_server).
 
+-include("grisp_port.hrl").
+
 % API
 -export([start_link/2]).
 -export([get/0]).
@@ -49,7 +51,7 @@ get() ->
 
 ?doc(false).
 init(Slot = uart) ->
-    Port = open_port({spawn_driver, "grisp_termios_drv"}, [binary]),
+    Port = ?PORT_OPEN({spawn_driver, "grisp_termios_drv"}, [binary]),
     grisp_devices:register(Slot, ?MODULE),
     {ok, #state{port = Port}}.
 

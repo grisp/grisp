@@ -11,7 +11,7 @@ on:
 
 jobs:
   ci:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     name: Erlang ${{matrix.otp}} / rebar ${{matrix.rebar3}}
     strategy:
       matrix:
@@ -19,8 +19,6 @@ jobs:
         rebar3: ['3']
         # latest rebar3 versions that do not give problems with selected OTPs
         include:
-          - otp: '23'
-            rebar3: '3.20.0'
           - otp: '24'
             rebar3: '3.23.0'
     steps:
