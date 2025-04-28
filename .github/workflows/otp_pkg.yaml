@@ -42,7 +42,7 @@ jobs:
         run: |
           mkdir -p ${HOME}/.config/rebar3/
           echo "{plugins, [rebar3_hex,rebar3_grisp]}." > ${HOME}/.config/rebar3/rebar.config
-          rebar3
+          rebar3 update
       - name: Generate Dummy Project
         run: |
           rebar3 grisp configure -i false --otp_version="=${{matrix.otp}}" --dest="_deploy"
@@ -140,6 +140,7 @@ jobs:
       - name: Download Package Artifact
         id: artifact-download
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: ${{env.pkg_name}}
       - name: Download from S3 if artifact not found
