@@ -146,10 +146,10 @@ index ba5ba255d4..93e8fe08c9 100644
  
  int erts_sys_prepare_crash_dump(int secs)
 diff --git a/erts/etc/common/Makefile.in b/erts/etc/common/Makefile.in
-index 42af9c87dc..dfc2ca3292 100644
+index 42af9c87dc..919d32869d 100644
 --- a/erts/etc/common/Makefile.in
 +++ b/erts/etc/common/Makefile.in
-@@ -181,6 +181,26 @@ endif
+@@ -183,6 +183,26 @@ endif
  PORT_ENTRY_POINT=erl_port_entry
  ENTRY_LDFLAGS=-entry:$(PORT_ENTRY_POINT)
  
@@ -176,15 +176,15 @@ index 42af9c87dc..dfc2ca3292 100644
  else
  ENTRY_LDFLAGS=
  ENTRY_OBJ=
-@@ -214,6 +234,7 @@ INSTALL_PROGS =              \
+@@ -216,6 +236,7 @@ INSTALL_PROGS =              \
  	$(BINDIR)/$(ERLEXEC) \
  	$(INSTALL_EMBEDDED_PROGS)
  endif
 +endif
- 
- CREATE_DIRS=$(OBJDIR) $(BINDIR)
- 
-@@ -488,11 +509,13 @@ $(BINDIR)/typer@EXEEXT@: $(OBJDIR)/typer.o $(ERTS_LIB)
+
+ -include ../unix/gdb-tools/jit-reader.mk
+
+@@ -494,11 +515,13 @@ $(BINDIR)/typer@EXEEXT@: $(OBJDIR)/typer.o $(ERTS_LIB)
  $(OBJDIR)/typer.o: typer.c $(RC_GENERATED)
  	$(V_CC) $(CFLAGS) -o $@ -c typer.c
  
