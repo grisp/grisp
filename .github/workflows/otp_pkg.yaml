@@ -105,6 +105,7 @@ jobs:
         rebar3: ['3']
     outputs:
       artifacts: ${{ steps.matrix-def.outputs.otp-version }}
+      upload-output: ${{ steps.set-upload-output.outputs.upload-output }}
     steps:
       - uses: erlef/setup-beam@v1
         with:
@@ -161,9 +162,13 @@ jobs:
           aws s3 cp --acl public-read --storage-class INTELLIGENT_TIERING \
           ${{env.pkg_name}} \
           s3://grisp/platforms/grisp2/otp/
+      - name: Set S3 upload output
+        if: ${{ steps.upload-s3.outcome == 'success' }}
+        run: echo "upload-output=true" >> $GITHUB_OUTPUT
+        id: set-upload-output
   slack-message:
     runs-on: ubuntu-latest
-    if: ${{ steps.upload-s3.outcome == 'success' }}
+    if: ${{ needs.upload_artifacts.outputs.upload-output == 'true' }}
     needs: [define-matrix, otp-gen-matrix, upload_artifacts]
     steps:
     - name: Notify Slack channels through Zapier Webhook
