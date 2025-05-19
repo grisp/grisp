@@ -19,7 +19,7 @@ jobs:
             exit 1
           fi
 
-          echo "$release_json" | jq -r '.assets[].name' | grep -qi 'README' 
+          printf '%s' "$release_json" | jq -r '.assets[].name' | grep -qi 'README' 
           if [[ $? -ne 0 ]]; then
             echo "No README found in release assets."
             exit 1
