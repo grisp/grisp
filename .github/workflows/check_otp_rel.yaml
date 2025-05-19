@@ -9,11 +9,25 @@ jobs:
   check-otp:
     runs-on: ubuntu-latest
     steps:
-      - name: Get latest version
+      - name: Get latest version and validate
         run: |
-          curl -sL https://api.github.com/repos/erlang/otp/releases/latest | \
-          jq -r ".tag_name" > last_seen_ver.txt
+          release_json=$(curl -sL -H "Accept: application/vnd.github+json" https://api.github.com/repos/erlang/otp/releases/latest | tr -d '\000-\037')
+          tag=$(printf '%s' "$release_json" | jq -r '.tag_name')
+          
+          if [[ "$tag" != OTP-* ]]; then
+            echo "A non-release tag was detected. Stopping execution"
+            exit 1
+          fi
+
+          printf '%s' "$release_json" | jq -r '.assets[].name' | grep -qi 'README' 
+          if [[ $? -ne 0 ]]; then
+            echo "No README found in release assets."
+            exit 1
+          fi
+
+          echo "$tag" > last_seen_ver.txt
           echo "LAST_OTP=$(cat last_seen_ver.txt)" >> $GITHUB_ENV
+
       - uses: actions/cache@v4
         id: version-cache
         env:
