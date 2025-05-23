@@ -1,9 +1,8 @@
 name: Check Grisp Release
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron:  '0 * * * *' # At the beginning of every hour
+  release:
+    types: [published]
 
 jobs:
   check-grisp:
