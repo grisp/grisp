@@ -18,7 +18,7 @@ jobs:
           echo "LAST_GRISP=$(cat last_seen_grisp_ver.txt)" >> $GITHUB_ENV
 
       - uses: actions/cache@v4
-        id: grep-cache
+        id: grisp-cache
         env:
           cache-name: cached-grisp
         with:
