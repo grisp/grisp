@@ -167,13 +167,5 @@ jobs:
         if: ${{ steps.upload-s3.outcome == 'success' }}
         run: echo "upload-output=true" >> $GITHUB_OUTPUT
         id: set-upload-output
-  slack-message:
-    runs-on: ubuntu-latest
-    if: ${{ needs.upload_artifacts.outputs.upload-output == 'true' }}
-    needs: [define-matrix, otp-gen-matrix, upload_artifacts]
-    steps:
-    - name: Notify Slack channels through Zapier Webhook
-      run: |
-        curl ${{secrets.ZAPIER_GRISP_OTP_PACKAGE_WEBHOOK}} \
-          -H "Content-Type: application/json; charset=utf-8" \
-          -d '[{"otp":${{ needs.define-matrix.outputs.otp-version }}}]'
+ ### Insert here webhook for Zapier
+
