@@ -1,0 +1,61 @@
+name: Check Grisp Release
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron:  '0 * * * *' # At the beginning of every hour
+
+jobs:
+  check-grisp:
+    runs-on: ubuntu-latest
+    steps: 
+      - name: Get latest version and validate
+        run: |
+          release_json=$(curl -sL -H "Accept: application/vnd.github+json" https://api.github.com/repos/grisp/grisp/releases/latest | tr -d '\000-\037')
+          tag=$(printf 'GRISP%s' "$release_json" | jq -r '.tag_name')
+          tag="GRISP-$tag"
+          echo "$tag" > last_seen_grisp_ver.txt
+          echo "LAST_GRISP=$(cat last_seen_grisp_ver.txt)" >> $GITHUB_ENV
+
+      - uses: actions/cache@v4
+        id: grep-cache
+        env:
+          cache-name: cached-grisp
+        with:
+          path: last_cached_grisp.txt
+          key: ${{ env.LAST_GRISP }}
+      - name: Compare with Latest Release Number
+        id: compare-vsn
+        continue-on-error: true
+        run: |
+          diff last_cached_grisp.txt last_seen_grisp_ver.txt
+      - name: Update cached Version
+        run: |
+          cp last_seen_grisp_ver.txt last_cached_grisp.txt
+      - name: Trigger OTP package build
+        if: ${{ steps.compare-vsn.outcome == 'failure' }}
+        run: |
+          curl -s https://raw.githubusercontent.com/erlang/otp/master/otp_versions.table \
+          | grep '^OTP-' \
+          | cut -d' ' -f1 \
+          | sed 's/OTP-//' \
+          | sort -V \
+          | awk -F. '{
+            major_version = $1;
+            latest[major_version] = $0;
+          }
+          END {
+            for (m in latest) print latest[m];
+          }' \
+          | sort -Vr \
+          | head -n 4 \
+          | while read OTP_VER; do
+          echo "Triggering for OTP: $OTP_VER"
+          curl -L -X POST \
+          -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github.everest-preview+json" \
+          https://api.github.com/repos/grisp/grisp/dispatches \
+          -d "{\"event_type\":\"new-otp-release\",\"client_payload\":{\"otp\":\"\\\"${OTP_VER}\\\"\",\"unit\":false,\"integration\":true}}"
+          done
+
+
