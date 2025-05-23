@@ -10,9 +10,7 @@ jobs:
     steps: 
       - name: Get latest version and validate
         run: |
-          release_json=$(curl -sL -H "Accept: application/vnd.github+json" https://api.github.com/repos/grisp/grisp/releases/latest | tr -d '\000-\037')
-          tag=$(printf 'GRISP%s' "$release_json" | jq -r '.tag_name')
-          tag="GRISP-$tag"
+          tag="GRISP${{ github.event.release.tag_name }}"
           echo "$tag" > last_seen_grisp_ver.txt
           echo "LAST_GRISP=$(cat last_seen_grisp_ver.txt)" >> $GITHUB_ENV
 
