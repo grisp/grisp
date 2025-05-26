@@ -1,36 +1,14 @@
-name: Check Grisp Release
+name: On Grisp Release
 
 on:
   release:
     types: [published]
 
 jobs:
-  check-grisp:
+  trigger-otp-build:
     runs-on: ubuntu-latest
-    steps: 
-      - name: Get latest version and validate
-        run: |
-          tag="GRISP${{ github.event.release.tag_name }}"
-          echo "$tag" > last_seen_grisp_ver.txt
-          echo "LAST_GRISP=$(cat last_seen_grisp_ver.txt)" >> $GITHUB_ENV
-
-      - uses: actions/cache@v4
-        id: grisp-cache
-        env:
-          cache-name: cached-grisp
-        with:
-          path: last_cached_grisp.txt
-          key: ${{ env.LAST_GRISP }}
-      - name: Compare with Latest Release Number
-        id: compare-vsn
-        continue-on-error: true
-        run: |
-          diff last_cached_grisp.txt last_seen_grisp_ver.txt
-      - name: Update cached Version
-        run: |
-          cp last_seen_grisp_ver.txt last_cached_grisp.txt
+    steps:
       - name: Trigger OTP package build
-        if: ${{ steps.compare-vsn.outcome == 'failure' }}
         run: |
           curl -s https://raw.githubusercontent.com/erlang/otp/master/otp_versions.table \
           | grep '^OTP-' \
