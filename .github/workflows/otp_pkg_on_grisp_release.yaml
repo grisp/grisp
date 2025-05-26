@@ -167,5 +167,4 @@ jobs:
         if: ${{ steps.upload-s3.outcome == 'success' }}
         run: echo "upload-output=true" >> $GITHUB_OUTPUT
         id: set-upload-output
- ### Insert here webhook for Zapier
 

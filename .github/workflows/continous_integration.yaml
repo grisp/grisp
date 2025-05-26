@@ -22,8 +22,7 @@ jobs:
           - otp: '24'
             rebar3: '3.23.0'
           - otp: '25'
-            rebar3: '3.24.0'
-            
+            rebar3: '3.24.0'            
     steps:
 
       - uses: actions/checkout@v2
