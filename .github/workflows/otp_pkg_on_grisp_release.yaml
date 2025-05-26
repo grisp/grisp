@@ -1,4 +1,4 @@
-name: Grisp package
+name: OTP Package on new Grisp Release
 
 on:
   repository_dispatch:
