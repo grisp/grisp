@@ -1,0 +1,14 @@
+diff --git a/erts/preloaded/src/init.erl b/erts/preloaded/src/init.erl
+index bed1570..c8ee687 100644
+--- a/erts/preloaded/src/init.erl
++++ b/erts/preloaded/src/init.erl
+@@ -1362,6 +1362,9 @@ load_modules(Mods0, Init) ->
+         true ->
+             %% Load one module at the time to reduce the peak memory
+             %% usage.
++
++            io:format(standard_error,"SMALL MEMORY MODE LOADING ENABLED~n", []),
++
+             _ = [do_load_modules([M], F, Init) || M <- Mods],
+             ok;
+         false ->

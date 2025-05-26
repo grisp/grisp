@@ -1,0 +1,49 @@
+diff --git a/erts/emulator/beam/erl_port.h b/erts/emulator/beam/erl_port.h
+index 2ce5e35..ededbd9 100644
+--- a/erts/emulator/beam/erl_port.h
++++ b/erts/emulator/beam/erl_port.h
+@@ -49,7 +49,11 @@ typedef struct ErtsProc2PortSigData_ ErtsProc2PortSigData;
+  */
+ #define ERTS_DEFAULT_MAX_PORTS (1 << 13)
+ #endif /* __WIN32__ */
++#ifdef __rtems__
++#define ERTS_MIN_PORTS 128
++#else
+ #define ERTS_MIN_PORTS 1024
++#endif
+
+ extern int erts_port_synchronous_ops;
+ extern int erts_port_schedule_all_ops;
+diff --git a/erts/emulator/beam/erl_process_lock.h b/erts/emulator/beam/erl_process_lock.h
+index 3b7e625..554821c 100644
+--- a/erts/emulator/beam/erl_process_lock.h
++++ b/erts/emulator/beam/erl_process_lock.h
+@@ -221,7 +221,11 @@ typedef struct erts_proc_lock_t_ {
+   (ERTS_PROC_LOCKS_ALL & (~(L) & ~((L)-1)))
+
+
++#ifdef __rtems__
++#define ERTS_PIX_LOCKS_BITS            8
++#else
+ #define ERTS_PIX_LOCKS_BITS            10
++#endif
+ #define ERTS_NO_OF_PIX_LOCKS           (1 << ERTS_PIX_LOCKS_BITS)
+
+
+diff --git a/erts/emulator/beam/erl_process.h b/erts/emulator/beam/erl_process.h
+index 4ed8d22..2586a21 100644
+--- a/erts/emulator/beam/erl_process.h
++++ b/erts/emulator/beam/erl_process.h
+@@ -3000,7 +3000,12 @@ Process *erts_try_lock_sig_free_proc(Eterm pid,
+
+
+ /* Minimum NUMBER of processes for a small system to start */
++
++#ifdef __rtems__
++#define ERTS_MIN_PROCESSES             256
++#else
+ #define ERTS_MIN_PROCESSES             1024
++#endif
+ #if ERTS_MIN_PROCESSES < ERTS_NO_OF_PIX_LOCKS
+ #undef ERTS_MIN_PROCESSES
+ #define ERTS_MIN_PROCESSES             ERTS_NO_OF_PIX_LOCKS
