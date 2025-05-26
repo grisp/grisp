@@ -15,12 +15,14 @@ jobs:
     name: Erlang ${{matrix.otp}} / rebar ${{matrix.rebar3}}
     strategy:
       matrix:
-        otp: ['25', '26', '27']
+        otp: ['26', '27']
         rebar3: ['3']
         # latest rebar3 versions that do not give problems with selected OTPs
         include:
           - otp: '24'
             rebar3: '3.23.0'
+          - otp: '25'
+            rebar3: '3.24.0'            
     steps:
 
       - uses: actions/checkout@v2
