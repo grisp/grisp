@@ -1,0 +1,19 @@
+diff --git a/erts/emulator/Makefile.in b/erts/emulator/Makefile.in
+index 5d6c12c..1a6127b 100644
+--- a/erts/emulator/Makefile.in
++++ b/erts/emulator/Makefile.in
+@@ -219,8 +219,13 @@ space:=$(empty) $(empty)
+ STATIC_NIFS=@STATIC_NIFS@
+ ifneq ($(STATIC_NIFS),no)
+ ifeq ($(STATIC_NIFS),yes)
++ifneq ($(findstring --without-asn1,@CONFIGURE_FLAGS@),)
+ STATIC_NIFS=$(ERL_TOP)/lib/asn1/priv/lib/$(TARGET)/asn1rt_nif.a
+-ifeq ($(wildcard $(ERL_TOP)/lib/crypto/SKIP),)
++else
++STATIC_NIFS=
++endif
++#ifeq ($(wildcard $(ERL_TOP)/lib/crypto/SKIP),)
++ifneq ($(findstring --without-crypto,@CONFIGURE_FLAGS@),)
+        STATIC_NIFS+=$(ERL_TOP)/lib/crypto/priv/lib/$(TARGET)/crypto$(TYPEMARKER).a
+ endif
+ endif
