@@ -1,26 +1,64 @@
 diff --git a/erts/emulator/beam/beam_load.c b/erts/emulator/beam/beam_load.c
-index 00179cd..8fc188d 100644
+index 00179cd..2df2535 100644
 --- a/erts/emulator/beam/beam_load.c
 +++ b/erts/emulator/beam/beam_load.c
-@@ -44,6 +44,9 @@
+@@ -44,6 +44,11 @@
  #include "erl_process_dict.h"
  #include "erl_unicode.h"
  #include "beam_file.h"
 +#ifdef __rtems__
 +#include "erl_gc.h"
++#include <rtems/malloc.h>
++#include <inttypes.h>
 +#endif
-
+ 
  Uint erts_total_code_size;
-
-@@ -133,6 +136,11 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
+ 
+@@ -53,6 +58,19 @@ static int load_code(LoaderState *stp);
+ 
+ /**********************************************************************/
+ 
++void print_rtems_fragmentation(void);
++
++#ifdef __rtems__
++void print_rtems_fragmentation(void) {
++  Heap_Information_block info;
++  malloc_info(&info);
++  erts_printf("RTEMS FRAGMENTATION: %8" PRIuPTR " / %8" PRIuPTR " (%.2f%%)\n",
++         info.Free.largest, info.Free.total, (float)info.Free.largest / info.Free.total * 100);
++}
++#else
++void print_rtems_fragmentation(void) {}
++#endif
++
+ void init_load(void)
+ {
+     erts_total_code_size = 0;
+@@ -133,6 +151,11 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
      stp->module = *modp;
      stp->group_leader = group_leader;
-
+ 
 +#ifdef __rtems__
-+    erts_fprintf(stderr, "Loading module: %T\n", stp->module);
-+    /*erts_garbage_collect(c_p, 0, NULL, 0);*/
++    erts_fprintf(stderr, "Loading module: %T (%p)\n", stp->module, c_p);
++    print_rtems_fragmentation();
 +#endif
 +
  #if defined(LOAD_MEMORY_HARD_DEBUG) && defined(DEBUG)
      erts_fprintf(stderr,"Loading a module\n");
  #endif
+@@ -226,6 +249,15 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
+     /* Good so far */
+     retval = NIL;
+ 
++#ifdef __rtems__
++    // if (c_p != NULL) {
++    //     Eterm rootset[] = { stp->module };
++    //     erts_fprintf(stderr, "Garbage collecting....\n");
++    //     erts_garbage_collect(c_p, 1024, rootset, 1);
++    //     print_rtems_fragmentation();
++    // }
++#endif
++
+  load_error:
+     if (retval != NIL) {
+         beam_load_prepared_free(magic);
