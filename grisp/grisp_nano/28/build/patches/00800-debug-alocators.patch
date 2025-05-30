@@ -1,0 +1,287 @@
+diff --git a/erts/emulator/beam/erl_alloc.c b/erts/emulator/beam/erl_alloc.c
+index f173a92..9db16eb 100644
+--- a/erts/emulator/beam/erl_alloc.c
++++ b/erts/emulator/beam/erl_alloc.c
+@@ -51,6 +51,10 @@
+ #endif
+ #include "erl_bif_unique.h"
+ 
++#include <stdarg.h> // Required for va_list, va_start, va_end
++
++#include "erl_debug.h"
++
+ #define GET_ERL_GF_ALLOC_IMPL
+ #include "erl_goodfit_alloc.h"
+ #define GET_ERL_BF_ALLOC_IMPL
+@@ -890,9 +894,69 @@ set_au_allocator(ErtsAlcType_t alctr_n, struct au_init *init, int ncpu)
+ 	ai->alloc_util = 0;
+ 	ai->enabled = 0;
+ 	ai->extra = NULL;
++
++#ifdef __rtems__
++        // ADD DEBUG PRINT FOR DISABLED ALLOCATOR (Optional)
++        erts_printf("ERTS_ALLOC_DEBUG: Allocator %salloc (type %d) DISABLED\n",
++                init->init.util.name_prefix ? init->init.util.name_prefix : "unknown",
++                (int)alctr_n);
++#endif
++
+ 	return;
+     }
+ 
++#ifdef __rtems__
++    // === YOUR PRIMARY DEBUG PRINTS GO HERE ===
++    erts_printf("\nERTS_ALLOC_DEBUG: Configuring Allocator: %salloc (type %d)\n",
++            init->init.util.name_prefix ? init->init.util.name_prefix : "unknown",
++            (int)alctr_n);
++
++    erts_printf("  Enabled: %s\n", init->enable ? "true" : "false");
++    erts_printf("  Thread Specific: %d (0=no, >0 thr_spec_val, <0 thr_pref_val)\n", init->thr_spec);
++    erts_printf("  Strategy (astrat): %d (0=GF, 1=BF, 2=AF, 3=FF)\n", (int)init->astrat);
++
++    erts_printf("  Common Options (init.util):\n");
++    erts_printf("    mmbcs (Main Multi-block Carrier Size): %lu kB\n", (unsigned long)init->init.util.mmbcs / 1024);
++    erts_printf("    lmbcs (Largest MBC Size): %lu kB\n", (unsigned long)init->init.util.lmbcs / 1024);
++    erts_printf("    smbcs (Smallest MBC Size): %lu kB\n", (unsigned long)init->init.util.smbcs / 1024);
++    erts_printf("    sbct (Single Block Carrier Threshold): %lu kB\n", (unsigned long)init->init.util.sbct / 1024);
++    erts_printf("    asbcst (Abandoned SBC Threshold): %lu kB\n", (unsigned long)init->init.util.asbcst / 1024);
++    erts_printf("    rsbcst (Reclaim SBC Shrink Threshold %%): %lu\n", (unsigned long)init->init.util.rsbcst);
++    erts_printf("    rsbcmt (Reclaim SBC Move Threshold %%): %lu\n", (unsigned long)init->init.util.rsbcmt);
++    erts_printf("    rmbcmt (Reclaim MBC Move Threshold %%): %lu\n", (unsigned long)init->init.util.rmbcmt);
++    erts_printf("    acul (Abandon Carrier Util Limit %%): %lu\n", (unsigned long)init->init.util.acul);
++    erts_printf("    acful (Abandon Carrier Free Block Util Limit %%): %lu\n", (unsigned long)init->init.util.acful);
++    erts_printf("    ramv (Realloc Always Moves): %s\n", init->init.util.ramv ? "true" : "false");
++    erts_printf("    atags (Allocator Tags): %d\n", init->init.util.atags);
++    erts_printf("    cp (Carrier Pool type): %d\n", init->init.util.cp);
++    erts_printf("    mmsbc (Max Main SBCs): %lu\n", (unsigned long)init->init.util.mmsbc);
++    erts_printf("    mmmbc (Max Main MBCs): %lu\n", (unsigned long)init->init.util.mmmbc);
++
++
++    // Print strategy-specific options
++    switch(init->astrat) {
++        case ERTS_ALC_S_BESTFIT:
++            erts_printf("  BestFit Options (init.bf):\n");
++            erts_printf("    ao (Address Order): %s\n", init->init.bf.ao ? "true" : "false");
++            break;
++        case ERTS_ALC_S_GOODFIT:
++            erts_printf("  GoodFit Options (init.gf):\n");
++            erts_printf("    mbsd (Min Best Split Diff): %lu\n", (unsigned long)init->init.gf.mbsd);
++            break;
++        case ERTS_ALC_S_FIRSTFIT: // AOFF (Address Order First Fit) is a type of FirstFit
++            erts_printf("  FirstFit/AOFF Options (init.aoff):\n");
++            erts_printf("    crr_order (Carrier Order): %d (0=FF_AOFF, 1=FF_AGEFF, 2=FF_CHAOS)\n", init->init.aoff.crr_order);
++            erts_printf("    blk_order (Block Order): %d (0=FF_AOFF, 1=FF_BF, 2=FF_AOBF, 3=FF_CHAOS)\n", init->init.aoff.blk_order);
++            break;
++        case ERTS_ALC_S_AFIT:
++            // Add AFit specific if any: init->init.af ...
++            erts_printf("  AFit Options (init.af): (no specific params shown here)\n");
++            break;
++        default:
++            erts_printf("  Unknown or No Specific Strategy Options.\n");
++    }
++#endif
++
+     if (init->thr_spec) {
+ 	if (init->thr_spec > 0) {
+ 	    af->alloc = erts_alcu_alloc_thr_spec;
+@@ -1044,6 +1108,12 @@ start_au_allocator(ErtsAlcType_t alctr_n,
+         init->init.util.alloc_strat = astrat;
+ 	init->init.util.ix = i;
+ 
++	debug_printf("DEBUG_ALLOC: About to start allocator '%salloc' (instance %d), strategy %d. Requested mmbcs (approx): %lu KB\n",
++					init->init.util.name_prefix ? init->init.util.name_prefix : "unknown",
++					i,
++					(int)astrat,
++					(unsigned long)init->init.util.mmbcs / 1024);
++
+ 	switch (astrat) {
+ 	case ERTS_ALC_S_GOODFIT:
+ 	    as = erts_gfalc_start((GFAllctr_t *) as0,
+diff --git a/erts/emulator/beam/erl_alloc_util.c b/erts/emulator/beam/erl_alloc_util.c
+index 9a15b68..7a3ccfc 100644
+--- a/erts/emulator/beam/erl_alloc_util.c
++++ b/erts/emulator/beam/erl_alloc_util.c
+@@ -54,6 +54,7 @@
+ #include "erl_bif_unique.h"
+ #include "erl_nif.h"
+ #include "erl_global_literals.h"
++#include "erl_debug.h"
+ 
+ #ifdef ERTS_ENABLE_LOCK_COUNT
+ #include "erl_lock_count.h"
+@@ -4270,11 +4271,23 @@ create_carrier(Allctr_t *allctr, Uint umem_sz, UWord flags)
+ 	      ? UNIT_CEILING(bcrr_sz)
+ 	      : SYS_ALLOC_CARRIER_CEILING(bcrr_sz));
+ 
++    print_rtems_memory_info();
++
++    debug_printf("DEBUG_ALLOC_UTIL: create_carrier for '%salloc': About to sys_alloc %lu bytes (uflags: %lx)\n",
++                 allctr->name_prefix ? allctr->name_prefix : "unknown",
++                 (unsigned long)crr_sz,
++                 (unsigned long)flags);
++
+     crr = (Carrier_t *) allctr->sys_alloc(allctr, &crr_sz, flags & CFLG_MBC);
+-	
++
+     if (!crr) {
+ 	if (crr_sz > UNIT_CEILING(bcrr_sz)) {
+ 	    crr_sz = UNIT_CEILING(bcrr_sz);
++
++        debug_printf("DEBUG_ALLOC_UTIL: create_carrier '%salloc' first alloc failed, trying again with %lu bytes\n",
++                    allctr->name_prefix ? allctr->name_prefix : "unknown",
++                    (unsigned long)crr_sz);
++
+ 	    crr = (Carrier_t *) allctr->sys_alloc(allctr, &crr_sz, flags & CFLG_MBC);
+ 	}
+ 	if (!crr) {
+@@ -4283,6 +4296,8 @@ create_carrier(Allctr_t *allctr, Uint umem_sz, UWord flags)
+ 	    if (!(have_tried_mseg || flags & CFLG_FORCE_SYS_ALLOC))
+ 		goto try_mseg;
+ #endif
++        debug_printf("DEBUG_ALLOC_UTIL: create_carrier '%salloc' alloc failed, returning NULL\n",
++                     allctr->name_prefix ? allctr->name_prefix : "unknown");
+ 	    return NULL;
+ 	}
+     }
+diff --git a/erts/emulator/beam/erl_debug.c b/erts/emulator/beam/erl_debug.c
+index 29d5dc7..0e3befc 100644
+--- a/erts/emulator/beam/erl_debug.c
++++ b/erts/emulator/beam/erl_debug.c
+@@ -34,6 +34,11 @@
+ #include "erl_debug.h"
+ #include "erl_map.h"
+ 
++#ifdef __rtems__
++#include <rtems/malloc.h>
++#include <inttypes.h>
++#endif
++
+ #define WITHIN(ptr, x, y) ((x) <= (ptr) && (ptr) < (y))
+ 
+ #define IN_HEAP(p, ptr)                                                 \
+@@ -225,6 +230,56 @@ pps(Process* p, Eterm* stop)
+ 
+ #endif /* DEBUG */
+ 
++int debug_printf(const char *fmt, ...);
++void print_rtems_memory_info(void);
++void print_rtems_fragmentation(void);
++
++// Implementation
++int debug_printf(const char *fmt, ...) {
++#ifdef __rtems__
++    va_list args;
++    int ret;
++    va_start(args, fmt);
++    // Using erts_vfprintf to channel through the existing Erlang print mechanisms
++    ret = erts_vfprintf(stderr, fmt, args);
++    va_end(args);
++    return ret;
++#else
++    (void)fmt; // Suppress unused parameter warning for 'fmt' on non-RTEMS builds
++               // The '...' arguments are implicitly unused in this branch.
++    return 0;  // Does nothing on the host, as requested
++#endif
++}
++
++#ifdef __rtems__
++void print_rtems_memory_info(void) {
++  Heap_Information_block info;
++  malloc_info(&info);
++  erts_printf("RTEMS HEAP INFO:\n"
++         "  Number of used blocks: %8" PRIuPTR "\n"
++         "  Largest used block:    %8" PRIuPTR "\n"
++         "  Total bytes used:      %8" PRIuPTR "\n"
++         "  Number of free blocks: %8" PRIuPTR "\n"
++         "  Largest free block:    %8" PRIuPTR "\n"
++         "  Total bytes free:      %8" PRIuPTR "\n",
++         info.Used.number, info.Used.largest, info.Used.total,
++         info.Free.number, info.Free.largest, info.Free.total);
++}
++#else
++void print_rtems_memory_info(void) {}
++#endif
++
++#ifdef __rtems__
++void print_rtems_fragmentation(void) {
++  Heap_Information_block info;
++  malloc_info(&info);
++  erts_printf("RTEMS FRAGMENTATION: %8" PRIuPTR " / %8" PRIuPTR " (%.2f%%)\n",
++         info.Free.largest, info.Free.total, (float)info.Free.largest / info.Free.total * 100);
++}
++#else
++void print_rtems_fragmentation(void) {}
++#endif
++
+ static int verify_eterm(Process *p,Eterm element);
+ static int verify_eterm(Process *p,Eterm element)
+ {
+diff --git a/erts/emulator/beam/erl_debug.h b/erts/emulator/beam/erl_debug.h
+index 8153fee..5200017 100644
+--- a/erts/emulator/beam/erl_debug.h
++++ b/erts/emulator/beam/erl_debug.h
+@@ -91,4 +91,9 @@ extern void print_tagged_memory(Eterm *start, Eterm *end);
+ extern void print_untagged_memory(Eterm *start, Eterm *end);
+ extern void print_memory(Process *p);
+ extern void print_memory_info(Process *p);
++
++extern int debug_printf(const char *fmt, ...);
++extern void print_rtems_memory_info(void);
++extern void print_rtems_fragmentation(void);
++
+ #endif /* _ERL_DEBUG_H_ */
+diff --git a/erts/emulator/sys/unix/sys.c b/erts/emulator/sys/unix/sys.c
+index 4663b68..e681e63 100644
+--- a/erts/emulator/sys/unix/sys.c
++++ b/erts/emulator/sys/unix/sys.c
+@@ -82,6 +82,7 @@
+ #include "erl_cpu_topology.h"
+ #include "erl_osenv.h"
+ #include "erl_dyn_lock_check.h"
++#include "erl_debug.h"
+ extern int  driver_interrupt(int, int);
+ extern void do_break(void);
+ 
+@@ -996,13 +1001,23 @@ void *erts_sys_aligned_realloc(UWord alignment, void *ptr, UWord size, UWord old
+ 
+ void *erts_sys_alloc(ErtsAlcType_t t, void *x, Uint sz)
+ {
+-    void *res = malloc((size_t) sz);
++    // void *res = malloc((size_t) sz);
++
++    void *res;
++    if (sz == 0)
++        res = malloc((size_t) 1);
++    else
++        res = malloc((size_t) sz);
+ #if HAVE_ERTS_MSEG
+     if (!res) {
+-	erts_mseg_clear_cache();
+-	return malloc((size_t) sz);
++        erts_mseg_clear_cache();
++        res = malloc((size_t) sz);
+     }
+ #endif
++    if (!res) {
++        print_rtems_memory_info();
++        return res;
++    }
+     return res;
+ }
+ 
+@@ -1011,10 +1026,14 @@ void *erts_sys_realloc(ErtsAlcType_t t, void *x, void *p, Uint sz)
+     void *res = realloc(p, (size_t) sz);
+ #if HAVE_ERTS_MSEG
+     if (!res) {
+-	erts_mseg_clear_cache();
+-	return realloc(p, (size_t) sz);
++        erts_mseg_clear_cache();
++        res = realloc(p, (size_t) sz);
+     }
+ #endif
++    if (!res) {
++        print_rtems_memory_info();
++        return res;
++    }
+     return res;
+ }
+ 

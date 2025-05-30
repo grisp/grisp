@@ -676,7 +676,7 @@ void setup_etc(const char *root_dir) {
   }
 }
 
-static void print_rtems_memory_info(void) {
+static void static_print_rtems_memory_info(void) {
   Heap_Information_block info;
   malloc_info(&info);
   printf("  Number of used blocks: %8" PRIuPTR "\n"
@@ -885,7 +885,7 @@ static void Init(rtems_task_argument arg) {
     printf("[ERL] getcwd: %s\n", p);
 
   printf("[ERL] Heap information:\n");
-  print_rtems_memory_info();
+  static_print_rtems_memory_info();
 
   printf("[ERL] Starting BEAM\n");
 

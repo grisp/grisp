@@ -3,7 +3,47 @@ image_path = /media/mmcsd-0-0/{{release_name}}/erts-{{erts_vsn}}/bin/beam.bin
 timeout_in_seconds = 1
 
 [erlang]
-args = erl.rtems -C multi_time_warp -MMscrfsd 16384 -MMscrpm true -Mea min -MBmmbcs 32 -MDmmbcs 32 -MEmmbcs 32 -MFmmbcs 128 -MHmmbcs 256 -MLmmbcs 1024 -MRmmbcs 32 -MSmmbcs 32 -Q 1024 -P 1024 -S 1:1 -SDcpu 1:1 -L -sss 20 -hms 128 -hmbs 4096 -sssdcpu 20 -sssdio 20 -- -mode embedded -home . -pa . -root {{release_name}} -bindir {{release_name}}/erts-{{erts_vsn}}/bin -boot {{release_name}}/releases/{{release_version}}/start -config {{release_name}}/releases/{{release_version}}/sys.config -kernel inetrc "./erl_inetrc"
+
+#args = erl.rtems                    #
+#-C single_time_warp                 # Set time warp mode
+#-t 16384                            # Max number of atoms
+#-e 8                                # Max number of ETS tables
+#-r                                  # force ets memory block to be moved on realloc
+#-Q 32                               # Max number of ports
+#-P 64                               # Max number of processes
+#-L                                  # Prevents loading information about source filenames and line numbers
+#-S 1:1                              # Number of schedulers:online
+#-SDio 1                             # Number of dirty I/O schedulers
+#-SDcpu 1:1                          # Number of dirty CPU schedulers:online
+#-sssdcpu 20                         # Suggested stack size, in kilowords, for dirty CPU scheduler threads
+#-sssdio 20                          # Suggested stack size, in kilowords, for dirty IO scheduler threads
+#-sss 20                             # Suggested stack size, in kilowords, for scheduler threads
+#-hms 128                            # Min heap size in words
+#-hmbs 4096                          # Min binary heap size in words
+#-Mea min                            # Only keeps allocator temp_alloc and literal_alloc
+#-MTrmbcmt 0 -MTrsbcmt 0 -MTrsbcst 0 # Aggressively shrink temp_alloc carriers
+#-MTsbct 8192                        # Try to fit everything in temp_alloc multiblock carrier
+#-MTmmbcs 16                         # Set the temp_alloc main multiblock carrier size
+#-MTas aoff                          # Set address order first fit stretegy for temp_alloc
+#-MTramv true                        # Always move on realoc for temp_alloc carrier
+#-MTt false                          # Do not use a temp_alloc carrier per thread
+#-MIrmbcmt 0 -MIrsbcmt 0 -MIrsbcst 0 # Aggressively shrink literal_alloc carriers
+#-MIsbct 8192                        # Try to fit everything in literal_alloc multiblock carrier
+#-MImmbcs 768                       # Set the literal_alloc main multiblock carrier size
+#-MIas aoff                          # Set address order first fit stretegy for literal_alloc
+#-MIramv true                        # Always move on realoc for literal_alloc carrier
+#-MIt false                          # Do not use a literl_alloc carrier per thread
+#-MLe true                           # Enable ll_alloc carrier
+#-MLrmbcmt 0 -MLrsbcmt 0 -MLrsbcst 0 # Aggressively shrink ll_alloc carriers
+#-MLsbct 8192                        # Try to fit everything in ll_alloc multiblock carrier
+#-MLmmbcs 6144                       # Set the ll_alloc main multiblock carrier size
+#-MLas aoff                          # Set address order first fit stretegy for ll_alloc
+#-MLramv true                        # Always move on realoc for ll_alloc carrier
+#-MLt false                          # Do not use a ll_alloc carrier per thread
+#-- -init_debug -loader_debug -mode embedded -home . -pa . -root {{release_name}} -bindir {{release_name}}/erts-{{erts_vsn}}/bin -boot {{release_name}}/releases/{{release_version}}/start -config {{release_name}}/releases/{{release_version}}/sys.config -kernel inetrc "./erl_inetrc"
+
+args = erl.rtems -C single_time_warp -t 16384 -e 8 -r -Q 32 -P 64 -L -S 1:1 -SDio 1 -SDcpu 1:1 -sssdcpu 20 -sssdio 20 -sss 20 -hms 128 -hmbs 4096 -Mea min -MTrmbcmt 0 -MTrsbcmt 0 -MTrsbcst 0 -MTsbct 8192 -MTmmbcs 16 -MTas aoff -MTramv true -MTt false -MIrmbcmt 0 -MIrsbcmt 0 -MIrsbcst 0 -MIsbct 8192 -MImmbcs 768 -MIas aoff -MIramv true -MIt false -MLe true -MLrmbcmt 0 -MLrsbcmt 0 -MLrsbcst 0 -MLsbct 8192 -MLmmbcs 6144 -MLas aoff -MLramv true -MLt false -- -init_debug -loader_debug -mode embedded -home . -pa . -root {{release_name}} -bindir {{release_name}}/erts-{{erts_vsn}}/bin -boot {{release_name}}/releases/{{release_version}}/start -config {{release_name}}/releases/{{release_version}}/sys.config -kernel inetrc "./erl_inetrc"
+
 shell = erlang
-on_exit = reboot
-on_crash = reboot
+on_exit = wait
+on_crash = wait

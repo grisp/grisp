@@ -1,52 +1,28 @@
 diff --git a/erts/emulator/beam/beam_load.c b/erts/emulator/beam/beam_load.c
-index 00179cd..2df2535 100644
+index 00179cd..edeccd8 100644
 --- a/erts/emulator/beam/beam_load.c
 +++ b/erts/emulator/beam/beam_load.c
-@@ -44,6 +44,11 @@
+@@ -44,6 +44,7 @@
  #include "erl_process_dict.h"
  #include "erl_unicode.h"
  #include "beam_file.h"
-+#ifdef __rtems__
-+#include "erl_gc.h"
-+#include <rtems/malloc.h>
-+#include <inttypes.h>
-+#endif
++#include "erl_debug.h"
  
  Uint erts_total_code_size;
  
-@@ -53,6 +58,19 @@ static int load_code(LoaderState *stp);
- 
- /**********************************************************************/
- 
-+void print_rtems_fragmentation(void);
-+
-+#ifdef __rtems__
-+void print_rtems_fragmentation(void) {
-+  Heap_Information_block info;
-+  malloc_info(&info);
-+  erts_printf("RTEMS FRAGMENTATION: %8" PRIuPTR " / %8" PRIuPTR " (%.2f%%)\n",
-+         info.Free.largest, info.Free.total, (float)info.Free.largest / info.Free.total * 100);
-+}
-+#else
-+void print_rtems_fragmentation(void) {}
-+#endif
-+
- void init_load(void)
- {
-     erts_total_code_size = 0;
-@@ -133,6 +151,11 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
+@@ -133,6 +134,11 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
      stp->module = *modp;
      stp->group_leader = group_leader;
  
 +#ifdef __rtems__
-+    erts_fprintf(stderr, "Loading module: %T (%p)\n", stp->module, c_p);
++    erts_fprintf(stderr, "Loading module: %T\n", stp->module);
 +    print_rtems_fragmentation();
 +#endif
 +
  #if defined(LOAD_MEMORY_HARD_DEBUG) && defined(DEBUG)
      erts_fprintf(stderr,"Loading a module\n");
  #endif
-@@ -226,6 +249,15 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
+@@ -226,6 +232,15 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
      /* Good so far */
      retval = NIL;
  
@@ -62,3 +38,160 @@ index 00179cd..2df2535 100644
   load_error:
      if (retval != NIL) {
          beam_load_prepared_free(magic);
+diff --git a/erts/preloaded/src/init.erl b/erts/preloaded/src/init.erl
+index bed1570..68d4e06 100644
+--- a/erts/preloaded/src/init.erl
++++ b/erts/preloaded/src/init.erl
+@@ -1362,13 +1362,19 @@ load_modules(Mods0, Init) ->
+         true ->
+             %% Load one module at the time to reduce the peak memory
+             %% usage.
+-            _ = [do_load_modules([M], F, Init) || M <- Mods],
++            _ = [small_memory_do_load_modules(M, F, Init) || M <- Mods],
+             ok;
+         false ->
+             %% Load the modules in parallel.
+             do_load_modules(Mods, F, Init)
+     end.
+ 
++small_memory_do_load_modules(M, F, Init) ->
++    Res = do_load_modules([M], F, Init),
++    display_condensed_allocator_info(),
++    % erlang:garbage_collect(),
++    Res.
++
+ do_load_modules(Mods, F, Init) ->
+     case erl_prim_loader:get_modules(Mods, F) of
+ 	{ok,{Prep0,[]}} ->
+@@ -1982,3 +1988,131 @@ collect_mfas([MFA|MFAs],Info) ->
+ collect_mfa(Mfa,[],Count,Time) -> {{Time,Count},Mfa};
+ collect_mfa(Mfa,[{_Pid,C,S,Us}|Data],Count,Time) ->
+     collect_mfa(Mfa,Data,Count + C,Time + S * 1000000 + Us).
++
++%% --------------------------------------------------------------------
++%% Function: display_condensed_allocator_info/0
++%% Description: Prints condensed options and aggregated state for selected allocator types.
++%% --------------------------------------------------------------------
++display_condensed_allocator_info() ->
++    KnownDetailQueryableAllocators = ["temp_", "literal_", "ll_"],
++    manual_foreach(
++        fun(Prefix) ->
++            AllocName = list_to_atom(Prefix ++ "alloc"),
++            try
++                case erlang:system_info({allocator, AllocName}) of
++                    false ->
++                        erlang:display(strings_join([atom_to_list(AllocName), ": ", "DISABLED"], ""));
++                    [{instance, 0, Instance0Details}] ->
++                        StatsStr = format_instance_details(Prefix, Instance0Details),
++                        erlang:display(strings_join([atom_to_list(AllocName), ": ", StatsStr], ""));
++                    _Unexpected ->
++                        erlang:display(strings_join([atom_to_list(AllocName), ": ", "UNEXPECTED_FORMAT"], ""))
++                end
++            catch
++                error:Reason:_Stacktrace ->
++                    erlang:display(strings_join([atom_to_list(AllocName), ": ", "ERROR ", atom_to_list(Reason)], ""))
++            end
++        end,
++        KnownDetailQueryableAllocators
++    ),
++    ok.
++
++format_instance_details(Prefix, InstanceDetailsList) ->
++    MBCS_PropList = proplists_find_value(mbcs, InstanceDetailsList, []),
++    SBCS_PropList = proplists_find_value(sbcs, InstanceDetailsList, []),
++
++    MBCS_CarrierSize = get_current(carriers_size, MBCS_PropList),
++    MBCS_CarrierCount = get_current(carriers, MBCS_PropList),
++    MBCS_Blocks_List = proplists_find_value(blocks, MBCS_PropList, []),
++    {MBCS_TotalBlockSize, MBCS_MaxBlockSize, _MBCS_TotalBlockCount}
++        = sum_carrier_blocks(MBCS_Blocks_List),
++
++    SBCS_CarrierSize = get_current(carriers_size, SBCS_PropList),
++    SBCS_CarrierCount = get_current(carriers, SBCS_PropList),
++    SBCS_Blocks_List = proplists_find_value(blocks, SBCS_PropList, []),
++    {SBCS_TotalBlockSize, SBCS_MaxBlockSize, _SBCS_TotalBlockCount}
++        = sum_carrier_blocks(SBCS_Blocks_List),
++
++    TotalCarrierSize = MBCS_CarrierSize + SBCS_CarrierSize,
++    TotalCarrierCount = MBCS_CarrierCount + SBCS_CarrierCount,
++    TotalBlockSize = MBCS_TotalBlockSize + SBCS_TotalBlockSize,
++    TotalMaxBlockSize = MBCS_MaxBlockSize + SBCS_MaxBlockSize,
++    FreeMemory = TotalCarrierSize - TotalBlockSize,
++
++    CallStats = proplists_find_value(calls, InstanceDetailsList, []),
++    AllocCalls = get_since_start(list_to_atom(Prefix ++ "alloc"), CallStats),
++    FreeCalls = get_since_start(list_to_atom(Prefix ++ "free"), CallStats),
++    ReallocCalls = get_since_start(list_to_atom(Prefix ++ "realloc"), CallStats),
++
++    strings_join(format_stats(TotalCarrierSize, TotalCarrierCount,
++        TotalBlockSize, TotalMaxBlockSize, FreeMemory,
++        AllocCalls, FreeCalls, ReallocCalls), "").
++
++
++%% --- Condensed Allocator Info End ---
++
++get_current(Key, Proplist) ->
++    case proplists_find_value(Key, Proplist, -1) of
++        {Current, _MaxSinceLastTime, _MaxSinceStart} when is_integer(Current) -> Current;
++        _ -> -1
++    end.
++
++get_since_start(Key, Proplist) ->
++    case proplists_find_value(Key, Proplist, -1) of
++        {_Current, _MaxSinceLastTime, MaxSinceStart} when is_integer(MaxSinceStart) -> MaxSinceStart;
++        {_SinceLastTime, SinceStart} when is_integer(SinceStart) -> SinceStart;
++        _ -> -1
++    end.
++
++sum_carrier_blocks(BlockTypeList) when is_list(BlockTypeList) ->
++    manual_foldl( % Use global manual_foldl
++        fun({_TypeName, TypeDetails}, {AccSize, AccMax, AccCount}) ->
++            CurrentSize = get_current(size, TypeDetails),
++            MaxSize = get_since_start(size, TypeDetails),
++            CurrentCount = get_current(count, TypeDetails),
++            {AccSize + CurrentSize, AccMax + MaxSize, AccCount + CurrentCount}
++        end,
++        {0, 0, 0},
++        BlockTypeList
++    );
++sum_carrier_blocks(_) ->
++    {0,0,0}.
++
++format_stats(CS, BC, BS, MS, FS, A, F, R) ->
++    [
++        "BCt:", integer_to_list(BC),
++        ",CSz:", integer_to_list(CS),
++        ",BSz:", integer_to_list(BS),
++        ",MSz:", integer_to_list(MS),
++        ",FSz:", integer_to_list(FS),
++        ",A:", integer_to_list(A),
++        ",F:", integer_to_list(F),
++        ",R:", integer_to_list(R)
++    ].
++
++%% ====================================================================
++%% MANUAL HELPER FUNCTIONS (Needed for early boot)
++%% ====================================================================
++
++%% Description: Manually joins a list of strings with a separator.
++strings_join([], _Separator) -> "";
++strings_join([S], _Separator) -> S;
++strings_join([H | T], Separator) -> H ++ Separator ++ strings_join(T, Separator).
++
++%% Manual foldl
++manual_foldl(_F, Acc, []) -> Acc;
++manual_foldl(F, Acc, [H|T]) -> manual_foldl(F, F(H, Acc), T).
++
++%% Helper function to find a value in a proplist.
++%% Key: The atom key to search for.
++%% List: The list of {Key, Value} tuples.
++%% Default: The value to return if the key is not found.
++proplists_find_value(_Key, [], Default) -> Default;
++proplists_find_value(Key, [{Key, Value}|_Rest], _Default) -> Value;
++proplists_find_value(Key, [{Key, V1, V2}|_Rest], _Default) -> {V1, V2};
++proplists_find_value(Key, [{Key, V1, V2, V3}|_Rest], _Default) -> {V1, V2, V3};
++proplists_find_value(Key, [_Other|Rest], Default) -> proplists_find_value(Key, Rest, Default).
++
++%% Manual foreach
++manual_foreach(_Fun, []) -> ok;
++manual_foreach(Fun, [Element | Rest]) -> Fun(Element), manual_foreach(Fun, Rest).
