@@ -75,6 +75,7 @@ jobs:
       - name: Create GitHub Issue
         if: ${{ steps.build.outcome == 'failure' }}
         run: |
+          apt-get update && apt-get install -y curl
           curl -L -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
