@@ -1,0 +1,199 @@
+diff --git a/lib/stdlib/src/Makefile b/lib/stdlib/src/Makefile
+index b52b3d1..3f9705b 100644
+--- a/lib/stdlib/src/Makefile
++++ b/lib/stdlib/src/Makefile
+@@ -165,6 +165,8 @@ APPUP_FILE= stdlib.appup
+ APPUP_SRC= $(APPUP_FILE).src
+ APPUP_TARGET= $(EBIN)/$(APPUP_FILE)
+ 
++UNICODE_UTIL_RTEMS_STUB = unicode_util_rtems.erl
++
+ ifeq ($(TARGET),win32)
+   EXE_SUFFIX=.exe
+ else
+@@ -237,8 +239,15 @@ $(APP_TARGET): $(APP_SRC) ../vsn.mk
+ $(APPUP_TARGET): $(APPUP_SRC) ../vsn.mk
+ 	$(vsn_verbose)sed -e 's;%VSN%;$(VSN);' $< > $@
+ 
+-unicode_util.erl: ../uc_spec/*
++# Conditional generation or copying of unicode_util.erl
++unicode_util.erl: ../uc_spec/* $(UNICODE_UTIL_RTEMS_STUB)
++ifeq ($(findstring rtems,$(TARGET)),rtems)
++	@echo "RTEMS Target: Copying $(UNICODE_UTIL_RTEMS_STUB) to unicode_util.erl"
++	cp -f $(UNICODE_UTIL_RTEMS_STUB) unicode_util.erl
++else
++	@echo "Host Target: Generating unicode_util.erl from ../uc_spec/gen_unicode_mod.escript"
+ 	escript$(EXE_SUFFIX) ../uc_spec/gen_unicode_mod.escript
++endif
+ 
+ # ----------------------------------------------------
+ # Release Target
+diff --git a/lib/stdlib/src/unicode_util_rtems.erl b/lib/stdlib/src/unicode_util_rtems.erl
+new file mode 100644
+index 0000000..05048c0
+--- /dev/null
++++ b/lib/stdlib/src/unicode_util_rtems.erl
+@@ -0,0 +1,163 @@
++%% Stubbed version of unicode_util.erl for ASCII-only environments.
++%% This module provides minimal implementations for all originally exported functions,
++%% assuming all character data is ASCII.
++%% This file should replace the auto-generated large unicode_util.erl.
++%% The build system must be configured to use this stub instead of
++%% running the generation script from uc_spec/.
++
++-module(unicode_util).
++-moduledoc false.
++
++%% Exports based on a typical auto-generated unicode_util.erl
++-export([cp/1, gc/1]).
++-export([nfd/1, nfc/1, nfkd/1, nfkc/1]).
++-export([whitespace/0, is_whitespace/1]).
++-export([uppercase/1, lowercase/1, titlecase/1, casefold/1]).
++-export([spec_version/0, lookup/1, get_case/1]).
++-export([is_wide/1]).
++
++%% Type alias for clarity in stubs
++-type chardata() :: unicode:chardata().
++-type charlist_form() :: [char()] | {error, chardata() | binary()}.
++-type gc_stub() :: char() | [char()]. % Simplified for these stubs
++-type case_result_list() :: unicode:maybe_improper_list(gc_stub(), chardata() | binary()).
++
++%% --- Normalization Stubs (NFD, NFC, NFKD, NFKC) ---
++%% For ASCII, all normalization forms are identity operations.
++%% These functions are called by unicode.erl, which then further processes the list.
++
++-spec nfd(chardata()) -> charlist_form().
++nfd(Chardata)  -> to_charlist_form(Chardata).
++
++-spec nfc(chardata()) -> charlist_form().
++nfc(Chardata)  -> to_charlist_form(Chardata).
++
++-spec nfkd(chardata()) -> charlist_form().
++nfkd(Chardata) -> to_charlist_form(Chardata).
++
++-spec nfkc(chardata()) -> charlist_form().
++nfkc(Chardata) -> to_charlist_form(Chardata).
++
++%% --- Codepoint and Grapheme Cluster Stubs ---
++%% For ASCII, these are essentially identity conversions to a list of chars.
++
++-spec cp(chardata()) -> charlist_form().
++cp(Chardata) -> to_charlist_form(Chardata).
++
++-spec gc(chardata()) -> charlist_form().
++gc(Chardata) -> to_charlist_form(Chardata).
++
++%% --- Whitespace Stubs ---
++
++-spec whitespace() -> [char()].
++whitespace() ->
++    %% Standard ASCII whitespace characters.
++    [$\s, $\t, $\n, $\r, $\f, $\v].
++
++-spec is_whitespace(char() | [char()]) -> boolean(). % Original took gc() (char | [char])
++is_whitespace(C) when is_integer(C), C >= 0, C < 128 -> % ASCII char
++    case C of
++        $\s  -> true; $\t  -> true; $\n  -> true;
++        $\r  -> true; $\f  -> true; $\v  -> true;
++        _   -> false
++    end;
++is_whitespace([C | _Rest]) when is_integer(C), C >= 0, C < 128 -> % If list, check first ASCII char
++    is_whitespace(C);
++is_whitespace(_) -> % Non-ASCII or non-char/list input
++    false.
++
++%% --- Case Conversion Stubs ---
++
++%% ASCII case conversion helpers
++-compile({inline, [to_ascii_upper/1, to_ascii_lower/1]}).
++to_ascii_upper(C) when C >= $a, C =< $z -> C - ($a - $A);
++to_ascii_upper(C) -> C.
++
++to_ascii_lower(C) when C >= $A, C =< $Z -> C + ($a - $A);
++to_ascii_lower(C) -> C.
++
++%% The original unicode_util case functions transformed the first char of the input string
++%% and returned it as `[TransformedCharOrGC | RestOfStringList]` or an error.
++-spec process_first_char_for_case(chardata(), fun((char()) -> char())) -> case_result_list() | {error, term()}.
++process_first_char_for_case(Chardata, TransformationFun) ->
++    case to_charlist_form(Chardata) of
++        [H | T] when is_integer(H) ->
++            [TransformationFun(H) | T];
++        [] ->
++            [];
++        {error, Reason} -> % Error from to_charlist_form
++            {error, Reason};
++        OtherList when is_list(OtherList) -> % Should be a list of chars if no error
++             OtherList % Return as is if not [H|T] but still a list (e.g. empty after processing)
++    end.
++
++-spec uppercase(chardata()) -> case_result_list() | {error, term()}.
++uppercase(Chardata) -> process_first_char_for_case(Chardata, fun to_ascii_upper/1).
++
++-spec lowercase(chardata()) -> case_result_list() | {error, term()}.
++lowercase(Chardata) -> process_first_char_for_case(Chardata, fun to_ascii_lower/1).
++
++-spec titlecase(chardata()) -> case_result_list() | {error, term()}.
++titlecase(Chardata) -> process_first_char_for_case(Chardata, fun to_ascii_upper/1). % Title is Upper for single ASCII char
++
++-spec casefold(chardata()) -> case_result_list() | {error, term()}.
++casefold(Chardata) -> process_first_char_for_case(Chardata, fun to_ascii_lower/1). % Fold is Lower for single ASCII char
++
++%% --- Miscellaneous Stubs ---
++
++-spec spec_version() -> {non_neg_integer(), non_neg_integer()}.
++spec_version() ->
++    {0, 0}. % Dummy version, original might be e.g. {15,0} or {16,0}
++
++-spec lookup(char()) -> map().
++lookup(C) when is_integer(C), C >= 0, C < 128 -> % ASCII range
++    %% Provide minimal, reasonable properties for ASCII characters.
++    Category =
++        if
++            (C >= $a andalso C =< $z) -> {letter, lowercase};
++            (C >= $A andalso C =< $Z) -> {letter, uppercase};
++            (C >= $0 andalso C =< $9) -> {number, decimal_digit};
++            (C =:= $\s orelse C =:= $\t orelse C =:= $\n orelse C =:= $\r orelse C =:= $\f orelse C =:= $\v) -> {separator, space};
++            true -> {other, default} % Punctuation, control chars etc.
++        end,
++    #{ ccc => 0,                 % Canonical Combining Class (0 for ASCII)
++       canon => [],              % Canonical decomposition (none for ASCII)
++       compat => [],             % Compatibility decomposition (none for ASCII)
++       category => Category
++     };
++lookup(_Other) -> % Non-ASCII or invalid input
++    #{ ccc => 0, canon => [], compat => [], category => {other, default}}.
++
++-spec get_case(char()) -> map().
++get_case(C) when is_integer(C), C >= 0, C < 128 -> % ASCII range
++    UpperC = to_ascii_upper(C),
++    LowerC = to_ascii_lower(C),
++    #{upper => UpperC,     % Uppercase equivalent
++      lower => LowerC,     % Lowercase equivalent
++      title => UpperC,     % Titlecase is same as Uppercase for single ASCII
++      fold  => LowerC      % Casefold is same as Lowercase for single ASCII
++     };
++get_case(Other) -> % Non-ASCII or invalid input - return identity maps
++    #{upper => Other, lower => Other, title => Other, fold => Other}.
++
++-spec is_wide(gc_stub()) -> boolean().
++is_wide(_GC) ->
++    false. % ASCII characters are not considered \"wide\" in East Asian context.
++
++%% --- Internal Helper for Stubs ---
++
++%% Converts chardata to a list of characters or an error tuple.
++%% This format is expected by the calling functions in unicode.erl for normalization.
++-spec to_charlist_form(chardata()) -> charlist_form().
++to_charlist_form(Chardata) ->
++    try unicode:characters_to_list(Chardata, unicode) of
++        ResList when is_list(ResList) ->
++            ResList;
++        {error, _ProcessedSoFar, RestData} -> % RestData can be chardata()
++            {error, RestData};
++        {incomplete, _ProcessedSoFar, RestBinary} -> % RestBinary is binary()
++            {error, RestBinary}
++    catch
++        error:{badarg, _Reason} -> % Could be from characters_to_list itself
++            {error, Chardata} % Input was not valid chardata for the NIF
++    end.
