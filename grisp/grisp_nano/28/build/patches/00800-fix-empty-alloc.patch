@@ -1,0 +1,34 @@
+diff --git a/erts/emulator/sys/unix/sys.c b/erts/emulator/sys/unix/sys.c
+index 4663b68..0262956 100644
+--- a/erts/emulator/sys/unix/sys.c
++++ b/erts/emulator/sys/unix/sys.c
+@@ -996,11 +1000,15 @@ void *erts_sys_aligned_realloc(UWord alignment, void *ptr, UWord size, UWord old
+ 
+ void *erts_sys_alloc(ErtsAlcType_t t, void *x, Uint sz)
+ {
+-    void *res = malloc((size_t) sz);
++    void *res;
++    if (sz == 0)
++        res = malloc((size_t) 1);
++    else
++        res = malloc((size_t) sz);
+ #if HAVE_ERTS_MSEG
+     if (!res) {
+-	erts_mseg_clear_cache();
+-	return malloc((size_t) sz);
++        erts_mseg_clear_cache();
++        res = malloc((size_t) sz);
+     }
+ #endif
+     return res;
+@@ -1011,8 +1019,8 @@ void *erts_sys_realloc(ErtsAlcType_t t, void *x, void *p, Uint sz)
+     void *res = realloc(p, (size_t) sz);
+ #if HAVE_ERTS_MSEG
+     if (!res) {
+-	erts_mseg_clear_cache();
+-	return realloc(p, (size_t) sz);
++        erts_mseg_clear_cache();
++        res = realloc(p, (size_t) sz);
+     }
+ #endif
+     return res;

@@ -1,0 +1,87 @@
+diff --git a/erts/emulator/beam/erl_debug.c b/erts/emulator/beam/erl_debug.c
+index 29d5dc7..0e3befc 100644
+--- a/erts/emulator/beam/erl_debug.c
++++ b/erts/emulator/beam/erl_debug.c
+@@ -34,6 +34,11 @@
+ #include "erl_debug.h"
+ #include "erl_map.h"
+ 
++#ifdef __rtems__
++#include <rtems/malloc.h>
++#include <inttypes.h>
++#endif
++
+ #define WITHIN(ptr, x, y) ((x) <= (ptr) && (ptr) < (y))
+ 
+ #define IN_HEAP(p, ptr)                                                 \
+@@ -225,6 +230,56 @@ pps(Process* p, Eterm* stop)
+ 
+ #endif /* DEBUG */
+ 
++int debug_printf(const char *fmt, ...);
++void print_rtems_memory_info(void);
++void print_rtems_fragmentation(void);
++
++// Implementation
++int debug_printf(const char *fmt, ...) {
++#ifdef __rtems__
++    va_list args;
++    int ret;
++    va_start(args, fmt);
++    // Using erts_vfprintf to channel through the existing Erlang print mechanisms
++    ret = erts_vfprintf(stderr, fmt, args);
++    va_end(args);
++    return ret;
++#else
++    (void)fmt; // Suppress unused parameter warning for 'fmt' on non-RTEMS builds
++               // The '...' arguments are implicitly unused in this branch.
++    return 0;  // Does nothing on the host, as requested
++#endif
++}
++
++#ifdef __rtems__
++void print_rtems_memory_info(void) {
++  Heap_Information_block info;
++  malloc_info(&info);
++  erts_printf("RTEMS HEAP INFO:\n"
++         "  Number of used blocks: %8" PRIuPTR "\n"
++         "  Largest used block:    %8" PRIuPTR "\n"
++         "  Total bytes used:      %8" PRIuPTR "\n"
++         "  Number of free blocks: %8" PRIuPTR "\n"
++         "  Largest free block:    %8" PRIuPTR "\n"
++         "  Total bytes free:      %8" PRIuPTR "\n",
++         info.Used.number, info.Used.largest, info.Used.total,
++         info.Free.number, info.Free.largest, info.Free.total);
++}
++#else
++void print_rtems_memory_info(void) {}
++#endif
++
++#ifdef __rtems__
++void print_rtems_fragmentation(void) {
++  Heap_Information_block info;
++  malloc_info(&info);
++  erts_printf("RTEMS FRAGMENTATION: %8" PRIuPTR " / %8" PRIuPTR " (%.2f%%)\n",
++         info.Free.largest, info.Free.total, (float)info.Free.largest / info.Free.total * 100);
++}
++#else
++void print_rtems_fragmentation(void) {}
++#endif
++
+ static int verify_eterm(Process *p,Eterm element);
+ static int verify_eterm(Process *p,Eterm element)
+ {
+diff --git a/erts/emulator/beam/erl_debug.h b/erts/emulator/beam/erl_debug.h
+index 8153fee..5200017 100644
+--- a/erts/emulator/beam/erl_debug.h
++++ b/erts/emulator/beam/erl_debug.h
+@@ -91,4 +91,9 @@ extern void print_tagged_memory(Eterm *start, Eterm *end);
+ extern void print_untagged_memory(Eterm *start, Eterm *end);
+ extern void print_memory(Process *p);
+ extern void print_memory_info(Process *p);
++
++extern int debug_printf(const char *fmt, ...);
++extern void print_rtems_memory_info(void);
++extern void print_rtems_fragmentation(void);
++
+ #endif /* _ERL_DEBUG_H_ */

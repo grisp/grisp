@@ -40,9 +40,9 @@ timeout_in_seconds = 1
 #-MLas aoff                          # Set address order first fit stretegy for ll_alloc
 #-MLramv true                        # Always move on realoc for ll_alloc carrier
 #-MLt false                          # Do not use a ll_alloc carrier per thread
-#-- -init_debug -loader_debug -mode embedded -home . -pa . -root {{release_name}} -bindir {{release_name}}/erts-{{erts_vsn}}/bin -boot {{release_name}}/releases/{{release_version}}/start -config {{release_name}}/releases/{{release_version}}/sys.config -kernel inetrc "./erl_inetrc"
+#-- -mode embedded -home . -pa . -root {{release_name}} -bindir {{release_name}}/erts-{{erts_vsn}}/bin -boot {{release_name}}/releases/{{release_version}}/start -config {{release_name}}/releases/{{release_version}}/sys.config -kernel inetrc "./erl_inetrc"
 
-args = erl.rtems -C single_time_warp -t 16384 -e 8 -r -Q 32 -P 64 -L -S 1:1 -SDio 1 -SDcpu 1:1 -sssdcpu 20 -sssdio 20 -sss 20 -hms 128 -hmbs 4096 -Mea min -MTrmbcmt 0 -MTrsbcmt 0 -MTrsbcst 0 -MTsbct 8192 -MTmmbcs 16 -MTas aoff -MTramv true -MTt false -MIrmbcmt 0 -MIrsbcmt 0 -MIrsbcst 0 -MIsbct 8192 -MImmbcs 768 -MIas aoff -MIramv true -MIt false -MLe true -MLrmbcmt 0 -MLrsbcmt 0 -MLrsbcst 0 -MLsbct 8192 -MLmmbcs 6144 -MLas aoff -MLramv true -MLt false -- -init_debug -loader_debug -mode embedded -home . -pa . -root {{release_name}} -bindir {{release_name}}/erts-{{erts_vsn}}/bin -boot {{release_name}}/releases/{{release_version}}/start -config {{release_name}}/releases/{{release_version}}/sys.config -kernel inetrc "./erl_inetrc"
+args = erl.rtems -C single_time_warp -t 16384 -e 8 -r -Q 32 -P 64 -L -S 1:1 -SDio 1 -SDcpu 1:1 -sssdcpu 20 -sssdio 20 -sss 20 -hms 128 -hmbs 4096 -Mea min -MTrmbcmt 0 -MTrsbcmt 0 -MTrsbcst 0 -MTsbct 8192 -MTmmbcs 16 -MTas aoff -MTramv true -MTt false -MIrmbcmt 0 -MIrsbcmt 0 -MIrsbcst 0 -MIsbct 8192 -MImmbcs 768 -MIas aoff -MIramv true -MIt false -MLe true -MLrmbcmt 0 -MLrsbcmt 0 -MLrsbcst 0 -MLsbct 8192 -MLmmbcs 6144 -MLas aoff -MLramv true -MLt false -- -mode embedded -home . -pa . -root {{release_name}} -bindir {{release_name}}/erts-{{erts_vsn}}/bin -boot {{release_name}}/releases/{{release_version}}/start -config {{release_name}}/releases/{{release_version}}/sys.config -kernel inetrc "./erl_inetrc"
 
 shell = erlang
 on_exit = wait
