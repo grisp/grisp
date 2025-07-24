@@ -28,24 +28,8 @@ jobs:
       - name: Use tag from matrix
         run: |
           echo "Checking tag: ${{ matrix.tag }}"
-
-      - name: Fetch release info for tag
-        run: |
-          release_json=$(curl -sL -H "Accept: application/vnd.github+json" https://api.github.com/repos/erlang/otp/releases | jq --arg tag "${{ matrix.tag }}" '[.[] | select(.tag_name == $tag)][0]')
-          
-          if [[ -z "$release_json" || "$release_json" == "null" ]]; then
-            echo "Release not found for tag ${{ matrix.tag }}"
-            exit 1
-          fi
-
-          printf '%s' "$release_json" | jq -r '.assets[].name' | grep -qi 'README' 
-          if [[ $? -ne 0 ]]; then
-            echo "No README found in release assets."
-            exit 1
-          fi
-
           echo "${{ matrix.tag }}" > last_seen_ver.txt
-          echo "LAST_OTP=$(cat last_seen_ver.txt)" >> $GITHUB_ENV
+          echo "LAST_OTP=${{ matrix.tag }}" >> $GITHUB_ENV
 
       - uses: actions/cache@v4
         id: version-cache
@@ -53,7 +37,7 @@ jobs:
           cache-name: cached-version
         with:
           path: last_cached_ver.txt
-          key: ${{env.LAST_OTP}}
+          key: ${{ env.LAST_OTP }}
 
       - name: Compare with Cached Version
         id: compare-vsn
@@ -68,10 +52,10 @@ jobs:
       - name: Trigger OTP Package Build
         if: ${{ steps.compare-vsn.outcome == 'failure' }}
         run: |
-          OTP=$(cat last_seen_ver.txt | awk -F'-' '{print $2}')
-          echo $OTP
+          OTP=$(echo "${{ matrix.tag }}" | awk -F'-' '{print $2}')
+          echo "Triggering build for OTP version: $OTP"
           curl -L -X POST \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.everest-preview+json" \
-            https://api.github.com/repos/Fantarina/grisp/dispatches \
+            https://api.github.com/repos/grisp/grisp/dispatches \
             -d "{\"event_type\":\"new-otp-release\",\"client_payload\":{\"otp\":\"\\\\\\\"${OTP}\\\\\\\"\",\"unit\":false,\"integration\":true}}"
