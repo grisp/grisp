@@ -11,13 +11,13 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - name: Fetch OTP prerelease tags
+      - name: Fetch OTP prerelease releases
         id: set-matrix
         run: |
           release_json=$(curl -sL -H "Accept: application/vnd.github+json" https://api.github.com/repos/erlang/otp/releases)
-          prerelease_json=$(jq '[ .[] | select(.prerelease == true) ]' <<< "$release_json")
-          tags_json=$(jq -r '.[].tag_name' <<< "$prerelease_json" | jq -R . | jq -s .)
-          echo "matrix=$(jq -n --argjson tags "$tags_json" '{tag: $tags}')" >> $GITHUB_OUTPUT
+          prerelease_json=$(jq '[.[] | select(.prerelease == true)]' <<< "$release_json")
+          matrix=$(jq -c '[.[] | {release: .}]' <<< "$prerelease_json")
+          echo "matrix=$matrix" >> $GITHUB_OUTPUT
 
   check-otp:
     needs: get-prereleases
@@ -25,11 +25,11 @@ jobs:
     strategy:
       matrix: ${{ fromJson(needs.get-prereleases.outputs.matrix) }}
     steps:
-      - name: Use tag from matrix
+      - name: Extract tag name
         run: |
-          echo "Checking tag: ${{ matrix.tag }}"
-          echo "${{ matrix.tag }}" > last_seen_ver.txt
-          echo "LAST_OTP=${{ matrix.tag }}" >> $GITHUB_ENV
+          echo "Checking tag: ${{ matrix.release.tag_name }}"
+          echo "${{ matrix.release.tag_name }}" > last_seen_ver.txt
+          echo "LAST_OTP=${{ matrix.release.tag_name }}" >> $GITHUB_ENV
 
       - uses: actions/cache@v4
         id: version-cache
