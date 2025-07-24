@@ -16,7 +16,7 @@ jobs:
         run: |
           release_json=$(curl -sL -H "Accept: application/vnd.github+json" https://api.github.com/repos/erlang/otp/releases)
           prerelease_json=$(jq '[.[] | select(.prerelease == true)]' <<< "$release_json")
-          matrix=$(jq -c '[.[] | {release: .}]' <<< "$prerelease_json")
+          matrix=$(jq -c '{release: [.[]]}' <<< "$prerelease_json")
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
 
   check-otp:
