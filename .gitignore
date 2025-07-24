@@ -1,6 +1,6 @@
 # macOS
 .DS_Store
-*.sh
+
 # Erlang
 .rebar3
 _*
