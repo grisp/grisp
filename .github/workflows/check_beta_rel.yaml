@@ -52,7 +52,7 @@ jobs:
       - name: Trigger OTP Package Build
         if: ${{ steps.compare-vsn.outcome == 'failure' }}
         run: |
-          OTP=$(echo "${{ matrix.release.tag_name }}" | awk -F'-' '{print $2}')
+          OTP=$(echo "OTP-28.0-rc4" | cut -d'-' -f2-)
           echo "Triggering build for OTP version: $OTP"
           curl -L -X POST \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
