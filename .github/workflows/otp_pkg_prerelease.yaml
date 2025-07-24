@@ -3,7 +3,7 @@ name: OTP Package on new Grisp Release
 on:
   repository_dispatch:
     types:
-      - otp-beta
+      - new-otp-prerelease
 
 jobs:
   define-matrix:
