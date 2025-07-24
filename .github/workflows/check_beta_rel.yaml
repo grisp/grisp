@@ -15,9 +15,9 @@ jobs:
         id: set-matrix
         run: |
           release_json=$(curl -sL -H "Accept: application/vnd.github+json" https://api.github.com/repos/erlang/otp/releases)
-          prerelease_json=$(jq '[.[] | select(.prerelease == true)]' <<< "$release_json")
-          tags=$(jq -r '.[].tag_name' <<< "$prerelease_json" | jq -R . | jq -s .)
-          echo "matrix={\"tag\":$tags}" >> $GITHUB_OUTPUT
+          prerelease_json=$(jq '[ .[] | select(.prerelease == true) ]' <<< "$release_json")
+          tags_json=$(jq -r '.[].tag_name' <<< "$prerelease_json" | jq -R . | jq -s .)
+          echo "matrix=$(jq -n --argjson tags "$tags_json" '{tag: $tags}')" >> $GITHUB_OUTPUT
 
   check-otp:
     needs: get-prereleases
