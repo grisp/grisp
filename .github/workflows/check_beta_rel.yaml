@@ -3,7 +3,7 @@ name: Check OTP Pre-Releases
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 * * * *' # At the beginning of every hour
+    - cron: '0 * * * *' # Every hour
 
 jobs:
   get-prereleases:
@@ -52,7 +52,7 @@ jobs:
       - name: Trigger OTP Package Build
         if: ${{ steps.compare-vsn.outcome == 'failure' }}
         run: |
-          OTP=$(echo "${{ matrix.tag }}" | awk -F'-' '{print $2}')
+          OTP=$(echo "${{ matrix.release.tag_name }}" | awk -F'-' '{print $2}')
           echo "Triggering build for OTP version: $OTP"
           curl -L -X POST \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
