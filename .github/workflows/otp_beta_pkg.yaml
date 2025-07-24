@@ -102,7 +102,7 @@ jobs:
     strategy:
       matrix:
         otp: ["${{ fromJson(needs.define-matrix.outputs.otp-version) }}"]
-        deps: ['grisp']
+        deps: ['grisp', 'grisp, grisp_cryptoauth']
         rebar3: ['3.24.0']
     outputs:
       artifacts: ${{ steps.matrix-def.outputs.otp-version }}
@@ -144,4 +144,28 @@ jobs:
         continue-on-error: true
         with:
           name: ${{env.pkg_name}}
+      - name: Download from S3 if artifact not found
+        id: download-s3
+        if: steps.artifact-download.outcome == 'failure'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.GRISP_S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.GRISP_S3_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: "us-east-1"
+        run: |
+          aws s3 cp s3://grisp/platforms/grisp2/otp/${{env.pkg_name}} .
+      - name: Upload to S3
+        id: upload-s3
+        if: ${{ steps.artifact-download.outcome == 'success' }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.GRISP_S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.GRISP_S3_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: "us-east-1"
+        run: |
+          aws s3 cp --acl public-read --storage-class INTELLIGENT_TIERING \
+          ${{env.pkg_name}} \
+          s3://grisp/platforms/grisp2/otp/
+      - name: Set S3 upload output
+        if: ${{ steps.upload-s3.outcome == 'success' }}
+        run: echo "upload-output=true" >> $GITHUB_OUTPUT
+        id: set-upload-output
 
