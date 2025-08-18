@@ -138,7 +138,7 @@ jobs:
           s/{deps, \[\n[[:space:]]*grisp\n\]}.*/{deps, [${{matrix.deps}}]}./
           }' robot/rebar.config
           cat robot/rebar.config
-      - name: Build Package
+      - name: Recompose package name
         id: deploy
         working-directory: robot
         run: |
