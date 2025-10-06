@@ -166,12 +166,13 @@ suspend_rx_loop(State) ->
 
 % @private
 -spec tx_(State, Frame, Pib, Ranging) -> Result when
-      State   :: state(),
-      Frame   :: bitstring(),
-      Pib     :: pib_state(),
-      Ranging :: ranging_tx(),
-      Result  :: {ok, MacTXState} | {error, MacTXState, Error},
-      Error   :: atom().
+      State      :: state(),
+      Frame      :: bitstring(),
+      Pib        :: pib_state(),
+      Ranging    :: ranging_tx(),
+      Result     :: {ok, MacTXState} | {error, MacTXState, Error},
+      MacTXState :: state(),
+      Error      :: atom().
 tx_(State, <<_:2, ?ENABLED:1, _:13, Seqnum:8, _/binary>> = Frame, Pib, Ranging) ->
     MacTXState = State#state.mac_tx_state,
     PhyMod = State#state.phy_layer,
@@ -196,6 +197,7 @@ tx_(State, Frame, CsmaParams, Ranging) ->
       Pib        :: pib_state(),
       Ranging    :: ranging_tx(),
       Result     :: {ok, MacTxState} | {error, MacTxState, Error},
+      MacTxState :: state(),
       Error      :: atom().
 tx_ar(MacTxState, _, _, _, ?MACMAXFRAMERETRIES, _, _) ->
     {error, MacTxState, no_ack};
