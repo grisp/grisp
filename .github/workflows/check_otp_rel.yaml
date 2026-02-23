@@ -3,20 +3,24 @@ name: Check OTP Release
 on:
   workflow_dispatch:
   schedule:
-    - cron:  '0 * * * *' # At the beginning of every hour
+    - cron:  '0,30 * * * *' # At the beginning and middle of every hour
 
 jobs:
   check-otp:
     runs-on: ubuntu-latest
     steps:
       - name: Get latest version and validate
+        id: get-version
         run: |
           release_json=$(curl -sL -H "Accept: application/vnd.github+json" https://api.github.com/repos/erlang/otp/releases/latest | tr -d '\000-\037')
           tag=$(printf '%s' "$release_json" | jq -r '.tag_name')
           
           if [[ -z "$tag" || "$tag" == "null" ]]; then
-            echo "No release tag returned (null/empty). Stopping execution"
+            echo "should_continue=false" >> $GITHUB_OUTPUT
+            echo "No release tag returned (null/empty). This may happen sometimes..."
             exit 0
+          else
+            echo "should_continue=true" >> $GITHUB_OUTPUT
           fi
 
           if [[ "$tag" != OTP-* ]]; then
@@ -34,6 +38,7 @@ jobs:
           echo "LAST_OTP=$(cat last_seen_ver.txt)" >> $GITHUB_ENV
 
       - uses: actions/cache@v4
+        if: steps.get-version.outputs.should_continue == 'true'
         id: version-cache
         env:
           cache-name: cached-version
@@ -41,15 +46,17 @@ jobs:
           path: last_cached_ver.txt
           key: ${{env.LAST_OTP}}
       - name: Compare with Latest Release Number
+        if: steps.get-version.outputs.should_continue == 'true'
         id: compare-vsn
         continue-on-error: true
         run: |
           diff last_cached_ver.txt last_seen_ver.txt
       - name: Update cached Version
+        if: steps.get-version.outputs.should_continue == 'true'
         run: |
           cp last_seen_ver.txt last_cached_ver.txt
       - name: Trigger OTP package build
-        if: ${{ steps.compare-vsn.outcome == 'failure' }}
+        if: steps.get-version.outputs.should_continue == 'true' && steps.compare-vsn.outcome == 'failure'
         run: |
           OTP=$(cat last_seen_ver.txt | awk -F'-' '{print $2}')
           echo $OTP

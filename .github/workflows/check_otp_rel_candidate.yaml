@@ -1,4 +1,4 @@
-name: Check OTP Pre-Releases
+name: Check for new OTP Release Candidate
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
     - cron: '0 * * * *' # Every hour
 
 jobs:
-  get-prereleases:
+  get-rel-candidate:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -14,16 +14,16 @@ jobs:
       - name: Fetch OTP prerelease releases
         id: set-matrix
         run: |
-          release_json=$(curl -sL -H "Accept: application/vnd.github+json" https://api.github.com/repos/erlang/otp/releases)
-          prerelease_json=$(jq '[.[] | select(.prerelease == true)]' <<< "$release_json")
-          matrix=$(jq -c '{release: [.[]]}' <<< "$prerelease_json")
+          release_json=$(curl -sL -H "Accept: application/vnd.github+json" https://api.github.com/repos/erlang/otp/releases | tr -d '\000-\037')
+          latest_rc=$(jq -c '[.[] | select(.tag_name | test("rc"))] | .[0] | {tag_name}' <<< "$release_json")
+          matrix=$(jq -c 'if . != null then {release: [.]} else {release: []} end' <<< "$latest_rc")
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
 
   check-otp:
-    needs: get-prereleases
+    needs: get-rel-candidate
     runs-on: ubuntu-latest
     strategy:
-      matrix: ${{ fromJson(needs.get-prereleases.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.get-rel-candidate.outputs.matrix) }}
     steps:
       - name: Extract tag name
         run: |
