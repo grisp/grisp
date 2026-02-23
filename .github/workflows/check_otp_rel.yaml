@@ -15,12 +15,12 @@ jobs:
           release_json=$(curl -sL -H "Accept: application/vnd.github+json" https://api.github.com/repos/erlang/otp/releases/latest | tr -d '\000-\037')
           tag=$(printf '%s' "$release_json" | jq -r '.tag_name')
           
-          echo "should_continue=true" >> $GITHUB_OUTPUT
-          
           if [[ -z "$tag" || "$tag" == "null" ]]; then
             echo "should_continue=false" >> $GITHUB_OUTPUT
             echo "No release tag returned (null/empty). This may happen sometimes..."
             exit 0
+          else
+            echo "should_continue=true" >> $GITHUB_OUTPUT
           fi
 
           if [[ "$tag" != OTP-* ]]; then
