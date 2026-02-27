@@ -47,12 +47,8 @@ jobs:
         run: |
           rebar3 grisp configure -i false --otp_version="=${{matrix.otp}}" --dest="_deploy"
           mkdir robot/_deploy
-          sed -i 's/grisp/${{matrix.deps}}/g' robot/src/robot.app.src
-          sed -i '/{deps, \[/,/\]}.*/{
-          N
-          N
-          s/{deps, \[\n[[:space:]]*grisp\n\]}.*/{deps, [${{matrix.deps}}]}./
-          }' robot/rebar.config
+          sed -i 's/grisp/${{ matrix.deps }}/' robot/src/robot.app.src
+          sed -i '/{deps, \[/,/\]}/s/grisp/${{ matrix.deps }}/' robot/rebar.config
           cat robot/rebar.config
       - name: Try to Deploy
         id: deploy
@@ -66,8 +62,10 @@ jobs:
         working-directory: robot
         continue-on-error: true
         run: |
-          sed -i '/{grisp, \[/a\
-          '"{build, [{toolchain, [{directory, \"/grisp2-rtems-toolchain\"}]}]}," rebar.config
+          BUILD_LINE='{build, [{toolchain, [{directory, "/grisp2-rtems-toolchain"}]}]},'
+          sed -i "/{grisp, \[/,/\]},/{ /\]},/a\\
+          $BUILD_LINE
+          }" rebar.config
           cat rebar.config
           rebar3 grisp build --tar
           PKG_NAME=$(ls _grisp/grisp2/otp/${{matrix.otp}}/package)
@@ -131,19 +129,17 @@ jobs:
         run: |
           rebar3 grisp configure -i false --otp_version="=${{matrix.otp}}" --dest="_deploy"
           mkdir robot/_deploy
-          sed -i 's/grisp/${{matrix.deps}}/g' robot/src/robot.app.src
-          sed -i '/{deps, \[/,/\]}.*/{
-          N
-          N
-          s/{deps, \[\n[[:space:]]*grisp\n\]}.*/{deps, [${{matrix.deps}}]}./
-          }' robot/rebar.config
+          sed -i 's/grisp/${{ matrix.deps }}/' robot/src/robot.app.src
+          sed -i '/{deps, \[/,/\]}/s/grisp/${{ matrix.deps }}/' robot/rebar.config
           cat robot/rebar.config
       - name: Recompose package name
         id: deploy
         working-directory: robot
         run: |
-          sed -i '/{grisp, \[/a\
-          '"{build, []}," rebar.config
+          BUILD_LINE='{build, []},'
+          sed -i "/{grisp, \[/,/\]},/{ /\]},/a\\
+          $BUILD_LINE
+          }" rebar.config
           rebar3 grisp report
           PKG_HASH=$(grep -o '<<"[0-9a-f]\{64\}">>' _grisp/report/hash.txt | tail -n 1 | sed 's/[<">]//g')
           PKG_NAME=grisp_otp_build_${{matrix.otp}}_${PKG_HASH}.tar.gz
