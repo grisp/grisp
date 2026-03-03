@@ -4,9 +4,13 @@ on:
   release:
     types: [published]
 
+permissions: {}
+
 jobs:
   trigger-otp-build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Trigger OTP package build
         run: |

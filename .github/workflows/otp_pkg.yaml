@@ -5,24 +5,32 @@ on:
     types:
       - new-otp-release
 
+permissions: {}
+
 jobs:
   define-matrix:
     runs-on: ubuntu-latest
+    permissions: {}
     outputs:
       otp-version: ${{ steps.matrix-def.outputs.otp-version }}
     steps:
       - name: Matrix Definition
         id: matrix-def
         run: |
-           echo "otp-version=${{ github.event.client_payload.otp }}" >> "$GITHUB_OUTPUT"
+           echo "otp-version=${GITHUB_EVENT_CLIENT_PAYLOAD_OTP}" >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_EVENT_CLIENT_PAYLOAD_OTP: ${{ github.event.client_payload.otp }}
   otp-gen-matrix:
     runs-on: ubuntu-latest
     needs: define-matrix
+    permissions:
+      actions: write
+      issues: write
     container:
       # This image is based on debian:bookworm
       # but we need to make  erlef/setup-beam@v1 happy
       # so we set 'ubuntu22' (jammy), which is the most similar, as ImageOS
-      image: grisp/grisp2-rtems-toolchain
+      image: grisp/grisp2-rtems-toolchain@sha256:1e32a902d74d9d870e7c40128945852cd3ae6cff854620e0902b2dd3d5787d12
       env:
         ImageOS: 'ubuntu22'
     strategy:
@@ -34,7 +42,7 @@ jobs:
     outputs:
       report: ${{ steps.report.outputs.report }}
     steps:
-      - uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@e6d7c94229049569db56a7ad5a540c051a010af9 # v1
         with:
           otp-version: ${{matrix.otp}}
           rebar3-version: ${{ matrix.rebar3 }}
@@ -45,11 +53,13 @@ jobs:
           rebar3 update
       - name: Generate Dummy Project
         run: |
-          rebar3 grisp configure -i false --otp_version="=${{matrix.otp}}" --dest="_deploy"
+          rebar3 grisp configure -i false --otp_version="=${MATRIX_OTP}" --dest="_deploy"
           mkdir robot/_deploy
           sed -i 's/grisp/${{ matrix.deps }}/' robot/src/robot.app.src
           sed -i '/{deps, \[/,/\]}/s/grisp/${{ matrix.deps }}/' robot/rebar.config
           cat robot/rebar.config
+        env:
+          MATRIX_OTP: ${{matrix.otp}}
       - name: Try to Deploy
         id: deploy
         continue-on-error: true
@@ -68,8 +78,10 @@ jobs:
           }" rebar.config
           cat rebar.config
           rebar3 grisp build --tar
-          PKG_NAME=$(ls _grisp/grisp2/otp/${{matrix.otp}}/package)
+          PKG_NAME=$(ls _grisp/grisp2/otp/${MATRIX_OTP}/package)
           echo "pkg_name=$PKG_NAME" >> $GITHUB_ENV
+        env:
+          MATRIX_OTP: ${{matrix.otp}}
       - name: Deploy test
         if: ${{ steps.build.outcome == 'success' }}
         id: deploy-test
@@ -81,32 +93,38 @@ jobs:
         if: ${{ steps.build.outcome == 'failure' || steps.deploy-test.outcome == 'failure' }}
         run: |
           apt-get update && apt-get install -y curl
-          if [ "${{ steps.build.outcome }}" = "failure" ]; then
+          if [ "${STEPS_BUILD_OUTCOME}" = "failure" ]; then
             curl -L -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             https://api.github.com/repos/grisp/grisp/issues \
-            -d "{\"title\":\"Failed package build for OTP-${{ matrix.otp }}\",\"body\":\"Prebuilt package build failed:\nOTP Version: ${{ matrix.otp }}\nApplications: [${{ matrix.deps }}]\nWorkflow Run: https://github.com/grisp/grisp/actions/runs/${{ github.run_id }}\",\"labels\":[\"otp-build\"]}"
-          elif [ "${{ steps.deploy-test.outcome }}" = "failure" ]; then
+            -d "{\"title\":\"Failed package build for OTP-${MATRIX_OTP}\",\"body\":\"Prebuilt package build failed:\nOTP Version: ${MATRIX_OTP}\nApplications: [${{ matrix.deps }}]\nWorkflow Run: https://github.com/grisp/grisp/actions/runs/${{ github.run_id }}\",\"labels\":[\"otp-build\"]}"
+          elif [ "${STEPS_DEPLOY_TEST_OUTCOME}" = "failure" ]; then
             curl -L -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             https://api.github.com/repos/grisp/grisp/issues \
-            -d "{\"title\":\"Deploy test failed for OTP-${{ matrix.otp }}\",\"body\":\"Final deployment failed after successful build.\nOTP Version: ${{ matrix.otp }}\nApplications: [${{ matrix.deps }}]\nWorkflow: https://github.com/grisp/grisp/actions/runs/${{ github.run_id }}\",\"labels\":[\"otp-build\"]}"
+            -d "{\"title\":\"Deploy test failed for OTP-${MATRIX_OTP}\",\"body\":\"Final deployment failed after successful build.\nOTP Version: ${MATRIX_OTP}\nApplications: [${{ matrix.deps }}]\nWorkflow: https://github.com/grisp/grisp/actions/runs/${{ github.run_id }}\",\"labels\":[\"otp-build\"]}"
           fi
           exit 1
+        env:
+          STEPS_BUILD_OUTCOME: ${{ steps.build.outcome }}
+          MATRIX_OTP: ${{ matrix.otp }}
+          STEPS_DEPLOY_TEST_OUTCOME: ${{ steps.deploy-test.outcome }}
       - name: Upload as GitHub Artifact
         id: artifact-upload
         if: ${{ steps.deploy-test.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{env.pkg_name}}
           path: robot/_grisp/grisp2/otp/${{matrix.otp}}/package/${{env.pkg_name}}
   upload_artifacts:
     runs-on: ubuntu-latest
     needs: [define-matrix, otp-gen-matrix]
+    permissions:
+      actions: write
     strategy:
       matrix:
         otp: ["${{ fromJson(needs.define-matrix.outputs.otp-version) }}"]
@@ -116,7 +134,7 @@ jobs:
       artifacts: ${{ steps.matrix-def.outputs.otp-version }}
       upload-output: ${{ steps.set-upload-output.outputs.upload-output }}
     steps:
-      - uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@e6d7c94229049569db56a7ad5a540c051a010af9 # v1
         with:
           otp-version: ${{matrix.otp}}
           rebar3-version: ${{ matrix.rebar3 }}
@@ -127,11 +145,13 @@ jobs:
           rebar3
       - name: Generate Dummy Project
         run: |
-          rebar3 grisp configure -i false --otp_version="=${{matrix.otp}}" --dest="_deploy"
+          rebar3 grisp configure -i false --otp_version="=${MATRIX_OTP}" --dest="_deploy"
           mkdir robot/_deploy
           sed -i 's/grisp/${{ matrix.deps }}/' robot/src/robot.app.src
           sed -i '/{deps, \[/,/\]}/s/grisp/${{ matrix.deps }}/' robot/rebar.config
           cat robot/rebar.config
+        env:
+          MATRIX_OTP: ${{matrix.otp}}
       - name: Build Package
         id: deploy
         working-directory: robot
@@ -142,11 +162,13 @@ jobs:
           }" rebar.config
           rebar3 grisp report
           PKG_HASH=$(grep -o '<<"[0-9a-f]\{64\}">>' _grisp/report/hash.txt | tail -n 1 | sed 's/[<">]//g')
-          PKG_NAME=grisp_otp_build_${{matrix.otp}}_${PKG_HASH}.tar.gz
+          PKG_NAME=grisp_otp_build_${MATRIX_OTP}_${PKG_HASH}.tar.gz
           echo "pkg_name=$PKG_NAME" >> $GITHUB_ENV
+        env:
+          MATRIX_OTP: ${{matrix.otp}}
       - name: Download Package Artifact
         id: artifact-download
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         continue-on-error: true
         with:
           name: ${{env.pkg_name}}
@@ -158,7 +180,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.GRISP_S3_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: "us-east-1"
         run: |
-          aws s3 cp s3://grisp/platforms/grisp2/otp/${{env.pkg_name}} .
+          aws s3 cp s3://grisp/platforms/grisp2/otp/${PKG_NAME} .
       - name: Upload to S3
         id: upload-s3
         if: ${{ steps.artifact-download.outcome == 'success' }}
@@ -168,7 +190,7 @@ jobs:
           AWS_DEFAULT_REGION: "us-east-1"
         run: |
           aws s3 cp --acl public-read --storage-class INTELLIGENT_TIERING \
-          ${{env.pkg_name}} \
+          ${PKG_NAME} \
           s3://grisp/platforms/grisp2/otp/
       - name: Set S3 upload output
         if: ${{ steps.upload-s3.outcome == 'success' }}
@@ -178,9 +200,12 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ needs.upload_artifacts.outputs.upload-output == 'true' }}
     needs: [define-matrix, otp-gen-matrix, upload_artifacts]
+    permissions: {}
     steps:
     - name: Notify Slack channels through Zapier Webhook
       run: |
         curl ${{secrets.ZAPIER_GRISP_OTP_PACKAGE_WEBHOOK}} \
           -H "Content-Type: application/json; charset=utf-8" \
-          -d '[{"otp":${{ needs.define-matrix.outputs.otp-version }}}]'
+          -d '[{"otp":${NEEDS_DEFINE_MATRIX_OUTPUTS_OTP_VERSION}}]'
+      env:
+        NEEDS_DEFINE_MATRIX_OUTPUTS_OTP_VERSION: ${{ needs.define-matrix.outputs.otp-version }}
