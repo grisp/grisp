@@ -124,7 +124,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [define-matrix, otp-gen-matrix]
     permissions:
-      actions: write
+      actions: read
     strategy:
       matrix:
         otp: ["${{ fromJson(needs.define-matrix.outputs.otp-version) }}"]
