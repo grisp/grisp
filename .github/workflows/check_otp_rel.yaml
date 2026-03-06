@@ -5,9 +5,14 @@ on:
   schedule:
     - cron:  '0,30 * * * *' # At the beginning and middle of every hour
 
+permissions: {}
+
 jobs:
   check-otp:
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
     steps:
       - name: Get latest version and validate
         id: get-version
@@ -37,7 +42,7 @@ jobs:
           echo "$tag" > last_seen_ver.txt
           echo "LAST_OTP=$(cat last_seen_ver.txt)" >> $GITHUB_ENV
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         if: steps.get-version.outputs.should_continue == 'true'
         id: version-cache
         env:
