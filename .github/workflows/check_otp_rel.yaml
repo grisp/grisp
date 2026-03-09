@@ -5,14 +5,10 @@ on:
   schedule:
     - cron:  '0,30 * * * *' # At the beginning and middle of every hour
 
-permissions: {}
 
 jobs:
   check-otp:
     runs-on: ubuntu-latest
-    permissions:
-      actions: write
-      contents: write
     steps:
       - name: Get latest version and validate
         id: get-version

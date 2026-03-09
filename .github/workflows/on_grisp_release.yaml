@@ -4,13 +4,10 @@ on:
   release:
     types: [published]
 
-permissions: {}
 
 jobs:
   trigger-otp-build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - name: Trigger OTP package build
         run: |
@@ -36,5 +33,3 @@ jobs:
           https://api.github.com/repos/grisp/grisp/dispatches \
            -d "{\"event_type\":\"grisp-release\",\"client_payload\":{\"otp\":\"\\\\\\\"${OTP_VER}\\\\\\\"\",\"unit\":false,\"integration\":true}}"
           done
-
-
