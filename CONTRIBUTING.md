@@ -83,8 +83,9 @@ makes sense:
 
 1. Squash all changes into one commit. If you have many independent changes,
    submit each in its own pull request.
-2. Document any external API functions changed or added via EDoc.
-3. Run the existing tests to make sure you didn't break anything.
+2. We require commits to be signed by the author, see github documentation about [signing commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
+3. Document any external API functions changed or added with the [Erlang doc syntax](https://www.erlang.org/doc/system/documentation.html).
+4. Run the existing tests to make sure you didn't break anything.
 3. Add working tests that illustrate and cover the changes, or detects an issue
    to be fixed. A good example is to create a failing test case that exposes the issue you are trying to fix, before fixing it.
 4. Make sure the code and commit follow the [style guides](#styleguides).
