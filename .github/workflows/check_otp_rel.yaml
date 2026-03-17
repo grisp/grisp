@@ -42,7 +42,7 @@ jobs:
           echo "$tag" > last_seen_ver.txt
           echo "LAST_OTP=$(cat last_seen_ver.txt)" >> $GITHUB_ENV
 
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      - uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         if: steps.get-version.outputs.should_continue == 'true'
         id: version-cache
         env:
