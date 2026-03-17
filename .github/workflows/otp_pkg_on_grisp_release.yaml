@@ -17,7 +17,10 @@ jobs:
       - name: Matrix Definition
         id: matrix-def
         run: |
-           echo "otp-version=${GITHUB_EVENT_CLIENT_PAYLOAD_OTP}" >> "$GITHUB_OUTPUT"
+          OTP_VERSION="${GITHUB_EVENT_CLIENT_PAYLOAD_OTP}"
+          OTP_VERSION="${OTP_VERSION#\"}"
+          OTP_VERSION="${OTP_VERSION%\"}"
+          echo "otp-version=${OTP_VERSION}" >> "$GITHUB_OUTPUT"
         env:
           GITHUB_EVENT_CLIENT_PAYLOAD_OTP: ${{ github.event.client_payload.otp }}
   otp-gen-matrix:
