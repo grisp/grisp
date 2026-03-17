@@ -11,7 +11,7 @@ gh api \
   -H "X-GitHub-Api-Version: 2022-11-28" \
   /repos/grisp/grisp/dispatches \
   -f "event_type=new-otp-release" \
-  -F "client_payload[otp]=\\\"27.1.2\\\"" \
+  -F "client_payload[otp]=28.4.1" \
   -F "client_payload[unit]=false" \
   -F "client_payload[integration]=true"
 ```

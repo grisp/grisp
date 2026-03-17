@@ -17,7 +17,10 @@ jobs:
       - name: Matrix Definition
         id: matrix-def
         run: |
-           echo "otp-version=${GITHUB_EVENT_CLIENT_PAYLOAD_OTP}" >> "$GITHUB_OUTPUT"
+          OTP_VERSION="${GITHUB_EVENT_CLIENT_PAYLOAD_OTP}"
+          OTP_VERSION="${OTP_VERSION#\"}"
+          OTP_VERSION="${OTP_VERSION%\"}"
+          echo "otp-version=${OTP_VERSION}" >> "$GITHUB_OUTPUT"
         env:
           GITHUB_EVENT_CLIENT_PAYLOAD_OTP: ${{ github.event.client_payload.otp }}
   otp-gen-matrix:
@@ -35,7 +38,7 @@ jobs:
         ImageOS: 'ubuntu22'
     strategy:
       matrix:
-        otp: ["${{ fromJson(needs.define-matrix.outputs.otp-version) }}"]
+        otp: ["${{ needs.define-matrix.outputs.otp-version }}"]
         deps: ['grisp', 'grisp, grisp_cryptoauth']
         rebar3: ['3.24.0']
       fail-fast: false
@@ -127,7 +130,7 @@ jobs:
       actions: read
     strategy:
       matrix:
-        otp: ["${{ fromJson(needs.define-matrix.outputs.otp-version) }}"]
+        otp: ["${{ needs.define-matrix.outputs.otp-version }}"]
         deps: ['grisp', 'grisp, grisp_cryptoauth']
         rebar3: ['3.24.0']
     outputs:
@@ -196,4 +199,3 @@ jobs:
         if: ${{ steps.upload-s3.outcome == 'success' }}
         run: echo "upload-output=true" >> $GITHUB_OUTPUT
         id: set-upload-output
-

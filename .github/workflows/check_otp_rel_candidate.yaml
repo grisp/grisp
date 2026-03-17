@@ -39,7 +39,7 @@ jobs:
         env:
           MATRIX_RELEASE_TAG_NAME: ${{ matrix.release.tag_name }}
 
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      - uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         id: version-cache
         env:
           cache-name: cached-version
@@ -66,6 +66,6 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.everest-preview+json" \
             https://api.github.com/repos/grisp/grisp/dispatches \
-            -d "{\"event_type\":\"new-otp-release\",\"client_payload\":{\"otp\":\"\\\\\\\"${OTP}\\\\\\\"\",\"unit\":false,\"integration\":true}}"
+            -d "{\"event_type\":\"new-otp-release\",\"client_payload\":{\"otp\":\"${OTP}\",\"unit\":false,\"integration\":true}}"
         env:
           MATRIX_RELEASE_TAG_NAME: ${{ matrix.release.tag_name }}
