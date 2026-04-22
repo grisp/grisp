@@ -183,7 +183,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.GRISP_S3_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: "us-east-1"
         run: |
-          aws s3 cp s3://grisp/platforms/grisp2/otp/${PKG_NAME} .
+          aws s3 cp s3://grisp/platforms/grisp2/otp/${pkg_name} .
       - name: Upload to S3
         id: upload-s3
         if: ${{ steps.artifact-download.outcome == 'success' }}
@@ -193,7 +193,7 @@ jobs:
           AWS_DEFAULT_REGION: "us-east-1"
         run: |
           aws s3 cp --acl public-read --storage-class INTELLIGENT_TIERING \
-          ${PKG_NAME} \
+          ${pkg_name} \
           s3://grisp/platforms/grisp2/otp/
       - name: Set S3 upload output
         if: ${{ steps.upload-s3.outcome == 'success' }}
