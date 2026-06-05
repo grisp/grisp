@@ -45,7 +45,7 @@ jobs:
     outputs:
       report: ${{ steps.report.outputs.report }}
     steps:
-      - uses: erlef/setup-beam@e6d7c94229049569db56a7ad5a540c051a010af9 # v1
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
         with:
           otp-version: ${{matrix.otp}}
           rebar3-version: ${{ matrix.rebar3 }}
@@ -137,7 +137,7 @@ jobs:
       artifacts: ${{ steps.matrix-def.outputs.otp-version }}
       upload-output: ${{ steps.set-upload-output.outputs.upload-output }}
     steps:
-      - uses: erlef/setup-beam@e6d7c94229049569db56a7ad5a540c051a010af9 # v1
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
         with:
           otp-version: ${{matrix.otp}}
           rebar3-version: ${{ matrix.rebar3 }}
