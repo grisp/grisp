@@ -15,11 +15,6 @@ jobs:
       contents: read
 
     steps:
-      - name: Set up SSH key
-        uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 #v0.10.0
-        with:
-          ssh-private-key: ${{ secrets.STRITZINGER_BOT_SSH_KEY }}
-
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
         with:
@@ -56,11 +51,8 @@ jobs:
         run: |
           docker run \
             --pull=always \
-            --mount type=bind,source="$SSH_AUTH_SOCK",target=/ssh-agent \
             -v ${{ github.workspace }}/repo/:/user_files/ \
             -v ${{ github.workspace }}/out:/app/out/ \
-            -e SSH_AUTH_SOCK=/ssh-agent \
-            -e GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/known_hosts" \
             -e REBAR_BASE_DIR=/tmp/rebar3 \
             -e AUTH_TOKEN="${{ secrets.RESCALE_ACCESS_TOKEN }}" \
             -e LANG_INFO="Erlang" \
