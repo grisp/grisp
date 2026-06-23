@@ -1,0 +1,109 @@
+name: Run static analysis module
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Run the module with DRY_RUN enabled?
+        type: boolean
+        default: false
+
+jobs:
+  generate-sscg:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    steps:
+      - name: Set up SSH key
+        uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 #v0.10.0
+        with:
+          ssh-private-key: ${{ secrets.STRITZINGER_BOT_SSH_KEY }}
+
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
+        with:
+          persist-credentials: false
+          show-progress: false
+          path: repo
+
+      - name: Make output directory
+        run: mkdir out/
+
+      - name: Set up Erlang and rebar3
+        uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
+        with:
+          otp-version: "28"
+          rebar3-version: "3.27.0"
+
+      - name: Regenerate SBOM
+        run: rebar3 sbom --force --format json -o ./sbom.json
+        working-directory: repo
+
+      - name: Log in to Harbor
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee #v4.2.0
+        with:
+          registry: harbor.rescale-project.eu
+          username: ${{ secrets.RESCALE_HARBOR_USERNAME }}
+          password: ${{ secrets.RESCALE_HARBOR_PASSWORD }}
+
+      - name: Create certificate file
+        run: echo ${{ secrets.RESCALE_CERTIFICATE_BASE_64 }} | base64 -d > certificate.p12
+        working-directory: repo
+
+      - name: Run static analysis container
+        id: static_analysis
+        run: |
+          docker run \
+            --pull=always \
+            --mount type=bind,source="$SSH_AUTH_SOCK",target=/ssh-agent \
+            -v ${{ github.workspace }}/repo/:/user_files/ \
+            -v ${{ github.workspace }}/out:/app/out/ \
+            -e SSH_AUTH_SOCK=/ssh-agent \
+            -e GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/known_hosts" \
+            -e REBAR_BASE_DIR=/tmp/rebar3 \
+            -e AUTH_TOKEN="${{ secrets.RESCALE_ACCESS_TOKEN }}" \
+            -e LANG_INFO="Erlang" \
+            -e SRC_PATH="/user_files/" \
+            -e SBOM_IN="/user_files/sbom.json" \
+            -e DRY_RUN=${{ inputs.dry_run }} \
+            -e CERT_FILE="/user_files/certificate.p12" \
+            -e CERT_PASS="${{ secrets.RESCALE_CERTIFICATE_PASSWORD }}" \
+            harbor.rescale-project.eu/rescale-all/static_analysis_module:latest
+
+      - name: Save SSCG ID
+        id: save_sscg_id
+        if: ${{ steps.static_analysis.outcome == 'success' }}
+        run: echo "SSCG_ID=$(jq -r '.serialNumber | .[9:]' ./out/sscg.json)" >> $GITHUB_ENV
+
+      - name: Upload SSCG ID
+        env:
+          SSCG_ID: ${{ env.SSCG_ID }}
+        if: ${{ steps.save_sscg_id.outcome == 'success' }}
+        run: |
+          PAYLOAD="$(jq -cn --arg value "$SSCG_ID" '{name:"LATEST_SSCG_SERIAL", value:$value}')"
+          curl -v -L \
+            -X PATCH \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.STRITZINGER_BOT_PAT }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/stritzinger/seawater/actions/variables/LATEST_SSCG_SERIAL \
+            -d "$PAYLOAD"
+
+      - name: Archive SSCG
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
+        if: ${{ always() }}
+        with:
+          name: SSCG
+          path: ./out/sscg.json
+          if-no-files-found: error
+          compression-level: 9
+
+      - name: Archive Test Reports
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
+        if: ${{ always() }}
+        with:
+          name: test-reports
+          path: ./out/test-reports/
+          if-no-files-found: error
+          compression-level: 9
