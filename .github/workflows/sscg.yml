@@ -46,8 +46,8 @@ jobs:
         run: echo ${{ secrets.RESCALE_CERTIFICATE_BASE_64 }} | base64 -d > certificate.p12
         working-directory: repo
 
-      - name: Run static analysis container (C code - nifs)
-        id: static_analysis
+      - name: Run static analysis container for C code
+        id: static_analysis_c
         run: |
           docker run \
             --pull=always \
@@ -63,8 +63,8 @@ jobs:
             -e CERT_PASS="${{ secrets.RESCALE_CERTIFICATE_PASSWORD }}" \
             harbor.rescale-project.eu/rescale-all/static_analysis_module:latest
 
-      - name: Run static analysis container (Erlang code)
-        id: static_analysis
+      - name: Run static analysis container for Erlang code
+        id: static_analysis_erlang
         run: |
           docker run \
             --pull=always \
