@@ -56,7 +56,7 @@ jobs:
             -e REBAR_BASE_DIR=/tmp/rebar3 \
             -e AUTH_TOKEN="${{ secrets.RESCALE_ACCESS_TOKEN }}" \
             -e LANG_INFO="C" \
-		    -e SRC_PATH="/user_files/grisp/grisp/default/common/build/nifs" \
+            -e SRC_PATH="/user_files/grisp/grisp/default/common/build/nifs" \
             -e SBOM_IN="/user_files/sbom.json" \
             -e DRY_RUN=true\
             -e CERT_FILE="/user_files/certificate.p12" \
