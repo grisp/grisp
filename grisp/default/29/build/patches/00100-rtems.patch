@@ -1,0 +1,2484 @@
+diff --git a/.gitignore b/.gitignore
+index b8a9d23c8f..925c84bd68 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -55,6 +55,11 @@ x86_64-unknown-freebsd[0-9]*.[0-9]*
+ x86_64-unknown-openbsd[0-9]*.[0-9]*
+ powerpc-unknown-linux-gnu
+ aarch64-unknown-linux-gnu
++arm-unknown-rtems[0-9]*.[0-9]*
++powerpc-unknown-rtems[0-9]*.[0-9]*
++
++# Compilation/linking artifacts
++linker.map
+ 
+ # Mac OS X
+ a.out.dSYM/
+diff --git a/Makefile.in b/Makefile.in
+index e0981b1d9a..ac391bdb22 100644
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -855,7 +855,12 @@ $(TEST_DIRS):
+ #
+ # Order is important here, don't change it!
+ #
++
++ifeq ($(findstring rtems,$(TARGET)),rtems)
++INST_DEP += sys.config install.dirs install.emulator install.libs install.Install install.otp_version install.config
++else
+ INST_DEP += sys.config install.dirs install.emulator install.libs install.Install install.otp_version install.config install.bin
++endif
+ 
+ install: $(INST_DEP)
+ 
+diff --git a/erts/Makefile b/erts/Makefile
+index 47737cda43..50ba54d91a 100644
+--- a/erts/Makefile
++++ b/erts/Makefile
+@@ -29,7 +29,11 @@ include $(ERL_TOP)/make/$(TARGET)/otp.mk
+ # ----------------------------------------------------------------------
+ 
+ # Other erts dirs than the emulator dir...
++ifeq ($(findstring rtems, $(TARGET)), rtems)
++ERTSDIRS = etc lib_src
++else
+ ERTSDIRS = etc epmd lib_src
++endif
+ XINSTDIRS = preloaded
+ ifeq ($(NO_START_SCRIPTS),)
+ ERTSDIRS += start_scripts
+diff --git a/erts/emulator/Makefile.in b/erts/emulator/Makefile.in
+index 028e2bcafc..29f1713082 100644
+--- a/erts/emulator/Makefile.in
++++ b/erts/emulator/Makefile.in
+@@ -531,8 +531,10 @@ endif
+ 
+ UNIX_ONLY_BUILDS =
+ ifeq ($(ERLANG_OSTYPE), unix)
++ifneq ($(findstring rtems, $(TARGET)), rtems)
+ UNIX_ONLY_BUILDS =	$(BINDIR)/$(CS_EXECUTABLE)
+ endif
++endif
+ 
+ .PHONY: all
+ ifdef VOID_EMULATOR
+@@ -613,9 +615,11 @@ ifeq ($(RELEASE_LIBBEAM),yes)
+ 	$(INSTALL_PROGRAM) $(BINDIR)/$(EMULATOR_LIB) "$(RELSYSDIR)/lib"
+ endif
+ ifeq ($(ERLANG_OSTYPE), unix)
++ifneq ($(findstring rtems, $(TARGET)), rtems)
+ 	$(INSTALL_PROGRAM) $(BINDIR)/$(CS_EXECUTABLE) "$(RELSYSDIR)/bin"
+ endif
+ endif
++endif
+ 
+ .PHONY: release_docs_spec
+ release_docs_spec:
+diff --git a/erts/emulator/beam/io.c b/erts/emulator/beam/io.c
+index a121588384..f7a379c1b6 100644
+--- a/erts/emulator/beam/io.c
++++ b/erts/emulator/beam/io.c
+@@ -3026,7 +3026,7 @@ void erts_init_io(int port_tab_size,
+ 
+     init_driver(&fd_driver, &fd_driver_entry, NULL);
+     init_driver(&spawn_driver, &spawn_driver_entry, NULL);
+-#ifndef __WIN32__
++#if !(defined(__WIN32__) || defined(__rtems__))
+     init_driver(&forker_driver, &forker_driver_entry, NULL);
+ #endif
+     erts_init_static_drivers();
+diff --git a/erts/emulator/beam/sys.h b/erts/emulator/beam/sys.h
+index 0d6ae8faca..9de98b06d7 100644
+--- a/erts/emulator/beam/sys.h
++++ b/erts/emulator/beam/sys.h
+@@ -203,7 +203,7 @@ typedef ERTS_SYS_FD_TYPE ErtsSysFdType;
+ #if (defined(__APPLE__) && defined(__MACH__)) || defined(__DARWIN__)
+ #  define ERTS_WRITE_UNLIKELY(X) X __attribute__ ((section ("__DATA,ERTS_LOW_WRITE") ))
+ #else
+-#  define ERTS_WRITE_UNLIKELY(X) X __attribute__ ((section ("ERTS_LOW_WRITE") ))
++#  define ERTS_WRITE_UNLIKELY(X) X __attribute__ ((section (".data.read_mostly") ))
+ #endif
+ #else
+ #  define ERTS_WRITE_UNLIKELY(X) X
+diff --git a/erts/emulator/nifs/common/prim_socket_nif.c b/erts/emulator/nifs/common/prim_socket_nif.c
+index db477e17bb..fb7dee4f2c 100644
+--- a/erts/emulator/nifs/common/prim_socket_nif.c
++++ b/erts/emulator/nifs/common/prim_socket_nif.c
+@@ -18979,6 +18979,11 @@ int on_load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
+     ESOCK_EPRINTF("\r\n[ESOCK] init IOV max\r\n");
+ #endif
+     data.iov_max =
++#if defined(__rtems__)
++        /* sysconf should be working on RTEMS, but for some unknown reasons
++           it returns -1 for _SC_IOV_MAX, so we hardcode the value for now */
++        1024
++#else
+ #if defined(NO_SYSCONF) || (! defined(_SC_IOV_MAX))
+ #   ifdef IOV_MAX
+         IOV_MAX
+@@ -18987,6 +18992,7 @@ int on_load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
+ #   endif
+ #else
+         sysconf(_SC_IOV_MAX)
++#endif
+ #endif
+         ;
+     ESOCK_ASSERT( data.iov_max > 0 );
+diff --git a/erts/emulator/sys/unix/sys.c b/erts/emulator/sys/unix/sys.c
+index 218da54475..425388f483 100644
+--- a/erts/emulator/sys/unix/sys.c
++++ b/erts/emulator/sys/unix/sys.c
+@@ -518,6 +518,7 @@ erts_sys_is_area_readable(char *start, char *stop) {
+ static ERTS_INLINE int
+ prepare_crash_dump(int secs)
+ {
++#ifndef __rtems__
+ #define NUFBUF (3)
+     int i;
+     char env[21]; /* enough to hold any 64-bit integer */
+@@ -579,6 +580,9 @@ prepare_crash_dump(int secs)
+     UnUseTmpHeapNoproc(NUFBUF);
+ #undef NUFBUF
+     return has_heart;
++#else  /* __rtems__ */
++    return 0;
++#endif /* __rtems__ */
+ }
+ 
+ int erts_sys_prepare_crash_dump(int secs)
+diff --git a/erts/etc/common/Makefile.in b/erts/etc/common/Makefile.in
+index a3958304de..3e3ce820e6 100644
+--- a/erts/etc/common/Makefile.in
++++ b/erts/etc/common/Makefile.in
+@@ -185,6 +185,26 @@ endif
+ PORT_ENTRY_POINT=erl_port_entry
+ ENTRY_LDFLAGS=-entry:$(PORT_ENTRY_POINT)
+ 
++else # UNIX (!win32)
++ifeq ($(findstring rtems,$(TARGET)), rtems)
++ENTRY_LDFLAGS=
++ENTRY_OBJ=
++ERLSRV_OBJECTS=
++MC_OUTPUTS=
++INET_GETHOST=$(BINDIR)/inet_gethost@EXEEXT@
++INSTALL_EMBEDDED_PROGS=
++INSTALL_EMBEDDED_DATA=../unix/start.src ../unix/start_erl.src
++INSTALL_TOP=Install
++INSTALL_TOP_BIN=
++INSTALL_MISC=
++INSTALL_SRC=
++ERLEXECDIR=
++INSTALL_LIBS=
++INSTALL_OBJS=
++INSTALL_INCLUDES=
++TEXTFILES=Install erl.src
++INSTALL_PROGS=
++
+ else
+ ENTRY_LDFLAGS=
+ ENTRY_OBJ=
+@@ -217,6 +237,7 @@ INSTALL_PROGS =              \
+ 	$(BINDIR)/$(ERLEXEC) \
+ 	$(INSTALL_EMBEDDED_PROGS)
+ endif
++endif
+ 
+ -include ../unix/gdb-tools/jit-reader.mk
+ 
+@@ -490,11 +511,13 @@ $(BINDIR)/typer@EXEEXT@: $(OBJDIR)/typer.o $(ERTS_LIB)
+ $(OBJDIR)/typer.o: typer.c $(RC_GENERATED)
+ 	$(V_CC) $(CFLAGS) -o $@ -c typer.c
+ 
++ifneq ($(findstring rtems,$(TARGET)), rtems)
+ $(BINDIR)/escript@EXEEXT@: $(OBJDIR)/escript.o $(ERTS_LIB)
+ 	$(ld_verbose) $(LD) $(LDFLAGS) -o $@ $(OBJDIR)/escript.o -L$(OBJDIR) $(LIBS) $(ERTS_INTERNAL_LIBS)
+ 
+ $(OBJDIR)/escript.o: escript.c $(RC_GENERATED)
+ 	$(V_CC) $(CFLAGS) -o $@ -c escript.c
++endif
+ 
+ $(BINDIR)/ct_run@EXEEXT@: $(OBJDIR)/ct_run.o $(ERTS_LIB)
+ 	$(ld_verbose) $(LD) $(LDFLAGS) -o $@ $(OBJDIR)/ct_run.o -L$(OBJDIR) $(LIBS) $(ERTS_INTERNAL_LIBS)
+diff --git a/erts/etc/unix/Install.src b/erts/etc/unix/Install.src
+index 45f75c0e49..d9aed914bc 100644
+--- a/erts/etc/unix/Install.src
++++ b/erts/etc/unix/Install.src
+@@ -90,13 +90,34 @@ chmod 755 erl
+ 
+ cd "$ERL_ROOT/bin"
+ 
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erl" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erlc" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erl_call" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/dialyzer" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/typer" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/ct_run" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/escript" .
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/erl" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erl" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/erlc" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erlc" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/erl_call" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/erl_call" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/dialyzer" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/dialyzer" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/typer" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/typer" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/ct_run" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/ct_run" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/escript" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/escript" .
++fi
+ 
+ #
+ # Set a soft link to epmd
+@@ -110,9 +131,19 @@ fi
+ 
+ ln -s ../erts-%I_VSN%/bin/epmd epmd
+ 
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/run_erl" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/to_erl" .
+-cp -p "$ERL_ROOT/erts-%I_VSN%/bin/start" .
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/run_erl" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/run_erl" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/to_erl" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/to_erl" .
++fi
++if [ -e "$ERL_ROOT/erts-%I_VSN%/bin/start" ]
++then
++    cp -p "$ERL_ROOT/erts-%I_VSN%/bin/start" .
++fi
++
+ sed -e "s;%EMU%;%EMULATOR%%EMULATOR_NUMBER%;" "$ERL_ROOT/erts-%I_VSN%/bin/start_erl.src" > start_erl
+ chmod 755 start_erl
+ 
+diff --git a/erts/lib_src/Makefile.in b/erts/lib_src/Makefile.in
+index 995666c15a..b09b62a5d6 100644
+--- a/erts/lib_src/Makefile.in
++++ b/erts/lib_src/Makefile.in
+@@ -41,6 +41,7 @@ INSTALL=@INSTALL@
+ INSTALL_DIR=@INSTALL_DIR@
+ INSTALL_DATA=@INSTALL_DATA@
+ INSTALL_PROGRAM=@INSTALL_PROGRAM@
++CROSS_COMPILING = @CROSS_COMPILING@
+ 
+ ERLANG_OSTYPE=@ERLANG_OSTYPE@
+ 
+@@ -317,7 +318,13 @@ YCF_SOURCE_DIR=$(ERL_TOP)/erts/lib_src/yielding_c_fun
+ 
+ include $(YCF_SOURCE_DIR)/main_target.mk
+ 
++ifeq ($(CROSS_COMPILING),no)
++# TODO: Move this to a proper flag in erts/configure.in
++#       (erl_xcomp_build_ycf=true|false)
+ $(OBJ_DIR)/MADE: $(YCF_EXECUTABLE) $(ETHREAD_LIB) $(ERTS_INTERNAL_LIBS)
++else
++$(OBJ_DIR)/MADE: $(ETHREAD_LIB) $(ERTS_INTERNAL_LIBS)
++endif
+ 	$(gen_verbose)
+ 	$(V_at)echo $? > $(OBJ_DIR)/MADE
+ 
+@@ -458,9 +465,15 @@ INTERNAL_RELEASE_LIBS= \
+ 
+ .PHONY: release_spec
+ release_spec: all
++ifeq ($(CROSS_COMPILING),no)
++# TODO: Move this to a proper flag in erts/configure.in
++#       (erl_xcomp_build_ycf=true|false)
+ 	$(INSTALL_PROGRAM) $(YCF_EXECUTABLE) "$(RELSYSDIR)/bin"
++
+ ifeq ($(TARGET),win32)
+ 	$(INSTALL_DATA) $(YCF_EXECUTABLE:.exe=.pdb) "$(RELEASE_PATH)/erts-$(VSN)/bin"
++
++endif
+ endif
+ ifneq ($(strip $(RELEASE_INCLUDES)),)
+ 	$(INSTALL_DIR) "$(RELSYSDIR)/include"
+diff --git a/erts/lib_src/pthread/ethread.c b/erts/lib_src/pthread/ethread.c
+index 7a1baea17f..c6a62fe8cd 100644
+--- a/erts/lib_src/pthread/ethread.c
++++ b/erts/lib_src/pthread/ethread.c
+@@ -151,6 +151,7 @@ ppc_init__(void)
+     /* If anything what so ever fails we assume no lwsync for safety */
+     ethr_runtime__.conf.have_lwsync = 0;
+ 
++#ifndef __rtems__
+     /*
+      * We perform the lwsync test (which might cause an illegal
+      * instruction signal) in a separate process in order to be
+@@ -182,6 +183,8 @@ ppc_init__(void)
+ 	    }
+ 	}
+     }
++#endif
++
+     return 0;
+ }
+ 
+diff --git a/lib/Makefile b/lib/Makefile
+index 3d7ba3b70b..3840e4270c 100644
+--- a/lib/Makefile
++++ b/lib/Makefile
+@@ -68,7 +68,7 @@ endif
+ 
+ # Any applications listed in SKIP-APPLICATIONS should be skipped
+ SKIP_FILE := $(wildcard SKIP-APPLICATIONS)
+-SKIP_APPLICATIONS := $(if $(SKIP_FILE),$(shell cat $(SKIP_FILE)))
++SKIP_APPLICATIONS += $(if $(SKIP_FILE),$(shell cat $(SKIP_FILE)))
+ SUB_DIRECTORIES := $(filter-out $(SKIP_APPLICATIONS),$(SUB_DIRECTORIES))
+ 
+ # ----------------------------------------------------------------------
+diff --git a/lib/asn1/c_src/Makefile b/lib/asn1/c_src/Makefile
+index 304d1bd21d..0758d59a95 100644
+--- a/lib/asn1/c_src/Makefile
++++ b/lib/asn1/c_src/Makefile
+@@ -71,7 +71,9 @@ NIF_LIB_FILE = $(LIBDIR)/asn1rt_nif.lib
+ CLIB_FLAGS =
+ LN=cp
+ else
++ifneq ($(findstring rtems,$(TARGET)),rtems)
+ NIF_SHARED_OBJ_FILE = $(LIBDIR)/asn1rt_nif.so
++endif
+ NIF_LIB_FILE = $(LIBDIR)/asn1rt_nif.a
+ CLIB_FLAGS =
+ LN= ln -s
+@@ -138,7 +140,9 @@ include $(ERL_TOP)/make/otp_release_targets.mk
+ 
+ release_spec: opt
+ 	$(INSTALL_DIR) "$(RELSYSDIR)/priv/lib"
++ifneq ($(findstring rtems,$(TARGET)),rtems)
+ 	$(INSTALL_PROGRAM) $(NIF_SHARED_OBJ_FILE) "$(RELSYSDIR)/priv/lib"
++endif
+ 	$(INSTALL_DIR) "$(RELSYSDIR)/c_src"
+ 	$(INSTALL_DATA) *.c "$(RELSYSDIR)/c_src"
+ 
+diff --git a/lib/crypto/c_src/Makefile.in b/lib/crypto/c_src/Makefile.in
+index 646ea7da89..7b3fb9178c 100644
+--- a/lib/crypto/c_src/Makefile.in
++++ b/lib/crypto/c_src/Makefile.in
+@@ -123,10 +123,18 @@ CRYPTO_STATIC_OBJS = $(patsubst $(OBJDIR)/%$(TYPEMARKER).o,$(OBJDIR)/%_static$(T
+ 
+ NIF_ARCHIVE = $(LIBDIR)/crypto$(TYPEMARKER).a
+ 
++NIF_LIB =
++CALLBACK_LIB =
++ifneq ($(findstring rtems, $(TARGET)), rtems)
+ NIF_LIB = $(LIBDIR)/crypto$(TYPEMARKER).@DED_EXT@
+ CALLBACK_LIB = $(LIBDIR)/crypto_callback$(TYPEMARKER).@DED_EXT@
++endif
+ 
++ifneq ($(findstring rtems, $(TARGET)), rtems)
+ DISABLE_OTP_TEST_ENGINE = @DISABLE_OTP_TEST_ENGINE@
++else
++DISABLE_OTP_TEST_ENGINE = yes
++endif
+ ifeq ($(DISABLE_OTP_TEST_ENGINE),yes)
+ TEST_ENGINE_LIB =
+ TEST_ENGINE_OBJS =
+@@ -279,7 +287,9 @@ include $(ERL_TOP)/make/otp_release_targets.mk
+ 
+ release_spec: opt
+ 	$(INSTALL_DIR) "$(RELSYSDIR)/priv/lib"
++ifneq ($(findstring rtems, $(TARGET)), rtems)
+ 	$(INSTALL_PROGRAM) $(NIF_LIB) "$(RELSYSDIR)/priv/lib"
++endif
+ ifeq ($(DYNAMIC_OR_WIN_CRYPTO_LIB),yes)
+ 	$(INSTALL_PROGRAM) $(CALLBACK_LIB) "$(RELSYSDIR)/priv/lib"
+ endif
+diff --git a/lib/crypto/configure b/lib/crypto/configure
+index bf24c0d3ec..d040ea32ed 100755
+--- a/lib/crypto/configure
++++ b/lib/crypto/configure
+@@ -766,6 +766,8 @@ enable_largefile
+ enable_security_hardening_flags
+ with_ssl
+ with_ssl_lib_subdir
++with_ssl_lib
++with_crypto_lib
+ with_ssl_incl
+ with_ssl_zlib
+ with_ssl_rpath
+@@ -1464,6 +1466,10 @@ Optional Packages:
+   --with-ssl-lib-subdir=RELATIVE_PATH
+                           specify extra OpenSSL lib sub-directory to search in
+                           (relative to base directory)
++  --with-ssl-lib=PATH     location of the library containing OpenSSL, if not
++                          standard
++  --with-crypto-lib=PATH  location of the library containing OpenSSL crypto,
++                          if not standard
+   --with-ssl-incl=PATH    base location of OpenSSL include dir (if different
+                           than base location specified by --with-ssl=PATH)
+   --with-ssl-zlib=PATH    Path to static zlib library to link the crypto NIF
+@@ -6978,6 +6984,21 @@ fi
+  #default
+ 
+ 
++# Check whether --with-ssl-lib was given.
++if test ${with_ssl_lib+y}
++then :
++  withval=$with_ssl_lib;
++fi
++
++
++# Check whether --with-crypto-lib was given.
++if test ${with_crypto_lib+y}
++then :
++  withval=$with_crypto_lib;
++fi
++
++
++
+ # Check whether --with-ssl-incl was given.
+ if test ${with_ssl_incl+y}
+ then :
+@@ -7427,8 +7448,8 @@ fi
+ printf "%s\n" "$ac_cv_path_EGREP_TRADITIONAL" >&6; }
+  EGREP_TRADITIONAL=$ac_cv_path_EGREP_TRADITIONAL
+ 
+-case "$erl_xcomp_without_sysroot-$with_ssl" in #(
+-  yes-* | no-no) :
++case "$erl_xcomp_without_sysroot-$with_ssl-$with_ssl_lib" in #(
++  yes-* | no-no-*) :
+ 
+             SSL_APP=
+             CRYPTO_APP=
+@@ -7440,7 +7461,7 @@ case "$erl_xcomp_without_sysroot-$with_ssl" in #(
+                 echo "$skip" > $ERL_TOP/lib/$a/SKIP
+                 done
+          ;; #(
+-  no-yes | no-) :
++  no-yes- | no--) :
+ 
+             # We search for OpenSSL in the common OS standard locations.
+             SSL_APP=ssl
+@@ -7566,7 +7587,14 @@ rm -rf conftest*
+ 
+     CPPFLAGS="$save_CPPFLAGS"
+ 
+-    if test $valid_include != yes
++    if test -f "$with_ssl_lib"
++then :
++
++              found_dynlib=no
++              found_static_lib=yes
++              static_ext=.a
++
++elif test $valid_include != yes
+ then :
+ 
+               # Not a valid include...
+@@ -8004,7 +8032,7 @@ esac
+ esac
+ fi
+          ;; #(
+-  *) :
++  *-*-) :
+ 
+             # Option given with PATH to package
+             if test ! -d "$with_ssl"
+@@ -8116,7 +8144,14 @@ rm -rf conftest*
+ 
+     CPPFLAGS="$save_CPPFLAGS"
+ 
+-    if test $valid_include != yes
++    if test -f "$with_ssl_lib"
++then :
++
++              found_dynlib=no
++              found_static_lib=yes
++              static_ext=.a
++
++elif test $valid_include != yes
+ then :
+ 
+               # Not a valid include...
+@@ -8514,8 +8549,846 @@ else case e in #(
+                    ;;
+ esac
+ fi
+-         ;;
++         ;; #(
++  *) :
++
++            # Non-standard library specified by PATH
++            if test ! -f "$with_ssl_lib" ; then
++                as_fn_error $? "Invalid path to option --with-ssl-lib=PATH" "$LINENO" 5
++            fi
++
++            SSL_APP=ssl
++            CRYPTO_APP=crypto
++            SSH_APP=ssh
++
++            if test -d "$with_ssl_incl" ; then
++                if test ! -f "$with_ssl_incl/include/openssl/opensslv.h"; then
++                    as_fn_error $? "\"$with_ssl_incl/include/openssl/opensslv.h not found\"" "$LINENO" 5
++                fi
++                SSL_INCDIR="$with_ssl_incl"
++                SSL_INCLUDE="-I$SSL_INCDIR/include"
++
++    # Check for static and dynamic crypto library in the directory
++    # given as argument...
++    #
++    # Written as a macro in order to avoid writing the tests twice...
++    idir="$with_ssl_incl"
++    prfx=""
++    rdir="$with_ssl"
++    dir="$prfx$rdir"
++    static_crypto_lib_name=crypto
++    static_ssl_lib_name=ssl
++    static_extra_libs="$forced_static_zlib"
++    static_lib_dir=
++    dynamic_crypto_lib_name=crypto
++    dynamic_ssl_lib_name=ssl
++    dynamic_extra_libs="$forced_static_zlib"
++    dynamic_lib_dir=
++    dynamic_runtime_lib_dir=
++    found_static_lib=no
++    found_dynamic_lib=no
++
++    save_CPPFLAGS=$CPPFLAGS
++    CPPFLAGS="-I$idir/include"
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++#include <openssl/opensslv.h>
++#if OPENSSL_VERSION_NUMBER >= 0x0090803fL
++yes
++#endif
++
++_ACEOF
++if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
++  $EGREP "^yes.?$" >/dev/null 2>&1
++then :
++  valid_include=yes
++else $as_nop
++  valid_include=no
++fi
++rm -rf conftest*
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++#include <openssl/opensslv.h>
++#if OPENSSL_VERSION_MAJOR == 3
++yes
++#endif
++
++_ACEOF
++if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
++  $EGREP "^yes.?$" >/dev/null 2>&1
++then :
++  v3_include=yes
++else $as_nop
++  v3_include=no
++fi
++rm -rf conftest*
++
++
++
++    if test "x$DISABLE_OTP_TEST_ENGINE" = "xdefault"; then
++# Get default value for the --disable-otp-test-engine. Depends on cryptolib version
++          cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++#include <openssl/opensslv.h>
++#if LIBRESSL_VERSION_NUMBER >= 0x3050000fL
++yes
++#endif
++
++_ACEOF
++if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
++  $EGREP "^yes.?$" >/dev/null 2>&1
++then :
++  DISABLE_OTP_TEST_ENGINE=yes
++else $as_nop
++  DISABLE_OTP_TEST_ENGINE=no
++fi
++rm -rf conftest*
++
++    fi
++
++    CPPFLAGS="$save_CPPFLAGS"
++
++    if test -f "$with_ssl_lib"
++then :
++
++              found_dynlib=no
++              found_static_lib=yes
++              static_ext=.a
++
++elif test $valid_include != yes
++then :
++
++              # Not a valid include...
++              static_crypto_lib_name=
++              static_ssl_lib_name=
++              static_extra_libs=
++              static_lib_dir=
++              dynamic_crypto_lib_name=
++              dynamic_ssl_lib_name=
++              dynamic_extra_libs=
++              dynamic_lib_dir=
++              dynamic_runtime_lib_dir=
++
++elif test "$host_os" = "win32"
++then :
++
++              # Windows...
++              if test -f "$dir/lib/VC/static/libcrypto${lib_bits}MD.lib"
++then :
++
++                        static_crypto_lib_name=libcrypto${lib_bits}MD
++                        static_ssl_lib_name="libssl${lib_bits}MD"
++                        static_extra_libs="$static_extra_libs -lCRYPT32 -lWS2_32"
++                        static_lib_dir="$dir/lib/VC/static"
++                        found_static_lib=yes
++
++fi
++              if test -f "$dir/lib/VC/libcrypto${lib_bits}MD.lib"
++then :
++
++                        dynamic_crypto_lib_name=libcrypto${lib_bits}MD
++                        dynamic_ssl_lib_name="libssl${lib_bits}MD"
++                        dynamic_runtime_lib_dir="$rdir/lib/VC"
++                        dynamic_lib_dir="$dir/lib/VC"
++                        found_dynamic_lib=yes
++
++fi
++
++else $as_nop
++
++              # Not windows...
++              case "$host_os" in #(
++  darwin*) :
++
++                          static_ext=.a
++                          dynamic_ext=.dylib
++                       ;; #(
++  *) :
++
++                          static_ext=.a
++                          dynamic_ext=.so
++                       ;;
++esac
++              for sdir in $search_subdirs; do
++                  if test -f "$dir/$sdir/lib$dynamic_crypto_lib_name$dynamic_ext"
++then :
++
++                            found_dynlib=yes
++
++else $as_nop
++
++                            found_dynlib=no
++                            case $host_os in #(
++  openbsd*) :
++
++                                        # libcrypto.so got a suffix on (at least some) openbsd.
++                                        # If we find libcrypto.so with suffix, we try to link
++                                        # to it using -lcrypto ...
++                                        for f in "$dir/$sdir/lib$dynamic_crypto_lib_name$dynamic_ext"*; do
++                                               if test -f "$f"
++then :
++  found_dynlib=yes; break
++fi
++                                        done
++                                     ;; #(
++  *) :
++     ;;
+ esac
++
++fi
++                  if test $found_dynlib = yes
++then :
++
++                            # Found dynamic library; check if it links...
++                            dynamic_lib_dir="$dir/$sdir"
++                            dynamic_runtime_lib_dir="$rdir/$sdir"
++
++    test_cflags="-I$idir/include"
++    test_ldflags="-L$dynamic_lib_dir"
++    test_libs="-l$dynamic_crypto_lib_name $dynamic_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main (void)
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"
++then :
++
++	    found_dynamic_lib=yes
++
++else $as_nop
++
++	    found_dynamic_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext conftest.beam \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++                            if test $found_dynamic_lib = no -a $static_zlib != no
++then :
++
++                                      # No, but linking with zlib as well might help...
++                                      dynamic_extra_libs="$dynamic_extra_libs $static_zlib"
++
++    test_cflags="-I$idir/include"
++    test_ldflags="-L$dynamic_lib_dir"
++    test_libs="-l$dynamic_crypto_lib_name $dynamic_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main (void)
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"
++then :
++
++	    found_dynamic_lib=yes
++
++else $as_nop
++
++	    found_dynamic_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext conftest.beam \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++
++fi
++
++fi
++                  if test -f "$dir/$sdir/lib$static_crypto_lib_name$static_ext"
++then :
++
++                            # Found static library; check if it links...
++                            static_lib_dir="$dir/$sdir"
++
++    test_cflags="-I$idir/include"
++    test_ldflags=
++    test_libs="$dir/$sdir/lib$static_crypto_lib_name$static_ext $static_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main (void)
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"
++then :
++
++	    found_static_lib=yes
++
++else $as_nop
++
++	    found_static_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext conftest.beam \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++                            if test $found_static_lib = no -a $static_zlib != no
++then :
++
++                                      # No, but inking with zlib as well might help...
++                                      static_extra_libs="$static_extra_libs $static_zlib"
++
++    test_cflags="-I$idir/include"
++    test_ldflags=
++    test_libs="$dir/$sdir/lib$static_crypto_lib_name$static_ext $static_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main (void)
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"
++then :
++
++	    found_static_lib=yes
++
++else $as_nop
++
++	    found_static_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext conftest.beam \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++
++fi
++
++fi
++                  if test $found_static_lib = yes -o $found_dynamic_lib = yes
++then :
++  break
++fi
++              done
++
++fi
++
++              else
++                if test ! -f "$erl_xcomp_isysroot$rdir/include/openssl/opensslv.h"; then
++                    as_fn_error $? "\"$erl_xcomp_isysroot$rdir/include/openssl/opensslv.h not found\"" "$LINENO" 5
++                fi
++                SSL_INCDIR="$erl_xcomp_isysroot$rdir"
++                SSL_INCLUDE="-I$SSL_INCDIR/include"
++
++    # Check for static and dynamic crypto library in the directory
++    # given as argument...
++    #
++    # Written as a macro in order to avoid writing the tests twice...
++    idir="$SSL_INCDIR"
++    prfx="$erl_xcomp_sysroot"
++    rdir="$rdir"
++    dir="$prfx$rdir"
++    static_crypto_lib_name=crypto
++    static_ssl_lib_name=ssl
++    static_extra_libs="$forced_static_zlib"
++    static_lib_dir=
++    dynamic_crypto_lib_name=crypto
++    dynamic_ssl_lib_name=ssl
++    dynamic_extra_libs="$forced_static_zlib"
++    dynamic_lib_dir=
++    dynamic_runtime_lib_dir=
++    found_static_lib=no
++    found_dynamic_lib=no
++
++    save_CPPFLAGS=$CPPFLAGS
++    CPPFLAGS="-I$idir/include"
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++#include <openssl/opensslv.h>
++#if OPENSSL_VERSION_NUMBER >= 0x0090803fL
++yes
++#endif
++
++_ACEOF
++if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
++  $EGREP "^yes.?$" >/dev/null 2>&1
++then :
++  valid_include=yes
++else $as_nop
++  valid_include=no
++fi
++rm -rf conftest*
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++#include <openssl/opensslv.h>
++#if OPENSSL_VERSION_MAJOR == 3
++yes
++#endif
++
++_ACEOF
++if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
++  $EGREP "^yes.?$" >/dev/null 2>&1
++then :
++  v3_include=yes
++else $as_nop
++  v3_include=no
++fi
++rm -rf conftest*
++
++
++
++    if test "x$DISABLE_OTP_TEST_ENGINE" = "xdefault"; then
++# Get default value for the --disable-otp-test-engine. Depends on cryptolib version
++          cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++#include <openssl/opensslv.h>
++#if LIBRESSL_VERSION_NUMBER >= 0x3050000fL
++yes
++#endif
++
++_ACEOF
++if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
++  $EGREP "^yes.?$" >/dev/null 2>&1
++then :
++  DISABLE_OTP_TEST_ENGINE=yes
++else $as_nop
++  DISABLE_OTP_TEST_ENGINE=no
++fi
++rm -rf conftest*
++
++    fi
++
++    CPPFLAGS="$save_CPPFLAGS"
++
++    if test -f "$with_ssl_lib"
++then :
++
++              found_dynlib=no
++              found_static_lib=yes
++              static_ext=.a
++
++elif test $valid_include != yes
++then :
++
++              # Not a valid include...
++              static_crypto_lib_name=
++              static_ssl_lib_name=
++              static_extra_libs=
++              static_lib_dir=
++              dynamic_crypto_lib_name=
++              dynamic_ssl_lib_name=
++              dynamic_extra_libs=
++              dynamic_lib_dir=
++              dynamic_runtime_lib_dir=
++
++elif test "$host_os" = "win32"
++then :
++
++              # Windows...
++              if test -f "$dir/lib/VC/static/libcrypto${lib_bits}MD.lib"
++then :
++
++                        static_crypto_lib_name=libcrypto${lib_bits}MD
++                        static_ssl_lib_name="libssl${lib_bits}MD"
++                        static_extra_libs="$static_extra_libs -lCRYPT32 -lWS2_32"
++                        static_lib_dir="$dir/lib/VC/static"
++                        found_static_lib=yes
++
++fi
++              if test -f "$dir/lib/VC/libcrypto${lib_bits}MD.lib"
++then :
++
++                        dynamic_crypto_lib_name=libcrypto${lib_bits}MD
++                        dynamic_ssl_lib_name="libssl${lib_bits}MD"
++                        dynamic_runtime_lib_dir="$rdir/lib/VC"
++                        dynamic_lib_dir="$dir/lib/VC"
++                        found_dynamic_lib=yes
++
++fi
++
++else $as_nop
++
++              # Not windows...
++              case "$host_os" in #(
++  darwin*) :
++
++                          static_ext=.a
++                          dynamic_ext=.dylib
++                       ;; #(
++  *) :
++
++                          static_ext=.a
++                          dynamic_ext=.so
++                       ;;
++esac
++              for sdir in $search_subdirs; do
++                  if test -f "$dir/$sdir/lib$dynamic_crypto_lib_name$dynamic_ext"
++then :
++
++                            found_dynlib=yes
++
++else $as_nop
++
++                            found_dynlib=no
++                            case $host_os in #(
++  openbsd*) :
++
++                                        # libcrypto.so got a suffix on (at least some) openbsd.
++                                        # If we find libcrypto.so with suffix, we try to link
++                                        # to it using -lcrypto ...
++                                        for f in "$dir/$sdir/lib$dynamic_crypto_lib_name$dynamic_ext"*; do
++                                               if test -f "$f"
++then :
++  found_dynlib=yes; break
++fi
++                                        done
++                                     ;; #(
++  *) :
++     ;;
++esac
++
++fi
++                  if test $found_dynlib = yes
++then :
++
++                            # Found dynamic library; check if it links...
++                            dynamic_lib_dir="$dir/$sdir"
++                            dynamic_runtime_lib_dir="$rdir/$sdir"
++
++    test_cflags="-I$idir/include"
++    test_ldflags="-L$dynamic_lib_dir"
++    test_libs="-l$dynamic_crypto_lib_name $dynamic_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main (void)
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"
++then :
++
++	    found_dynamic_lib=yes
++
++else $as_nop
++
++	    found_dynamic_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext conftest.beam \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++                            if test $found_dynamic_lib = no -a $static_zlib != no
++then :
++
++                                      # No, but linking with zlib as well might help...
++                                      dynamic_extra_libs="$dynamic_extra_libs $static_zlib"
++
++    test_cflags="-I$idir/include"
++    test_ldflags="-L$dynamic_lib_dir"
++    test_libs="-l$dynamic_crypto_lib_name $dynamic_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main (void)
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"
++then :
++
++	    found_dynamic_lib=yes
++
++else $as_nop
++
++	    found_dynamic_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext conftest.beam \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++
++fi
++
++fi
++                  if test -f "$dir/$sdir/lib$static_crypto_lib_name$static_ext"
++then :
++
++                            # Found static library; check if it links...
++                            static_lib_dir="$dir/$sdir"
++
++    test_cflags="-I$idir/include"
++    test_ldflags=
++    test_libs="$dir/$sdir/lib$static_crypto_lib_name$static_ext $static_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main (void)
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"
++then :
++
++	    found_static_lib=yes
++
++else $as_nop
++
++	    found_static_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext conftest.beam \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++                            if test $found_static_lib = no -a $static_zlib != no
++then :
++
++                                      # No, but inking with zlib as well might help...
++                                      static_extra_libs="$static_extra_libs $static_zlib"
++
++    test_cflags="-I$idir/include"
++    test_ldflags=
++    test_libs="$dir/$sdir/lib$static_crypto_lib_name$static_ext $static_extra_libs"
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++
++int
++main (void)
++{
++
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"
++then :
++
++	    found_static_lib=yes
++
++else $as_nop
++
++	    found_static_lib=no
++
++fi
++rm -f core conftest.err conftest.$ac_objext conftest.beam \
++    conftest$ac_exeext conftest.$ac_ext
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++
++
++fi
++
++fi
++                  if test $found_static_lib = yes -o $found_dynamic_lib = yes
++then :
++  break
++fi
++              done
++
++fi
++
++            fi
++
++            libname_with_ext=${with_ssl_lib##*lib}
++            libname_without_ext=${libname_with_ext%%.*}
++
++            SSL_CRYPTO_LIBNAME=$static_crypto_lib_name
++            SSL_SSL_LIBNAME=$libname_without_ext
++            SSL_LIBDIR=$(dirname $with_ssl_lib)
++            SSL_EXTRA_LIBS="$static_extra_libs"
++            SSL_RUNTIME_LIBDIR=
++            SSL_DYNAMIC_ONLY=no
++
++            if test ! -f "${SSL_LIBDIR}/lib${SSL_SSL_LIBNAME}.a"; then
++              as_fn_error $? "--with-ssl-lib not supported with dynamic linking" "$LINENO" 5
++            fi
++
++                     ;;
++esac
++
++if test "x$with_crypto_lib" != "x"
++then :
++
++          if test ! -f "$with_crypto_lib" ; then
++              as_fn_error $? "Invalid path to option --with-crypto-lib=PATH" "$LINENO" 5
++          fi
++          crypto_libdir=$(dirname $with_crypto_lib)
++          if test "x$SSL_LIBDIR" != "x" -a "$crypto_libdir" != "$SSL_LIBDIR"; then
++              as_fn_error $? "--with-crypto-lib must be in the selected OpenSSL library directory" "$LINENO" 5
++          fi
++          crypto_libname_with_ext=${with_crypto_lib##*lib}
++          crypto_libname_without_ext=${crypto_libname_with_ext%%.*}
++          SSL_CRYPTO_LIBNAME=$crypto_libname_without_ext
++          SSL_LIBDIR=$crypto_libdir
++          SSL_DYNAMIC_ONLY=no
++
++fi
+ SSL_DED_LD_RUNTIME_LIBRARY_PATH=
+ ded_ld_rflg="$DED_LD_FLAG_RUNTIME_LIBRARY_PATH"
+ 
+@@ -8956,7 +9829,7 @@ then :
+ 
+ else case e in #(
+   e)
+-          LDFLAGS="$DED_LDFLAGS_CONFTEST"
++          LDFLAGS="$saveLDFLAGS"
+           if test "$host_os" = "win32"
+ then :
+   LIBS="$LIBS $SSL_LIBDIR/$SSL_CRYPTO_LIBNAME.lib $SSL_EXTRA_LIBS"
+diff --git a/lib/crypto/configure.ac b/lib/crypto/configure.ac
+index 463b33a628..b0b0e2e4c8 100644
+--- a/lib/crypto/configure.ac
++++ b/lib/crypto/configure.ac
+@@ -61,6 +61,960 @@ LM_WINDOWS_ENVIRONMENT
+ m4_include([../../erts/crypto.ac])
+ 
+ ERL_POP_WERROR
++AC_MSG_CHECKING([for multiarch directory])
++multiarch_dir=
++if test "$GCC" = "yes"; then
++   multiarch_dir=`$CC $CFLAGS -print-multiarch 2>/dev/null`
++   if test $? -ne 0; then
++     multiarch_dir=
++   fi
++fi
++if test "$multiarch_dir" = ""; then
++   AC_MSG_RESULT([not found])
++else
++   AC_MSG_RESULT([$multiarch_dir])
++fi
++
++dnl
++dnl SSL, SSH and CRYPTO need the OpenSSL libraries
++dnl
++dnl TODO: Update comments
++dnl
++dnl Check flags --with-ssl, --without-ssl --with-ssl=PATH.
++dnl If no option is given or --with-ssl is set without a path then we
++dnl search for OpenSSL libraries and header files in the standard locations. 
++dnl If set to --without-ssl we disable the use of SSL, SSH and CRYPTO.
++dnl If set to --with-ssl=PATH we use that path as the prefix, i.e. we
++dnl use "PATH/include" and "PATH/lib".
++
++AC_CHECK_SIZEOF(void *)
++
++std_ssl_locations="\
++/usr/local \
++/usr/sfw \
++/usr \
++/opt/local \
++/usr/pkg \
++/usr/local/openssl \
++/usr/local/opt/openssl \
++/opt/homebrew/opt/openssl \
++/usr/lib/openssl \
++/usr/openssl \
++/usr/local/ssl \
++/usr/lib/ssl \
++/usr/ssl \
++/"
++			
++AC_ARG_WITH(ssl,
++AS_HELP_STRING([--with-ssl=PATH], [base location of OpenSSL include and lib directories])
++AS_HELP_STRING([--with-ssl], [use SSL (default)])
++AS_HELP_STRING([--without-ssl], [don't use SSL]))
++
++AC_ARG_WITH(ssl-lib-subdir,
++AS_HELP_STRING([--with-ssl-lib-subdir=RELATIVE_PATH],
++	       [specify extra OpenSSL lib sub-directory to search in (relative to base directory)]),
++[
++case "$with_ssl_lib_subdir" in
++     yes|no)
++	with_ssl_lib_subdir=
++	;;
++     *)
++	;;
++esac
++],
++[with_ssl_lib_subdir=]) #default
++
++dnl TODO: Add checks regarding conflicts between --with-ssl and --with-ssl-lib
++AC_ARG_WITH(ssl-lib,
++AS_HELP_STRING([--with-ssl-lib=PATH], [location of the library containing OpenSSL, if not standard]))
++
++AC_ARG_WITH(crypto-lib,
++AS_HELP_STRING([--with-crypto-lib=PATH], [location of the library containing OpenSSL crypto, if not standard]))
++
++AC_ARG_WITH(ssl-incl,
++AS_HELP_STRING([--with-ssl-incl=PATH],
++	       [base location of OpenSSL include dir (if different than base location specified by --with-ssl=PATH)]),
++[
++case X$with_ssl in
++    X | Xyes | Xno) AC_MSG_ERROR([--with-ssl-incl=PATH set without --with-ssl=PATH]);;
++esac
++],
++[with_ssl_incl=$with_ssl]) #default
++
++AC_ARG_WITH(ssl-zlib,
++AS_HELP_STRING([--with-ssl-zlib=PATH], [Path to static zlib library to link the
++    				       crypto NIF with. This zlib library is most
++				       often not necessary but might be needed in
++				       order to link the NIF in some cases.]),
++[], [with_ssl_zlib=default]) #default
++
++AC_ARG_WITH(ssl-rpath,
++AS_HELP_STRING([--with-ssl-rpath=yes|no|PATHS],
++               [runtime library path for OpenSSL. Default is "yes", which equates to a
++	       number of standard locations. If "no", then no runtime
++	       library paths will be used. Anything else should be a
++	       comma or colon separated list of paths.]),
++[
++case X$with_ssl in
++    Xno) AC_MSG_ERROR([--with-ssl-rpath set without --with-ssl]);;
++esac
++],
++[with_ssl_rpath=default]) #default
++
++
++AC_ARG_ENABLE(dynamic-ssl-lib,
++AS_HELP_STRING([--enable-dynamic-ssl-lib],
++               [enable using dynamic openssl libraries when linking the crypto NIF])
++AS_HELP_STRING([--disable-dynamic-ssl-lib],
++               [disable using dynamic openssl libraries when linking the crypto NIF]),
++[ case "$enableval" in
++    no) enable_dynamic_ssl=no ;;
++    *)  enable_dynamic_ssl=yes ;;
++  esac ], enable_dynamic_ssl=undefined)
++
++AC_ARG_ENABLE(evp-dh,
++AS_HELP_STRING([--disable-evp-dh],
++	       [intentionally undocumented workaround]),
++[ case "$enableval" in
++    no)   DISABLE_EVP_DH=1;;
++    *)    DISABLE_EVP_DH=0;;
++  esac ], DISABLE_EVP_DH=0)
++
++
++AC_ARG_ENABLE(evp-hmac,
++AS_HELP_STRING([--disable-evp-hmac],
++	       [intentionally undocumented workaround]),
++[ case "$enableval" in
++    no)   DISABLE_EVP_HMAC=1;;
++    *)    DISABLE_EVP_HMAC=0;;
++  esac ], DISABLE_EVP_HMAC=0)
++
++AC_ARG_ENABLE(otp-test-engine,
++AS_HELP_STRING([--disable-otp-test-engine],
++       [Disable build of the otp_test_engine. (default is --enable-otp-test-engine, unless for LibreSSL >= 3.5.0 where default is --disable-otp-test-engine)]),
++[ case "$enableval" in
++    no)   DISABLE_OTP_TEST_ENGINE=yes;;
++    *)    DISABLE_OTP_TEST_ENGINE=no;;
++  esac ], DISABLE_OTP_TEST_ENGINE=default)
++
++AC_DEFUN([ERL_LINK_CRYPTO_IFELSE], [
++    test_cflags=$1
++    test_ldflags=$2
++    test_libs=$3
++
++    saveCFLAGS="$CFLAGS"
++    saveLDFLAGS="$LDFLAGS"
++    saveLIBS="$LIBS"
++    CFLAGS="$DED_BASIC_CFLAGS $test_cflags"
++    LDFLAGS="$DED_LDFLAGS_CONFTEST $test_ldflags"
++    LIBS="$LIBS $test_libs"
++
++    AC_LINK_IFELSE(
++	[AC_LANG_PROGRAM(
++	    [[
++		#include <stdio.h>
++		#include <openssl/hmac.h>
++	    ]],
++	    [[ 
++		HMAC(0, 0, 0, 0, 0, 0, 0);
++	    ]])],
++	[
++	    $4
++	],
++	[
++	    $5
++	])
++
++    CFLAGS="$saveCFLAGS"
++    LDFLAGS="$saveLDFLAGS"
++    LIBS="$saveLIBS"
++])
++
++AC_DEFUN([ERL_CRYPTO_CHECK_LIB], [
++    # Check for static and dynamic crypto library in the directory
++    # given as argument...
++    # 
++    # Written as a macro in order to avoid writing the tests twice...
++    idir=$1
++    prfx=$2
++    rdir=$3
++    dir="$prfx$rdir"
++    static_crypto_lib_name=crypto
++    static_ssl_lib_name=ssl
++    static_extra_libs="$forced_static_zlib"
++    static_lib_dir=
++    dynamic_crypto_lib_name=crypto
++    dynamic_ssl_lib_name=ssl
++    dynamic_extra_libs="$forced_static_zlib"
++    dynamic_lib_dir=
++    dynamic_runtime_lib_dir=
++    found_static_lib=no
++    found_dynamic_lib=no
++
++    save_CPPFLAGS=$CPPFLAGS
++    CPPFLAGS="-I$idir/include"
++    AC_EGREP_CPP(^yes.?$,[
++#include <openssl/opensslv.h>
++#if OPENSSL_VERSION_NUMBER >= 0x0090803fL
++yes
++#endif
++		 ],
++		 [valid_include=yes],
++		 [valid_include=no])
++    AC_EGREP_CPP(^yes.?$,[
++#include <openssl/opensslv.h>
++#if OPENSSL_VERSION_MAJOR == 3
++yes
++#endif
++		 ],
++		 [v3_include=yes],
++		 [v3_include=no])
++
++
++    if test "x$DISABLE_OTP_TEST_ENGINE" = "xdefault"; then
++# Get default value for the --disable-otp-test-engine. Depends on cryptolib version
++          AC_EGREP_CPP(^yes.?$,[
++#include <openssl/opensslv.h>
++#if LIBRESSL_VERSION_NUMBER >= 0x3050000fL
++yes
++#endif
++        		 ],
++	                 [DISABLE_OTP_TEST_ENGINE=yes],
++                         [DISABLE_OTP_TEST_ENGINE=no])
++    fi
++
++    CPPFLAGS="$save_CPPFLAGS"
++
++    AS_IF([test -f "$with_ssl_lib"],
++          [
++              found_dynlib=no
++              found_static_lib=yes
++              static_ext=.a
++          ],
++          [test $valid_include != yes],
++          [
++              # Not a valid include...
++              static_crypto_lib_name=
++              static_ssl_lib_name=
++              static_extra_libs=
++              static_lib_dir=
++              dynamic_crypto_lib_name=
++              dynamic_ssl_lib_name=
++              dynamic_extra_libs=
++              dynamic_lib_dir=
++              dynamic_runtime_lib_dir=
++          ],
++          [test "$host_os" = "win32"],
++          [
++              # Windows...
++              AS_IF([test "x$ac_cv_sizeof_void_p" = "x8"],
++                    [
++                        lib_bits=64
++                    ],
++                    [
++                        lib_bits=32
++                    ])
++              AS_IF([test -f "$dir/lib/VC/static/libcrypto${lib_bits}MD.lib"],
++                    [
++                        static_crypto_lib_name=libcrypto${lib_bits}MD
++                        static_ssl_lib_name="libssl${lib_bits}MD"
++                        static_extra_libs="$static_extra_libs -lCRYPT32 -lWS2_32"
++                        static_lib_dir="$dir/lib/VC/static"
++                        found_static_lib=yes
++                    ])
++              AS_IF([test -f "$dir/lib/VC/libcrypto${lib_bits}MD.lib"],
++                    [
++                        dynamic_crypto_lib_name=libcrypto${lib_bits}MD
++                        dynamic_ssl_lib_name="libssl${lib_bits}MD"
++                        dynamic_runtime_lib_dir="$rdir/lib/VC"
++                        dynamic_lib_dir="$dir/lib/VC"
++                        found_dynamic_lib=yes
++                    ])
++          ],
++          [
++              # Not windows...
++              AS_CASE(["$host_os"],
++                      [darwin*],
++                      [
++                          static_ext=.a
++                          dynamic_ext=.dylib
++                      ],
++                      [
++                          static_ext=.a
++                          dynamic_ext=.so
++                      ])
++              for sdir in $search_subdirs; do
++                  AS_IF([test -f "$dir/$sdir/lib$dynamic_crypto_lib_name$dynamic_ext"],
++                        [
++                            found_dynlib=yes
++                        ],
++                        [
++                            found_dynlib=no
++                            AS_CASE([$host_os],
++                                    [openbsd*],
++                                    [
++                                        # libcrypto.so got a suffix on (at least some) openbsd. 
++                                        # If we find libcrypto.so with suffix, we try to link
++                                        # to it using -lcrypto ...
++                                        for f in "$dir/$sdir/lib$dynamic_crypto_lib_name$dynamic_ext"*; do
++                                               AS_IF([test -f "$f"], [found_dynlib=yes; break])
++                                        done
++                                    ])
++                       ])
++                  AS_IF([test $found_dynlib = yes],
++                        [
++                            # Found dynamic library; check if it links...
++                            dynamic_lib_dir="$dir/$sdir"
++                            dynamic_runtime_lib_dir="$rdir/$sdir"
++                            ERL_LINK_CRYPTO_IFELSE(["-I$idir/include"],
++                                                   ["-L$dynamic_lib_dir"],
++                                                   ["-l$dynamic_crypto_lib_name $dynamic_extra_libs"],
++                                                   [found_dynamic_lib=yes],
++                                                   [found_dynamic_lib=no])
++                            AS_IF([test $found_dynamic_lib = no -a $static_zlib != no],
++                                  [
++                                      # No, but linking with zlib as well might help...
++                                      dynamic_extra_libs="$dynamic_extra_libs $static_zlib"
++                                      ERL_LINK_CRYPTO_IFELSE(["-I$idir/include"],
++                                                             ["-L$dynamic_lib_dir"],
++                                                             ["-l$dynamic_crypto_lib_name $dynamic_extra_libs"],
++                                                             [found_dynamic_lib=yes],
++                                                             [found_dynamic_lib=no])
++                                  ])
++                        ])
++                  AS_IF([test -f "$dir/$sdir/lib$static_crypto_lib_name$static_ext"],
++                        [
++                            # Found static library; check if it links...
++                            static_lib_dir="$dir/$sdir"
++                            ERL_LINK_CRYPTO_IFELSE(["-I$idir/include"],
++                                                   [],
++                                                   ["$dir/$sdir/lib$static_crypto_lib_name$static_ext $static_extra_libs"],
++                                                   [found_static_lib=yes],
++                                                   [found_static_lib=no])
++                            AS_IF([test $found_static_lib = no -a $static_zlib != no],
++                                  [
++                                      # No, but inking with zlib as well might help...
++                                      static_extra_libs="$static_extra_libs $static_zlib"
++                                      ERL_LINK_CRYPTO_IFELSE(["-I$idir/include"],
++                                                             [],
++                                                             ["$dir/$sdir/lib$static_crypto_lib_name$static_ext $static_extra_libs"],
++                                                             [found_static_lib=yes],
++                                                             [found_static_lib=no])
++                                  ])
++                        ])
++                  AS_IF([test $found_static_lib = yes -o $found_dynamic_lib = yes],
++                        [break])
++              done
++          ])
++])
++
++# Remove all SKIP files from previous runs
++for a in ssl crypto ssh; do
++  rm -f "$ERL_TOP/lib/$a/SKIP"
++done
++
++# Setup subdirectories to search in...
++search_subdirs="lib"
++if test "$ac_cv_sizeof_void_p" = "8"; then
++   search_subdirs="$search_subdirs lib64 lib/64"
++else
++   search_subdirs="$search_subdirs lib32 lib/32"
++fi
++test "$multiarch_dir" = "" || search_subdirs="lib/$multiarch_dir $search_subdirs"
++test "$with_ssl_lib_subdir" = "" || search_subdirs="$with_ssl_lib_subdir $search_subdirs"
++
++# We might need to link with zlib, so first check if we can find
++# a static zlib to use if needed...
++static_zlib=no
++forced_static_zlib=
++case "$with_ssl_zlib" in
++     no)
++     	;;
++     default | yes)
++     	AC_MSG_CHECKING([for static zlib])
++     	for dir in $std_ssl_locations; do
++	    for sdir in $search_subdirs; do
++	    	if test -f "$erl_xcomp_sysroot$dir/$sdir/libz.a"; then
++		   static_zlib="$erl_xcomp_sysroot$dir/$sdir/libz.a"
++		   break
++		fi
++	    done
++	    test "$static_zlib" = "no" || break
++	done
++	AC_MSG_RESULT([$static_zlib])
++	if test $with_ssl_zlib = yes; then
++	   if test $static_zlib = no; then
++		AC_MSG_ERROR([linking with zlib requested by user, but no such library was found])
++	   fi
++	   forced_static_zlib="$static_zlib"
++	   static_zlib=no
++	fi;;
++     *) # PATH
++     	AC_MSG_CHECKING([for static zlib])
++     	if test -f "$with_ssl_zlib/libz.a"; then
++	   forced_static_zlib="$with_ssl_zlib/libz.a"
++	else
++	   for sdir in $search_subdirs; do
++	       if test -f "$with_ssl_zlib/$sdir/libz.a"; then
++	       	  forced_static_zlib="$with_ssl_zlib/$sdir/libz.a"
++		  break
++	       fi
++	   done
++	fi
++	if test "$forced_static_zlib" = ""; then
++	   AC_MSG_ERROR([linking with zlib requested by user, but no such library was found in $with_ssl_zlib])
++	fi
++	AC_MSG_RESULT([$forced_static_zlib])
++	;;
++esac
++
++if test $enable_dynamic_ssl = undefined; then
++   if test "$host_os" = "win32" ; then
++      enable_dynamic_ssl=default_no
++   else
++      enable_dynamic_ssl=default_yes
++   fi
++fi
++
++case $enable_dynamic_ssl in
++     yes|default_yes)
++	SSL_DYNAMIC_ONLY=yes;;
++     *)
++	SSL_DYNAMIC_ONLY=no;;
++esac
++
++AS_CASE(["$erl_xcomp_without_sysroot-$with_ssl-$with_ssl_lib"],
++        [yes-* | no-no-*],
++        [
++            SSL_APP=
++            CRYPTO_APP=
++            SSH_APP=
++            if test "$with_ssl" != "no"; then
++	           skip="Cannot search for ssl; missing cross system root (erl_xcomp_sysroot)."
++               fi
++            for a in ssl crypto ssh; do
++                echo "$skip" > $ERL_TOP/lib/$a/SKIP
++                done
++        ],
++        [no-yes- | no--],
++        [
++            # We search for OpenSSL in the common OS standard locations.
++            SSL_APP=ssl
++            CRYPTO_APP=crypto
++            SSH_APP=ssh
++
++            AS_IF([test "$host_os" != "win32"],
++                  [
++                      std_win_ssl_locations=
++                  ],
++                  [
++                      AS_IF([test "x$ac_cv_sizeof_void_p" = "x8"],
++                            [
++	                        std_win_ssl_locations="/mnt/c/OpenSSL-Win64 /c/OpenSSL-Win64 /mnt/c/opt/local64/pgm/OpenSSL /opt/local64/pgm/OpenSSL /cygdrive/c/OpenSSL-Win64"
++                            ],
++                            [
++                                std_win_ssl_locations="/mnt/c/OpenSSL-Win32 /c/OpenSSL-Win32 /mnt/c/OpenSSL /c/OpenSSL /cygdrive/c/OpenSSL /opt/local/pgm/OpenSSL /opt/local32/pgm/OpenSSL /mnt/c/opt/local/pgm/OpenSSL /mnt/c/opt/local32/pgm/OpenSSL /cygdrive/c/OpenSSL-Win32"
++                            ])
++	          ])
++
++           usable_crypto=no
++           AC_MSG_CHECKING([for OpenSSL crypto library with version >= 0.9.8c in standard locations])
++           for rdir in $std_win_ssl_locations $std_ssl_locations; do
++               AS_IF([test -f "$erl_xcomp_isysroot$rdir/include/openssl/opensslv.h"],
++                     [
++                         SSL_INCDIR="$erl_xcomp_isysroot$rdir"
++                         SSL_INCLUDE="-I$SSL_INCDIR/include"
++                         ERL_CRYPTO_CHECK_LIB(["$SSL_INCDIR"], ["$erl_xcomp_sysroot"], ["$rdir"])
++                         AS_CASE([$enable_dynamic_ssl-$found_dynamic_lib-$found_static_lib],
++                                 [no-*-no],
++                                 [
++                                     # Dynamic linking against ssl library disabled by user,
++                                     # and no static library found...
++                                 ],
++                                 [yes-no-*],
++                                 [
++                                     # Static linking against ssl library disabled by user,
++                                     # and no dynamic library found...
++                                 ],
++                                 [*-no-no],
++                                 [
++                                     # Neither static nor dynamic ssl library found...
++                                 ],
++                                 [no-*-yes | default_no-*-yes | default_yes-no-yes],
++                                 [
++                                     # Link statically...
++                                     SSL_CRYPTO_LIBNAME=$static_crypto_lib_name
++                                     SSL_SSL_LIBNAME=$static_ssl_lib_name
++                                     SSL_LIBDIR="$static_lib_dir"
++                                     SSL_EXTRA_LIBS="$static_extra_libs"
++                                     SSL_RUNTIME_LIBDIR=
++                                     SSL_DYNAMIC_ONLY=no
++                                     usable_crypto=yes
++                                     break
++                                 ],
++                                 [*-yes-*],
++                                 [
++                                     # Link dynamically...
++                                     SSL_CRYPTO_LIBNAME=$dynamic_crypto_lib_name
++                                     SSL_SSL_LIBNAME=$dynamic_ssl_lib_name
++                                     SSL_EXTRA_LIBS="$dynamic_extra_libs"
++                                     SSL_LIBDIR="$dynamic_lib_dir"
++                                     SSL_RUNTIME_LIBDIR="$dynamic_runtime_lib_dir"
++                                     SSL_DYNAMIC_ONLY=yes
++                                     usable_crypto=yes
++                                     break
++                                 ])
++                     ])
++            done
++
++            AS_IF([test $usable_crypto = yes],
++                  [AS_IF([test $SSL_DYNAMIC_ONLY = yes],
++       	                 [AC_MSG_RESULT([dynamic $SSL_CRYPTO_LIBNAME library in $SSL_LIBDIR])],
++                         [AC_MSG_RESULT([static $SSL_CRYPTO_LIBNAME library in $SSL_LIBDIR])])],
++                  [
++                         AC_MSG_RESULT([no])
++                         SSL_APP=
++                         CRYPTO_APP=
++                         SSH_APP=
++
++                         SSL_INCDIR=
++                         SSL_INCLUDE=
++                         SSL_CRYPTO_LIBNAME=
++                         SSL_SSL_LIBNAME=
++                         SSL_INCDIR=
++                         SSL_RUNTIME_LIBDIR=
++                         SSL_LIBDIR=
++
++                         AS_CASE(["$with_ssl-$enable_dynamic_ssl"],
++                                 [yes-yes],
++                                 [
++                                     AC_MSG_ERROR([crypto library with dynamic linking requested by user, but no such library was found])
++                                 ],
++                                 [yes-no],
++                                 [
++                                     AC_MSG_ERROR([crypto library with static linking requested by user, but no such library was found])
++                                 ],
++                                 [yes-*],
++                                 [
++                                     AC_MSG_ERROR([crypto library requested by user, but no such library was found])
++                                 ],
++                                 [
++                                     AC_MSG_WARN([No (usable) OpenSSL found, skipping ssl, ssh and crypto applications])
++                                 ])
++
++                         for a in ssl crypto ssh; do
++                             echo "No usable OpenSSL found" > $ERL_TOP/lib/$a/SKIP
++                         done
++                  ])
++        ],
++        [*-*-],
++        [
++            # Option given with PATH to package
++            AS_IF([test ! -d "$with_ssl"],
++                  [AC_MSG_ERROR(Invalid path to option --with-ssl=PATH)])
++            AS_IF([test ! -d "$with_ssl_incl"],
++                  [AC_MSG_ERROR(Invalid path to option --with-ssl-incl=PATH)])
++            AC_MSG_CHECKING([for OpenSSL header in $with_ssl_incl])
++            AS_IF([test -f "$with_ssl_incl/include/openssl/opensslv.h"],
++                  [AC_MSG_RESULT([yes])],
++                  [AC_MSG_ERROR([no OpenSSL header found in $with_ssl_incl])])
++            SSL_INCDIR="$with_ssl_incl"
++            AC_MSG_CHECKING([for OpenSSL in $with_ssl])
++            ERL_CRYPTO_CHECK_LIB(["$with_ssl_incl"], [""], ["$with_ssl"])
++            AS_CASE([$enable_dynamic_ssl-$found_dynamic_lib-$found_static_lib],
++                    [no-*-no],
++       	            [
++                        AC_MSG_ERROR([dynamic linking against crypto library disabled by user, but no static library found in $with_ssl])
++                    ],
++                    [yes-no-*],
++       	            [
++                        AC_MSG_ERROR([static linking against crypto library disabled by user, but no dynamic library found in $with_ssl])
++                    ],
++                    [*-no-no],
++       	            [
++                        AC_MSG_ERROR([neither static nor dynamic crypto library found in $with_ssl])
++                    ],
++                    [no-*-yes | default_no-*-yes | default_yes-no-yes],
++                    [
++                        # Link statically...
++   	                    SSL_CRYPTO_LIBNAME=$static_crypto_lib_name
++                        SSL_SSL_LIBNAME=$static_ssl_lib_name
++                        SSL_LIBDIR="$static_lib_dir"
++                        SSL_EXTRA_LIBS="$static_extra_libs"
++                        SSL_RUNTIME_LIBDIR=
++                        SSL_DYNAMIC_ONLY=no
++                    ],
++	                [*-yes-*],
++                    [
++                        # Link dynamically...
++                        SSL_CRYPTO_LIBNAME=$dynamic_crypto_lib_name
++                        SSL_SSL_LIBNAME=$dynamic_ssl_lib_name
++                        SSL_EXTRA_LIBS="$dynamic_extra_libs"
++                        SSL_LIBDIR="$dynamic_lib_dir"
++                        SSL_RUNTIME_LIBDIR="$dynamic_runtime_lib_dir"
++                        SSL_DYNAMIC_ONLY=yes
++                   ])
++            AS_IF([test $SSL_DYNAMIC_ONLY = yes],
++                  [AC_MSG_RESULT([dynamic $SSL_CRYPTO_LIBNAME library in $SSL_LIBDIR])],
++                  [AC_MSG_RESULT([static $SSL_CRYPTO_LIBNAME library in $SSL_LIBDIR])])
++            SSL_INCLUDE="-I$with_ssl_incl/include"
++            SSL_APP=ssl
++            CRYPTO_APP=crypto
++            SSH_APP=ssh
++            AS_IF([test "$cross_compiling" = "yes"],
++                  [
++                      SSL_RUNTIME_LIBDIR=`echo "$SSL_LIBDIR" | sed -n "s|^$erl_xcomp_sysroot\(/*\)\(.*\)\$|/\2|p"`
++                  ],
++                  [
++                      SSL_RUNTIME_LIBDIR="$SSL_LIBDIR"
++                  ])
++        ],
++        [
++            # Non-standard library specified by PATH
++            if test ! -f "$with_ssl_lib" ; then
++                AC_MSG_ERROR(Invalid path to option --with-ssl-lib=PATH)
++            fi
++
++            SSL_APP=ssl
++            CRYPTO_APP=crypto
++            SSH_APP=ssh
++
++            if test -d "$with_ssl_incl" ; then
++                if test ! -f "$with_ssl_incl/include/openssl/opensslv.h"; then
++                    AC_MSG_ERROR("$with_ssl_incl/include/openssl/opensslv.h not found")
++                fi
++                SSL_INCDIR="$with_ssl_incl"
++                SSL_INCLUDE="-I$SSL_INCDIR/include"
++                ERL_CRYPTO_CHECK_LIB(["$with_ssl_incl"], [""], ["$with_ssl"])
++              else
++                if test ! -f "$erl_xcomp_isysroot$rdir/include/openssl/opensslv.h"; then
++                    AC_MSG_ERROR("$erl_xcomp_isysroot$rdir/include/openssl/opensslv.h not found")
++                fi
++                SSL_INCDIR="$erl_xcomp_isysroot$rdir"
++                SSL_INCLUDE="-I$SSL_INCDIR/include"
++                ERL_CRYPTO_CHECK_LIB(["$SSL_INCDIR"], ["$erl_xcomp_sysroot"], ["$rdir"])
++            fi
++
++            libname_with_ext=${with_ssl_lib##*lib}
++            libname_without_ext=${libname_with_ext%%.*}
++
++            SSL_CRYPTO_LIBNAME=$static_crypto_lib_name
++            SSL_SSL_LIBNAME=$libname_without_ext
++            SSL_LIBDIR=$(dirname $with_ssl_lib)
++            SSL_EXTRA_LIBS="$static_extra_libs"
++            SSL_RUNTIME_LIBDIR=
++            SSL_DYNAMIC_ONLY=no
++
++            if test ! -f "${SSL_LIBDIR}/lib${SSL_SSL_LIBNAME}.a"; then
++              AC_MSG_ERROR(--with-ssl-lib not supported with dynamic linking)
++            fi
++
++            dnl TODO: Add a check for the lib actually having OpenSSL symbols ?
++        ])dnl AS_CASE
++
++AS_IF([test "x$with_crypto_lib" != "x"],
++      [
++          if test ! -f "$with_crypto_lib" ; then
++              AC_MSG_ERROR(Invalid path to option --with-crypto-lib=PATH)
++          fi
++          crypto_libdir=$(dirname $with_crypto_lib)
++          if test "x$SSL_LIBDIR" != "x" -a "$crypto_libdir" != "$SSL_LIBDIR"; then
++              AC_MSG_ERROR(--with-crypto-lib must be in the selected OpenSSL library directory)
++          fi
++          crypto_libname_with_ext=${with_crypto_lib##*lib}
++          crypto_libname_without_ext=${crypto_libname_with_ext%%.*}
++          SSL_CRYPTO_LIBNAME=$crypto_libname_without_ext
++          SSL_LIBDIR=$crypto_libdir
++          SSL_DYNAMIC_ONLY=no
++      ])
++
++SSL_DED_LD_RUNTIME_LIBRARY_PATH=
++ded_ld_rflg="$DED_LD_FLAG_RUNTIME_LIBRARY_PATH"
++
++AS_CASE(["$with_ssl_rpath"],
++        [no],
++        [
++            # Use no ssl runtime library path
++            SSL_DED_LD_RUNTIME_LIBRARY_PATH=
++        ],
++        [yes | default],
++        [
++            # Use standard lib locations for ssl runtime library path
++            AC_MSG_CHECKING([for runtime library path to use])
++
++            if test $enable_dynamic_ssl = no -a "$with_ssl_rpath" = yes; then
++               AC_MSG_ERROR([requested by user, but user also requested static linking])
++            fi
++
++            AS_IF([test "$CRYPTO_APP" = ""],
++                  [
++                      AS_IF([test "$with_ssl_rpath" = yes],
++                            [AC_MSG_ERROR([requested by user, but could not be used since no crypto library was found])])
++                      AC_MSG_RESULT([])
++                  ],
++                  [test "$ded_ld_rflg" = ""],
++                  [
++                      AS_IF([test "$with_ssl_rpath" = yes],
++                            [AC_MSG_ERROR([requested by user, but cannot be set on this platform])])
++                      AC_MSG_RESULT([])
++                  ],
++                  [test "$SSL_DYNAMIC_ONLY" != "yes"],
++                  [
++                      AS_IF([test "$with_ssl_rpath" = yes],
++                            [AC_MSG_WARN([requested by user, but dynamic linking will not be used])],
++                            [AC_MSG_RESULT([])])
++                  ],
++                  [
++                      # Try to find a suitable rpath based on default install directories...
++                      libdirs="/lib"
++
++                      dir_lib64=no
++                      dir_lib_64=no
++                      dir_lib32=no
++                      dir_lib_32=no
++                      dir_multiarch=no
++                      dir_with_ssl_lib_subdir=no
++
++                      AS_IF([test "$multiarch_dir" != ""], [dir_multiarch=yes])
++                      AS_IF([test "$with_ssl_lib_subdir" != ""], [dir_with_ssl_lib_subdir=yes])
++
++                      AS_CASE(["$SSL_RUNTIME_LIBDIR"],
++                              [*/lib/64 | */lib/64/], [dir_lib_64=yes],
++                              [*/lib64 | */lib64/], [dir_lib64=yes],
++                              [*/lib/32 | */lib/32/], [dir_lib_32=yes],
++                              [*/lib32 | */lib32/], [dir_lib32=yes])
++
++                      for dir in $std_ssl_locations; do
++                          AS_IF([test "$ac_cv_sizeof_void_p" = "8"],
++                                [
++                                    AS_IF([test $dir_lib_64 = no && test -d "$erl_xcomp_sysroot$dir/lib/64"],
++                                          [dir_lib_64=yes])
++                                    AS_IF([test $dir_lib64 = no && test -d "$erl_xcomp_sysroot$dir/lib64"],
++                                          [dir_lib64=yes])
++                                ],
++                                [
++                                    AS_IF([test $dir_lib_32 = no && test -d "$erl_xcomp_sysroot$dir/lib/32"],
++                                          [dir_lib_32=yes])
++                                    AS_IF([test $dir_lib32 = no && test -d "$erl_xcomp_sysroot$dir/lib32"],
++                                          [dir_lib32=yes])
++                                ])
++                          AS_IF([test $dir_multiarch = no && test -d "$erl_xcomp_sysroot$dir/lib/$multiarch_dir"],
++                                [dir_multiarch=yes])
++                      done
++
++                      AS_IF([test $dir_with_ssl_lib_subdir = yes],
++                            [libdirs="/$with_ssl_lib_subdir $libdirs"])
++                      AS_IF([test $dir_multiarch = yes],
++                            [libdirs="/lib/$multiarch_dir $libdirs"])
++                      AS_IF([test $dir_lib_64 = yes],
++                            [libdirs="/lib/64 $libdirs"])
++                      AS_IF([test $dir_lib64 = yes],
++                            [libdirs="/lib64 $libdirs"])
++                      AS_IF([test $dir_lib_32 = yes],
++                            [libdirs="/lib/32 $libdirs"])
++                      AS_IF([test $dir_lib32 = yes],
++                            [libdirs="/lib32 $libdirs"])
++
++                      #
++                      # We try the follwing runtime paths in the
++                      # following order:
++                      # 1. Standard ssl locations with all variations
++                      #    of lib subdirectories that we know of
++                      # 2. Standard ssl locations with all variations
++                      #    of lib subdirectories that we know of and
++                      #    exist on this machine
++                      # 3. Determined $SSL_RUNTIME_LIBDIR
++                      # If none of the above links, we skip runtime
++                      # library path...
++                      #
++                      for type in std x_std curr; do
++
++                          ded_ld_rpath="$ded_ld_rflg$SSL_RUNTIME_LIBDIR"
++                          rpath="$SSL_RUNTIME_LIBDIR"
++
++                          AS_IF([test $type != curr],
++                                [
++                                    for ldir in $libdirs; do
++                                        for dir in $std_ssl_locations; do
++                                            AS_IF([test "$SSL_RUNTIME_LIBDIR" = "$dir$ldir"],
++                                                  [continue])
++                                            AS_IF([test $type = x_std && test '!' -d "$erl_xcomp_sysroot$dir$ldir"],
++                                                  [continue])
++                                            AS_IF([test "$dir" = "/"],
++                                                  [libdir="$ldir"],
++                                                  [libdir="$dir$ldir"])
++                                            ded_ld_rpath="$ded_ld_rpath $ded_ld_rflg$libdir"
++                                            rpath="$rpath:$libdir"
++                                        done
++                                    done
++                                ])
++
++                          # Check that it still links when we add the runtime path...
++                          ERL_LINK_CRYPTO_IFELSE(["$SSL_INCLUDE"],
++                                                 ["$ded_ld_rpath -L$SSL_LIBDIR"],
++                                                 ["-l$SSL_CRYPTO_LIBNAME $SSL_EXTRA_LIBS"],
++                                                 [rpath_success=yes],
++                                                 [rpath_success=no])
++
++                          AS_IF([test "$rpath_success" = "yes"], [break])
++
++                      done
++
++                      AS_IF([test "$rpath_success" != "yes"],
++                            [
++                                ded_ld_rpath=
++                                rpath=
++                            ])
++
++                      SSL_DED_LD_RUNTIME_LIBRARY_PATH="$ded_ld_rpath"
++
++                      AS_IF([test "$rpath" != ""],
++                            [
++                                AC_MSG_RESULT([$rpath])
++                            ],
++                            [test "$with_ssl_rpath" = yes],
++                            [
++                                AC_MSG_ERROR([requested by user, but could not be used])
++                            ],
++                            [
++                                AC_MSG_WARN([unable to set run path during linking])
++                            ])
++                  ])
++        # end yes|default
++        ],
++        [
++            # Use ssl runtime library paths set by --with-ssl-rpath
++            AC_MSG_CHECKING([whether runtime library path can be set])
++
++            AS_IF([test $enable_dynamic_ssl = no],
++                  [
++                      AC_MSG_ERROR([runtime library path requested by user, but user also requested static linking])
++                  ],
++                  [test "$CRYPTO_APP" = ""],
++                  [
++                      AC_MSG_ERROR([runtime library path requested by user, but could not be set since no crypto library was found])
++                  ],
++                  [test "$ded_ld_rflg" = ""],
++                  [
++                      AC_MSG_ERROR([runtime library path requested by user, but cannot be set on this platform])
++                  ],
++                  [test "$SSL_DYNAMIC_ONLY" != "yes"],
++                  [
++                      AC_MSG_WARN([runtime library path requested by user, but dynamic linking will not be used])
++                  ],
++                  [
++                      # Check that it links...
++                      ded_ld_rpath=
++                      delimit=
++                      rpath=
++                      rpath_delimit=
++                      save_ifs="$IFS"; IFS=",:"
++                      for dir in $with_ssl_rpath; do
++                          ded_ld_rpath="$ded_ld_rpath$delimit$ded_ld_rflg$dir"
++                          delimit=" "
++                          rpath="$rpath$rpath_delimit$dir"
++                          rpath_delimit=":"
++                      done
++                      IFS="$save_ifs"
++                      SSL_DED_LD_RUNTIME_LIBRARY_PATH="$ded_ld_rpath"
++                      ERL_LINK_CRYPTO_IFELSE(["$SSL_INCLUDE"],
++                                             ["$ded_ld_rpath -L$SSL_LIBDIR"],
++                                             ["-l$SSL_CRYPTO_LIBNAME $SSL_EXTRA_LIBS"],
++                                             [rpath_success=yes],
++                                             [rpath_success=no])
++                      AS_IF([test "$rpath_success" = yes],
++                            [AC_MSG_RESULT([yes; using $rpath])],
++                            [AC_MSG_ERROR([runtime library path requested by user, but link failed])])
++                  ])
++        ])dnl AS_CASE    
++
++AC_ARG_ENABLE(fips,
++AS_HELP_STRING([--enable-fips], [enable OpenSSL FIPS mode support])
++AS_HELP_STRING([--disable-fips], [disable OpenSSL FIPS mode support (default)]),
++[ case "$enableval" in
++    yes) enable_fips_support=yes ;;
++    *)   enable_fips_support=no ;;
++  esac ], enable_fips_support=no)
++
++SSL_FLAGS=
++AS_IF([test "$enable_fips_support" = "yes"],
++      [
++          AS_IF([test "$CRYPTO_APP" = ""],
++                [AC_MSG_ERROR([FIPS support requested, but no crypto library found])])
++          # Insert check for FIPS support here
++          SSL_FLAGS="-DFIPS_SUPPORT"
++      ])
++
++AS_IF([test "x$v3_include" = "xyes"],
++      [
++       AS_IF([test "x$SSL_DYNAMIC_ONLY" = "xno" ],
++             [
++              echo "Static linking with OpenSSL 3.0 *MAY* require special configuring of the cryptolib." >> ./CONF_INFO
++              AC_MSG_WARN(******************************************************************)
++              AC_MSG_WARN(* Static linking *MAY* require re-configuring the 3.0 cryptolib. *)
++              AC_MSG_WARN(******************************************************************)
++             ])
++      ])
++
++CRYPTO_NO_DEPRECATE_WARN=
++AS_IF([test "x$v3_include" = "xyes" && test "$CRYPTO_APP" != ""],
++      [CRYPTO_NO_DEPRECATE_WARN="-Wno-deprecated-declarations"
++      ])
++
++saveCFLAGS="$CFLAGS"
++saveLDFLAGS="$LDFLAGS"
++saveLIBS="$LIBS"
++CFLAGS="$DED_BASIC_CFLAGS $SSL_INCLUDE"
++AS_IF([test $SSL_DYNAMIC_ONLY = yes],
++      [
++          LDFLAGS="$DED_LDFLAGS_CONFTEST $ded_ld_rpath -L$SSL_LIBDIR"
++          LIBS="$LIBS -l$SSL_CRYPTO_LIBNAME $SSL_EXTRA_LIBS"
++      ],
++      [
++          LDFLAGS="$saveLDFLAGS"
++          AS_IF([test "$host_os" = "win32"],
++                [LIBS="$LIBS $SSL_LIBDIR/$SSL_CRYPTO_LIBNAME.lib $SSL_EXTRA_LIBS"],
++                [LIBS="$LIBS $SSL_LIBDIR/lib$SSL_CRYPTO_LIBNAME.a $SSL_EXTRA_LIBS"])
++      ])
++AC_CHECK_DECL([CRYPTO_memcmp],
++	      [have_crypto_memcmp_decl=yes],
++	      [have_crypto_memcmp_decl=no],
++	      [#include <openssl/crypto.h>])
++AS_IF([test $have_crypto_memcmp_decl = yes],
++      [
++          AC_MSG_CHECKING([whether CRYPTO_memcmp can be linked])
++          AC_LINK_IFELSE(
++              [AC_LANG_PROGRAM([[
++                                    #include <openssl/crypto.h>
++                               ]],
++                               [[
++                                    CRYPTO_memcmp("a", "b", 1);
++                               ]])],
++              [
++                  SSL_FLAGS="-DHAVE_OPENSSL_CRYPTO_MEMCMP $SSL_FLAGS"
++                  AC_MSG_RESULT([yes])
++              ],
++              [
++                  AC_MSG_RESULT([no])
++              ])
++      ])
++CFLAGS="$saveCFLAGS"
++LDFLAGS="$saveLDFLAGS"
++LIBS="$saveLIBS"
++
++AC_SUBST(SSL_INCLUDE)
++AC_SUBST(SSL_INCDIR)
++AC_SUBST(SSL_LIBDIR)
++AC_SUBST(SSL_FLAGS)
++AC_SUBST(SSL_CRYPTO_LIBNAME)
++AC_SUBST(SSL_SSL_LIBNAME)
++AC_SUBST(SSL_EXTRA_LIBS)
++AC_SUBST(SSL_DED_LD_RUNTIME_LIBRARY_PATH)
++AC_SUBST(SSL_DYNAMIC_ONLY)
++AC_SUBST(DISABLE_EVP_DH)
++AC_SUBST(DISABLE_EVP_HMAC)
++AC_SUBST(DISABLE_OTP_TEST_ENGINE)
++AC_SUBST(CRYPTO_NO_DEPRECATE_WARN)
+ 
+ AC_CONFIG_FILES([c_src/$host/Makefile:c_src/Makefile.in])
+ AC_OUTPUT
+diff --git a/lib/erl_interface/src/connect/ei_connect.c b/lib/erl_interface/src/connect/ei_connect.c
+index 8906104585..e181d75452 100644
+--- a/lib/erl_interface/src/connect/ei_connect.c
++++ b/lib/erl_interface/src/connect/ei_connect.c
+@@ -2025,7 +2025,7 @@ static unsigned int gen_challenge(void)
+     uname(&s.name);
+     s.cpu  = clock();
+     s.pid  = getpid();
+-#if defined(__ANDROID__) || defined(__HAIKU__)
++#if defined(__ANDROID__) || defined(__HAIKU__) || defined(__rtems__)
+     s.hid  = 0;
+ #else
+     s.hid  = gethostid();
+diff --git a/lib/erl_interface/src/connect/ei_resolve.c b/lib/erl_interface/src/connect/ei_resolve.c
+index 72a9397bc1..237c4af021 100644
+--- a/lib/erl_interface/src/connect/ei_resolve.c
++++ b/lib/erl_interface/src/connect/ei_resolve.c
+@@ -400,7 +400,7 @@ struct hostent *ei_gethostbyaddr_r(const char *addr,
+   return gethostbyaddr(addr, length, type);
+ #elif !defined(HAVE_GETHOSTBYNAME_R)
+   return my_gethostbyaddr_r(addr,length,type,hostp,buffer,buflen,h_errnop);
+-#elif (defined(__GLIBC__) || defined(__linux__) || (defined(__FreeBSD_version) && (__FreeBSD_version >= 602000)) || defined(__DragonFly__))
++#elif (defined(__GLIBC__) || defined(__linux__) || (defined(__FreeBSD_version) && (__FreeBSD_version >= 602000)) || defined(__DragonFly__)) || defined(__rtems__)
+   struct hostent *result;
+ 
+   gethostbyaddr_r(addr, length, type, hostp, buffer, buflen, &result,
+@@ -423,7 +423,7 @@ struct hostent *ei_gethostbyname_r(const char *name,
+   return gethostbyname(name);
+ #elif !defined(HAVE_GETHOSTBYNAME_R)
+   return my_gethostbyname_r(name,hostp,buffer,buflen,h_errnop);
+-#elif (defined(__GLIBC__) || defined(__linux__) || (defined(__FreeBSD_version) && (__FreeBSD_version >= 602000)) || defined(__DragonFly__) || defined(__ANDROID__))
++#elif (defined(__GLIBC__) || defined(__linux__) || (defined(__FreeBSD_version) && (__FreeBSD_version >= 602000)) || defined(__DragonFly__) || defined(__ANDROID__)) || defined(__rtems__)
+   struct hostent *result;
+   int err;
+ 
+diff --git a/lib/kernel/src/erl_distribution.erl b/lib/kernel/src/erl_distribution.erl
+index cd4f1cf584..b42ae865f7 100644
+--- a/lib/kernel/src/erl_distribution.erl
++++ b/lib/kernel/src/erl_distribution.erl
+@@ -76,7 +76,7 @@ start_link(Opts) ->
+     supervisor:start_link({local,net_sup}, ?MODULE, [Opts]).
+ 
+ init(NetArgs) ->
+-    Epmd = 
++    Epmd =
+ 	case init:get_argument(no_epmd) of
+ 	    {ok, [[]]} ->
+ 		[];
+@@ -89,6 +89,13 @@ init(NetArgs) ->
+                    type => worker,
+                    modules => [EpmdMod]}]
+ 	end,
++    EpmdSrv = case init:get_argument(internal_epmd) of
++        {ok, [[EpmdSrvMod]]} ->
++            Esm = list_to_atom(EpmdSrvMod),
++            Esm:get_childspecs();
++        _ ->
++            []
++    end,
+     Auth = #{id => auth,
+              start => {auth,start_link,[]},
+              restart => permanent,
+@@ -105,7 +112,7 @@ init(NetArgs) ->
+     SupFlags = #{strategy => one_for_all,
+                  intensity => 0,
+                  period => 1},
+-    {ok, {SupFlags, EarlySpecs ++ Epmd ++ [Auth,Kernel]}}.
++    {ok, {SupFlags, EarlySpecs ++ EpmdSrv ++ Epmd ++ [Auth,Kernel]}}.
+ 
+ do_start_link([{Arg,Flag}|T]) ->
+     case init:get_argument(Arg) of
+diff --git a/lib/runtime_tools/c_src/Makefile.in b/lib/runtime_tools/c_src/Makefile.in
+index fc4c4432c4..4071040443 100644
+--- a/lib/runtime_tools/c_src/Makefile.in
++++ b/lib/runtime_tools/c_src/Makefile.in
+@@ -41,7 +41,11 @@ SHELL = /bin/sh
+ LIBS = $(DED_LIBS) @LIBS@
+ LDFLAGS += $(DED_LDFLAGS)
+ 
++ifeq ($(findstring rtems,$(TARGET)),rtems)
++TRACE_LIBNAME =
++else
+ TRACE_LIBNAME = dyntrace trace_file_drv trace_ip_drv
++endif
+ 
+ SYSINCLUDE = $(DED_SYS_INCLUDE)
+ 
+@@ -110,9 +114,13 @@ docs:
+ # ----------------------------------------------------
+ include $(ERL_TOP)/make/otp_release_targets.mk
+ 
++ifeq ($(findstring rtems,$(TARGET)),rtems)
++release_spec:
++else
+ release_spec: opt
+ 	$(INSTALL_DIR) "$(RELSYSDIR)/priv/lib"
+ 	$(INSTALL_PROGRAM) $(TRACE_LIBS) "$(RELSYSDIR)/priv/lib"
++endif
+ 
+ release_docs_spec:
+ 
+diff --git a/make/configure b/make/configure
+index 0930bdc741..646a4829fa 100755
+--- a/make/configure
++++ b/make/configure
+@@ -774,6 +774,7 @@ with_javac
+ enable_megaco_flex_scanner_lineno
+ enable_megaco_reentrant_flex_scanner
+ with_ssl
++with_ssl_lib
+ with_ssl_incl
+ with_ssl_zlib
+ with_ssl_lib_subdir
+@@ -1525,6 +1526,8 @@ Optional Packages:
+   --with-ssl=PATH         base location of OpenSSL include and lib directories
+   --with-ssl              use SSL (default)
+   --without-ssl           don't use SSL
++  --with-ssl-lib=PATH     location of the library containing OpenSSL, if not
++                          standard
+   --with-ssl-incl=PATH    base location of OpenSSL include directory (if
+                           different than base location specified by
+                           --with-ssl=PATH)
+@@ -5818,6 +5821,14 @@ fi
+ 
+ 
+ 
++# Check whether --with-ssl-lib was given.
++if test ${with_ssl_lib+y}
++then :
++  withval=$with_ssl_lib;
++fi
++
++
++
+ # Check whether --with-ssl-incl was given.
+ if test ${with_ssl_incl+y}
+ then :
+diff --git a/make/configure.ac b/make/configure.ac
+index b7965529b0..2b37c37db9 100644
+--- a/make/configure.ac
++++ b/make/configure.ac
+@@ -258,6 +258,10 @@ AS_HELP_STRING([--with-ssl=PATH], [base location of OpenSSL include and lib dire
+ AS_HELP_STRING([--with-ssl], [use SSL (default)])
+ AS_HELP_STRING([--without-ssl], [don't use SSL]))
+ 
++AC_ARG_WITH(ssl-lib,
++AS_HELP_STRING([--with-ssl-lib=PATH],
++               [location of the library containing OpenSSL, if not standard]))
++
+ AC_ARG_WITH(ssl-incl,
+ AS_HELP_STRING([--with-ssl-incl=PATH],
+ 	       [base location of OpenSSL include directory (if different than base location specified by --with-ssl=PATH)]))
