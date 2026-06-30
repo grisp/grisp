@@ -46,8 +46,25 @@ jobs:
         run: echo ${{ secrets.RESCALE_CERTIFICATE_BASE_64 }} | base64 -d > certificate.p12
         working-directory: repo
 
-      - name: Run static analysis container
-        id: static_analysis
+      - name: Run static analysis container for C code
+        id: static_analysis_c
+        run: |
+          docker run \
+            --pull=always \
+            -v ${{ github.workspace }}/repo/:/user_files/ \
+            -v ${{ github.workspace }}/out:/app/out/ \
+            -e REBAR_BASE_DIR=/tmp/rebar3 \
+            -e AUTH_TOKEN="${{ secrets.RESCALE_ACCESS_TOKEN }}" \
+            -e LANG_INFO="C" \
+            -e SRC_PATH="/user_files/grisp/default/common/build/nifs" \
+            -e SBOM_IN="/user_files/sbom.json" \
+            -e DRY_RUN=true\
+            -e CERT_FILE="/user_files/certificate.p12" \
+            -e CERT_PASS="${{ secrets.RESCALE_CERTIFICATE_PASSWORD }}" \
+            harbor.rescale-project.eu/rescale-all/static_analysis_module:latest
+
+      - name: Run static analysis container for Erlang code
+        id: static_analysis_erlang
         run: |
           docker run \
             --pull=always \
