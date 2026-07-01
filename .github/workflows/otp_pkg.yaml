@@ -152,7 +152,7 @@ jobs:
           cat robot/rebar.config
         env:
           MATRIX_OTP: ${{matrix.otp}}
-      - name: Build Package
+      - name: Recompose package name
         id: deploy
         working-directory: robot
         run: |
@@ -161,7 +161,15 @@ jobs:
           $BUILD_LINE
           }" rebar.config
           rebar3 grisp report
-          PKG_HASH=$(grep -o '<<"[0-9a-f]\{64\}">>' _grisp/report/hash.txt | tail -n 1 | sed 's/[<">]//g')
+          PKG_HASH=$(
+            erl -noshell -eval '
+              {ok, Bin} = file:read_file("_grisp/report/hash.txt"),
+              {ok, Tokens, _} = erl_scan:string(binary_to_list(Bin) ++ "."),
+              {ok, #{value := Hash}} = erl_parse:parse_term(Tokens),
+              io:format("~s", [binary_to_list(Hash)]),
+              halt().
+            '
+          )
           PKG_NAME=grisp_otp_build_${MATRIX_OTP}_${PKG_HASH}.tar.gz
           echo "pkg_name=$PKG_NAME" >> $GITHUB_ENV
         env:
