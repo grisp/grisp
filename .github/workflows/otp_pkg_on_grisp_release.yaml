@@ -132,7 +132,7 @@ jobs:
       matrix:
         otp: ["${{ needs.define-matrix.outputs.otp-version }}"]
         deps: ['grisp', 'grisp, grisp_cryptoauth']
-        rebar3: ['3.24.0']
+        rebar3: ['3']
     outputs:
       artifacts: ${{ steps.matrix-def.outputs.otp-version }}
       upload-output: ${{ steps.set-upload-output.outputs.upload-output }}
