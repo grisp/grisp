@@ -40,7 +40,7 @@ jobs:
       matrix:
         otp: ["${{ needs.define-matrix.outputs.otp-version }}"]
         deps: ['grisp', 'grisp, grisp_cryptoauth']
-        rebar3: ['3.24.0']
+        rebar3: ['3']
       fail-fast: false
     outputs:
       report: ${{ steps.report.outputs.report }}
