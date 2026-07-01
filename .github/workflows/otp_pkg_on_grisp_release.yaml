@@ -169,7 +169,7 @@ jobs:
               {ok, Bin} = file:read_file("_grisp/report/hash.txt"),
               {ok, Tokens, _} = erl_scan:string(binary_to_list(Bin) ++ "."),
               {ok, #{value := Hash}} = erl_parse:parse_term(Tokens),
-              io:format("~s", [binary_to_list(Hash)]),
+              io:format("~s", [Hash]),
               halt().
             '
           )
