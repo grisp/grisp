@@ -1,0 +1,32 @@
+{{#erts_emulator_makefile_in}}
+diff --git a/erts/emulator/Makefile.in b/erts/emulator/Makefile.in
+index 275e24e..5c74a6f 100644
+--- a/erts/emulator/Makefile.in
++++ b/erts/emulator/Makefile.in
+@@ -1172,6 +1176,{{nif_lines}} @@ NIF_OBJS = \
+        $(OBJDIR)/zstd_nif.o \
+        $(ESOCK_NIF_OBJS)
+
++ifeq ($(findstring rtems,$(TARGET)),rtems)
+{{#nifs}}
++       NIF_OBJS += $(OBJDIR)/{{name}}.o
+{{/nifs}}
++endif
++
+ ifeq ($(TARGET),win32)
+ DRV_OBJS = \
+        $(OBJDIR)/registry_drv.o \
+@@ -1206,6 +1214,10 @@ DRV_OBJS = \
+        $(OBJDIR)/ram_file_drv.o
+ endif
+
++ifeq ($(findstring rtems,$(TARGET)),rtems)
+{{#drivers}}
++       DRV_OBJS += $(OBJDIR)/{{name}}.o
+{{/drivers}}
++endif
++
+ ifneq ($(STATIC_NIFS),no)
+ STATIC_NIF_LIBS = $(foreach n,$(STATIC_NIFS),$(word 1, $(subst $(colon),$(space),$(n))))
+ STATIC_NIF_SYMBOLS = $(STATIC_NIFS)
+ {{/erts_emulator_makefile_in}}

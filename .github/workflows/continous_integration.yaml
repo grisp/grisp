@@ -20,12 +20,10 @@ jobs:
       contents: read
     strategy:
       matrix:
-        otp: ['26', '27', '28']
+        otp: ['26', '27', '28', '29']
         rebar3: ['3']
         # latest rebar3 versions that do not give problems with selected OTPs
         include:
-          - otp: '24'
-            rebar3: '3.23.0'
           - otp: '25'
             rebar3: '3.24.0'
     steps:
@@ -34,7 +32,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: erlef/setup-beam@e6d7c94229049569db56a7ad5a540c051a010af9 # v1
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
         with:
           otp-version: ${{matrix.otp}}
           rebar3-version: ${{matrix.rebar3}}
@@ -61,5 +59,5 @@ jobs:
         run: rebar3 dialyzer
 
       - name: ExDoc
-        if: matrix.otp == '28'
+        if: matrix.otp == '29'
         run: rebar3 ex_doc
