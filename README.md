@@ -19,7 +19,7 @@
     <img alt="hex.pm license" src="https://img.shields.io/hexpm/l/grisp.svg?style=flat-square"/>
   </a>
   <a href="https://github.com/grisp/grisp/blob/master/.github/workflows/continous_integration.yaml#L14">
-    <img alt="erlang versions" src="https://img.shields.io/badge/erlang-23-blue.svg?style=flat-square"/>
+    <img alt="erlang versions" src="https://img.shields.io/badge/erlang-29-blue.svg?style=flat-square"/>
   </a>
 </p>
 
