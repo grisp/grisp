@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.10.1] - 2026-07-23
+
+### Added
+
+- Support for OTP 28.5.0.2 [#205](https://github.com/grisp/grisp/pull/205)
+
 ## [2.10.0] - 2026-07-01
 
 ### Added
@@ -282,7 +288,8 @@ compatibility will get added in a later patch release.\*
 - Fixed wrong registers in rotation vector [\#9](https://github.com/grisp/grisp/pull/9) ([nextl00p](https://github.com/nextl00p))
 - Fix for \#2. Negative intervals are now treated by turning off leds [\#5](https://github.com/grisp/grisp/pull/5) ([nextl00p](https://github.com/nextl00p))
 
-[Unreleased]: https://github.com/grisp/grisp/compare/2.10.0...HEAD
+[Unreleased]: https://github.com/grisp/grisp/compare/2.10.1...HEAD
+[2.10.1]: https://github.com/grisp/grisp/compare/2.10.0...2.10.1
 [2.10.0]: https://github.com/grisp/grisp/compare/2.9.0...2.10.0
 [2.9.0]: https://github.com/grisp/grisp/compare/2.8.0...2.9.0
 [2.8.0]: https://github.com/grisp/grisp/compare/2.7.0...2.8.0
