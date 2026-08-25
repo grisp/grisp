@@ -40,6 +40,7 @@ jobs:
       matrix:
         otp: ["${{ needs.define-matrix.outputs.otp-version }}"]
         deps: ['grisp', 'grisp, grisp_cryptoauth']
+        jit: ['true', 'false']
         rebar3: ['3']
       fail-fast: false
     outputs:
@@ -56,13 +57,14 @@ jobs:
           rebar3 update
       - name: Generate Dummy Project
         run: |
-          rebar3 grisp configure -i false --otp_version="=${MATRIX_OTP}" --dest="_deploy"
+          rebar3 grisp configure -i false --otp_version="=${MATRIX_OTP}" --jit ${JIT} --dest="_deploy"
           mkdir robot/_deploy
           sed -i 's/grisp/${{ matrix.deps }}/' robot/src/robot.app.src
           sed -i '/{deps, \[/,/\]}/s/grisp/${{ matrix.deps }}/' robot/rebar.config
           cat robot/rebar.config
         env:
           MATRIX_OTP: ${{matrix.otp}}
+          JIT: ${{matrix.jit}}
       - name: Try to Deploy
         id: deploy
         continue-on-error: true
@@ -132,6 +134,7 @@ jobs:
       matrix:
         otp: ["${{ needs.define-matrix.outputs.otp-version }}"]
         deps: ['grisp', 'grisp, grisp_cryptoauth']
+        jit: ['true', 'false']
         rebar3: ['3']
     outputs:
       artifacts: ${{ steps.matrix-def.outputs.otp-version }}
@@ -148,7 +151,7 @@ jobs:
           rebar3
       - name: Generate Dummy Project
         run: |
-          rebar3 grisp configure -i false --otp_version="=${MATRIX_OTP}" --dest="_deploy"
+          rebar3 grisp configure -i false --otp_version="=${MATRIX_OTP}" --jit ${JIT} --dest="_deploy"
           mkdir robot/_deploy
           sed -i 's/grisp/${{ matrix.deps }}/' robot/src/robot.app.src
           sed -i '/{deps, \[/,/\]}/s/grisp/${{ matrix.deps }}/' robot/rebar.config
