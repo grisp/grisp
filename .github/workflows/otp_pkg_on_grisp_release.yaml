@@ -33,7 +33,7 @@ jobs:
       # This image is based on debian:bookworm
       # but we need to make  erlef/setup-beam@v1 happy
       # so we set 'ubuntu22' (jammy), which is the most similar, as ImageOS
-      image: grisp/grisp2-rtems-toolchain@sha256:1e32a902d74d9d870e7c40128945852cd3ae6cff854620e0902b2dd3d5787d12
+      image: grisp/grisp2-rtems-toolchain@sha256:15715504073056453763b16314e182c7c4e66f3b9d6e5ca96424fd408ad1a9c7
       env:
         ImageOS: 'ubuntu22'
     strategy:
