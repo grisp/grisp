@@ -1,0 +1,291 @@
+diff --git a/erts/configure b/erts/configure
+index b2ae7a6837..a63188f042 100755
+--- a/erts/configure
++++ b/erts/configure
+@@ -26460,14 +26460,18 @@ printf "%s\n" "$as_me: WARNING: JIT disabled due to lack of cache-clearing instr
+            esac
+            ;;
+         arm)
+-           case "$OPSYS" in
+-              linux)
++           case "$OPSYS:$host_os" in
++              linux:*)
+                 # These platforms have dedicated system calls for clearing
+                 # instruction cache, and don't require us to manually issue
+                 # instruction barriers on all threads.
+                 JIT_ARCH=arm
+                 JIT_ARCH_BITS=32
+               ;;
++              noopsys:rtems*)
++                JIT_ARCH=arm
++                JIT_ARCH_BITS=32
++              ;;
+               *)
+                 enable_jit=no
+                 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: WARNING: JIT disabled due to lack of support on $ARCH-$OPSYS" >&5
+diff --git a/erts/configure.ac b/erts/configure.ac
+index 09e5d621c6..90bff131be 100644
+--- a/erts/configure.ac
++++ b/erts/configure.ac
+@@ -3101,14 +3101,18 @@ AS_IF([test ${enable_jit} != no],
+            esac
+            ;;
+         arm)
+-           case "$OPSYS" in
+-              linux)
++           case "$OPSYS:$host_os" in
++              linux:*)
+                 # These platforms have dedicated system calls for clearing
+                 # instruction cache, and don't require us to manually issue
+                 # instruction barriers on all threads.
+                 JIT_ARCH=arm
+                 JIT_ARCH_BITS=32
+               ;;
++              noopsys:rtems*)
++                JIT_ARCH=arm
++                JIT_ARCH_BITS=32
++              ;;
+               *)
+                 enable_jit=no
+                 AC_MSG_WARN([JIT disabled due to lack of support on $ARCH-$OPSYS])
+diff --git a/erts/emulator/asmjit/core/api-build_p.h b/erts/emulator/asmjit/core/api-build_p.h
+index 2de68d2597..242d823f59 100644
+--- a/erts/emulator/asmjit/core/api-build_p.h
++++ b/erts/emulator/asmjit/core/api-build_p.h
+@@ -40,7 +40,8 @@
+       defined(__DragonFly__) || \
+       defined(__FreeBSD__  ) || \
+       defined(__NetBSD__   ) || \
+-      defined(__OpenBSD__  )
++      defined(__OpenBSD__  ) || \
++      defined(__rtems__    )
+     #define ASMJIT_FILE64_API(NAME) NAME
+   #else
+     #define ASMJIT_FILE64_API(NAME) NAME##64
+diff --git a/erts/emulator/asmjit/core/virtmem.cpp b/erts/emulator/asmjit/core/virtmem.cpp
+index 37c7824edf..ea3ef29ce8 100644
+--- a/erts/emulator/asmjit/core/virtmem.cpp
++++ b/erts/emulator/asmjit/core/virtmem.cpp
+@@ -77,7 +77,7 @@
+   #endif
+ 
+   // Android NDK doesn't provide `shm_open()` and `shm_unlink()`.
+-  #if !defined(__BIONIC__) && !defined(ASMJIT_NO_SHM_OPEN)
++  #if !defined(__BIONIC__) && !defined(ASMJIT_NO_SHM_OPEN) && !defined(__rtems__)
+     #define ASMJIT_HAS_SHM_OPEN
+   #endif
+ 
+@@ -100,6 +100,12 @@
+     #define ASMJIT_NO_DUAL_MAPPING
+   #endif
+ 
++  // RTEMS 5 cannot create a read/execute-only mapping: its mmap()
++  // implementation requires PROT_WRITE and doesn't provide page protection.
++  #if defined(__rtems__)
++    #define ASMJIT_NO_DUAL_MAPPING
++  #endif
++
+   #if defined(__NetBSD__) && defined(MAP_REMAPDUP) && defined(PROT_MPROTECT)
+     #define ASMJIT_ANONYMOUS_MEMORY_USE_REMAPDUP
+   #endif
+@@ -515,7 +521,7 @@ enum class AnonymousMemoryStrategy : uint32_t {
+   kTmpDir = 2
+ };
+ 
+-#if !defined(SHM_ANON)
++#if !defined(SHM_ANON) || defined(__rtems__)
+ static const char* get_tmp_dir() noexcept {
+   const char* tmp_dir = getenv("TMPDIR");
+   return tmp_dir ? tmp_dir : "/tmp";
+@@ -584,6 +590,11 @@ public:
+   inline int fd() const noexcept { return _fd; }
+ 
+   Error open(bool prefer_tmp_over_dev_shm) noexcept {
++#if defined(__rtems__)
++    static constexpr mode_t anon_mem_mode = S_IRUSR | S_IWUSR | S_IXUSR;
++#else
++    static constexpr mode_t anon_mem_mode = S_IRUSR | S_IWUSR;
++#endif
+ #if defined(__linux__) && defined(__NR_memfd_create)
+     // Linux specific 'memfd_create' - if the syscall returns `ENOSYS` it means
+     // it's not available and we will never call it again (would be pointless).
+@@ -612,10 +623,10 @@ public:
+     }
+ #endif // __linux__ && __NR_memfd_create
+ 
+-#if defined(ASMJIT_HAS_SHM_OPEN) && defined(SHM_ANON)
++#if defined(ASMJIT_HAS_SHM_OPEN) && defined(SHM_ANON) && !defined(__rtems__)
+     // Originally FreeBSD extension, apparently works in other BSDs too.
+     Support::maybe_unused(prefer_tmp_over_dev_shm);
+-    _fd = ::shm_open(SHM_ANON, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
++    _fd = ::shm_open(SHM_ANON, O_RDWR | O_CREAT | O_EXCL, anon_mem_mode);
+ 
+     if (ASMJIT_LIKELY(_fd >= 0)) {
+       return Error::kOk;
+@@ -637,7 +648,7 @@ public:
+       if (use_tmp) {
+         _tmp_name.assign(get_tmp_dir());
+         _tmp_name.append_format(shm_format_string, (unsigned long long)bits);
+-        _fd = ASMJIT_FILE64_API(::open)(_tmp_name.data(), O_RDWR | O_CREAT | O_EXCL, 0);
++        _fd = ASMJIT_FILE64_API(::open)(_tmp_name.data(), O_RDWR | O_CREAT | O_EXCL, anon_mem_mode);
+         if (ASMJIT_LIKELY(_fd >= 0)) {
+           _file_type = kFileTypeTmp;
+           return Error::kOk;
+@@ -646,7 +657,7 @@ public:
+ #if defined(ASMJIT_HAS_SHM_OPEN)
+       else {
+         _tmp_name.assign_format(shm_format_string, (unsigned long long)bits);
+-        _fd = ::shm_open(_tmp_name.data(), O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
++        _fd = ::shm_open(_tmp_name.data(), O_RDWR | O_CREAT | O_EXCL, anon_mem_mode);
+         if (ASMJIT_LIKELY(_fd >= 0)) {
+           _file_type = kFileTypeShm;
+           return Error::kOk;
+@@ -754,6 +765,10 @@ static bool has_hardened_runtime() noexcept {
+ #if defined(__APPLE__) && TARGET_OS_OSX && ASMJIT_ARCH_ARM >= 64
+   // OSX on AArch64 has always hardened runtime enabled.
+   return true;
++#elif defined(__rtems__)
++  // RTEMS 5 does not enforce W^X. Its mmap() rejects AsmJit's probe for API
++  // compatibility reasons, not because writable/executable memory is blocked.
++  return false;
+ #else
+   static std::atomic<uint32_t> cached_hardened_flag;
+ 
+@@ -913,19 +928,49 @@ static Error unmap_memory(void* p, size_t size) noexcept {
+ }
+ 
+ Error alloc(void** p, size_t size, MemoryFlags memory_flags) noexcept {
++#if defined(__rtems__)
++  // RTEMS 5 implements anonymous mmap() using posix_memalign() anyway. Bypass
++  // its POSIX mapping bookkeeping, which is incompatible with AsmJit's W^X
++  // probing, and use the platform's naturally executable heap directly.
++  Support::maybe_unused(memory_flags);
++  *p = nullptr;
++  if (size == 0) {
++    return make_error(Error::kInvalidArgument);
++  }
++
++  int err = posix_memalign(p, info().page_size, size);
++  if (err != 0) {
++    return make_error(err == ENOMEM ? Error::kOutOfMemory
++                                    : Error::kInvalidArgument);
++  }
++  return Error::kOk;
++#else
+   return map_memory(p, size, memory_flags);
++#endif
+ }
+ 
+ Error release(void* p, size_t size) noexcept {
++#if defined(__rtems__)
++  Support::maybe_unused(size);
++  free(p);
++  return Error::kOk;
++#else
+   return unmap_memory(p, size);
++#endif
+ }
+ 
+ Error protect(void* p, size_t size, MemoryFlags memory_flags) noexcept {
++#if defined(__rtems__)
++  // RTEMS 5 has no effective per-page protection; mprotect() is a no-op.
++  Support::maybe_unused(p, size, memory_flags);
++  return Error::kOk;
++#else
+   int protection = mm_prot_from_memory_flags(memory_flags);
+   if (mprotect(p, size, protection) == 0) {
+     return Error::kOk;
+   }
+   return make_error(asmjit_error_from_errno(errno));
++#endif
+ }
+ 
+ // Virtual Memory [Posix] - Dual Mapping
+diff --git a/erts/emulator/beam/jit/beam_jit_main.cpp b/erts/emulator/beam/jit/beam_jit_main.cpp
+index 90a8641d39..130f44db97 100644
+--- a/erts/emulator/beam/jit/beam_jit_main.cpp
++++ b/erts/emulator/beam/jit/beam_jit_main.cpp
+@@ -32,6 +32,8 @@ extern "C"
+ 
+ #if defined(__APPLE__)
+ #    include <libkern/OSCacheControl.h>
++#elif defined(__rtems__)
++#    include <rtems/rtems/cache.h>
+ #elif defined(WIN32)
+ #    include <windows.h>
+ #endif
+@@ -185,6 +187,10 @@ static JitAllocator *pick_allocator() {
+ 
+ #if defined(VALGRIND)
+     erts_jit_single_map = 1;
++#elif defined(__rtems__)
++    /* RTEMS 5 has no effective page protection and rejects AsmJit's
++     * read/execute-only half of a dual mapping. */
++    erts_jit_single_map = 1;
+ #elif defined(__APPLE__) && defined(__aarch64__)
+     /* Allocating dual-mapped executable memory on this platform is horribly
+      * slow, and provides little security benefits over the MAP_JIT per-thread
+@@ -207,13 +213,17 @@ static JitAllocator *pick_allocator() {
+      * regions of the same code. This is required for platforms that enforce
+      * W^X, and we prefer it when available to catch errors sooner.
+      *
+-     * `blockSize` is analogous to "carrier size," and we pick something
++     * `block_size` is analogous to "carrier size," and we pick something
+      * much larger than the default since dual-mapping implies having one
+      * file descriptor per block on most platforms. The block sizes do grow
+      * over time, but we don't want to waste half a dozen fds just to get to
+      * the shell on platforms that are very fd-constrained. */
+     params.reset();
+     params.block_size = 32 << 20;
++#if defined(__rtems__)
++    /* RTEMS tends to be tighter on executable mappings than desktop OSes. */
++    params.block_size = 4 << 20;
++#endif
+ 
+     allocator = nullptr;
+     single_mapped = false;
+@@ -228,6 +238,35 @@ static JitAllocator *pick_allocator() {
+         std::tie(allocator, single_mapped) = create_allocator(params);
+     }
+ 
++#if defined(__rtems__)
++    if (allocator == nullptr) {
++        static const uint32_t fallback_block_sizes[] = {
++                1 << 20, 512 << 10, 256 << 10, 128 << 10, 64 << 10};
++
++        if (!erts_jit_single_map) {
++            params.options = JitAllocatorOptions::kUseDualMapping;
++            for (uint32_t size : fallback_block_sizes) {
++                params.block_size = size;
++                std::tie(allocator, single_mapped) = create_allocator(params);
++                if (allocator != nullptr) {
++                    break;
++                }
++            }
++        }
++
++        if (allocator == nullptr) {
++            params.options &= ~JitAllocatorOptions::kUseDualMapping;
++            for (uint32_t size : fallback_block_sizes) {
++                params.block_size = size;
++                std::tie(allocator, single_mapped) = create_allocator(params);
++                if (allocator != nullptr) {
++                    break;
++                }
++            }
++        }
++    }
++#endif
++
+     if (erts_jit_single_map && !single_mapped) {
+         ERTS_INTERNAL_ERROR("jit: Failed to allocate executable+writable "
+                             "memory. Either allow this or disable both the "
+@@ -492,6 +531,8 @@ extern "C"
+         __asm__ __volatile__("dsb ish\n" ::: "memory");
+ #elif defined(__arm__) && defined(__linux__) // NOTE: __arm__ means arm 32-bit
+         __builtin___clear_cache((char *)address, ((char*)address) + size);
++#elif defined(__arm__) && defined(__rtems__) // NOTE: __arm__ means arm 32-bit
++        rtems_cache_instruction_sync_after_code_change(address, size);
+ #elif (defined(__x86_64__) || defined(_M_X64)) &&                              \
+         defined(ERTS_THR_INSTRUCTION_BARRIER)
+         /* We don't need to invalidate cache on this platform, but since we
