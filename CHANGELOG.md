@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-09-02
+
+### Added
+
+- Support for ARM32 JIT on GRiSP 2 with OTP 29.0.6 and later [#211](https://github.com/grisp/grisp/pull/211)
+
 ## [2.11.0] - 2026-08-25
 
 ### Added
@@ -298,7 +304,8 @@ compatibility will get added in a later patch release.\*
 - Fixed wrong registers in rotation vector [\#9](https://github.com/grisp/grisp/pull/9) ([nextl00p](https://github.com/nextl00p))
 - Fix for \#2. Negative intervals are now treated by turning off leds [\#5](https://github.com/grisp/grisp/pull/5) ([nextl00p](https://github.com/nextl00p))
 
-[Unreleased]: https://github.com/grisp/grisp/compare/2.11.0...HEAD
+[Unreleased]: https://github.com/grisp/grisp/compare/2.12.0...HEAD
+[2.12.0]: https://github.com/grisp/grisp/compare/2.11.0...2.12.0
 [2.11.0]: https://github.com/grisp/grisp/compare/2.10.1...2.11.0
 [2.10.1]: https://github.com/grisp/grisp/compare/2.10.0...2.10.1
 [2.10.0]: https://github.com/grisp/grisp/compare/2.9.0...2.10.0
