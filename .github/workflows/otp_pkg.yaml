@@ -155,6 +155,7 @@ jobs:
           cat robot/rebar.config
         env:
           MATRIX_OTP: ${{matrix.otp}}
+          JIT: ${{matrix.jit}}
       - name: Recompose package name
         id: deploy
         working-directory: robot
@@ -177,7 +178,6 @@ jobs:
           echo "pkg_name=$PKG_NAME" >> $GITHUB_ENV
         env:
           MATRIX_OTP: ${{matrix.otp}}
-          JIT: ${{matrix.jit}}
       - name: Download Package Artifact
         id: artifact-download
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4

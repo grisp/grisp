@@ -158,6 +158,7 @@ jobs:
           cat robot/rebar.config
         env:
           MATRIX_OTP: ${{matrix.otp}}
+          JIT: ${{matrix.jit}}
       - name: Recompose package name
         id: deploy
         working-directory: robot
