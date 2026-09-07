@@ -25446,10 +25446,10 @@ index 0000000000..8bff6c4aeb
 +}
 diff --git a/erts/emulator/beam/jit/arm/32/instr_common.cpp b/erts/emulator/beam/jit/arm/32/instr_common.cpp
 new file mode 100644
-index 0000000000..b749284f56
+index 0000000000..94a05eae91
 --- /dev/null
 +++ b/erts/emulator/beam/jit/arm/32/instr_common.cpp
-@@ -0,0 +1,2722 @@
+@@ -0,0 +1,2727 @@
 +/*
 + * %CopyrightBegin%
 + *
@@ -26213,6 +26213,11 @@ index 0000000000..b749284f56
 +    add(HTOP, HTOP, sizeof(Eterm));
 +
 +    for (size_t i = 0; i < args.size(); i++) {
++        /* A large tuple is emitted as one BEAM instruction. Check within the
++         * element loop so literals pending before or created by the tuple do
++         * not exceed the A32 literal-load displacement limit. */
++        check_pending_stubs();
++
 +        auto src = load_source(args[i], TMP);
 +        a.str(src.reg, a32::Mem(HTOP));
 +        add(HTOP, HTOP, sizeof(Eterm));
