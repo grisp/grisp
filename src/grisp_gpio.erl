@@ -29,6 +29,7 @@ pin (see [Figure 1](#figure_1)).
 | `gpio1_8`   | GPIO1    | PMOD 1A | 8  | X1404.8   | In/Out    |                          |
 | `gpio1_9`   | GPIO1    | PMOD 1A | 9  | X1404.9   | In/Out    |                          |
 | `gpio1_10`  | GPIO1    | PMOD 1A | 10 | X1404.10  | In/Out    |                          |
+| `spi2_pin8` | SPI2     | PMOD 2A | 8  | X1402.8   | In/Out    |                          |
 | `gpio_1_3`  | GPIO_1   | Generic |    | X1300.3   | In/Out    |                          |
 | `gpio_1_4`  | GPIO_1   | Generic |    | X1300.4   | In/Out    |                          |
 | `gpio_1_5`  | GPIO_1   | Generic |    | X1300.5   | In/Out    |                          |
@@ -289,6 +290,7 @@ pin(grisp2, gpio1_7)        -> #{path => <<"/pmod-gpio\0">>,             propert
 pin(grisp2, gpio1_8)        -> #{path => <<"/pmod-gpio\0">>,             property => <<"grisp,gpios\0">>, index => 5};
 pin(grisp2, gpio1_9)        -> #{path => <<"/pmod-gpio\0">>,             property => <<"grisp,gpios\0">>, index => 6};
 pin(grisp2, gpio1_10)       -> #{path => <<"/pmod-gpio\0">>,             property => <<"grisp,gpios\0">>, index => 7};
+pin(grisp2, spi2_pin8)      -> #{path => <<"/pmod-spi\0">>,              property => <<"grisp,gpios\0">>, index => 5};
 pin(grisp2, uart_7)        -> #{path => <<"/pmod-uart\0">>,             property => <<"grisp,gpios\0">>, index => 4};
 pin(grisp2, uart_8)        -> #{path => <<"/pmod-uart\0">>,             property => <<"grisp,gpios\0">>, index => 5};
 pin(grisp2, uart_9)        -> #{path => <<"/pmod-uart\0">>,             property => <<"grisp,gpios\0">>, index => 6};
