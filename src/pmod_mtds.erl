@@ -51,7 +51,7 @@ https://github.com/Digilent/vivado-library/tree/master/ip/Pmods/PmodMTDS_v1_0
 -include("grisp_internal.hrl").  % for device record definition
 -include("pmod_mtds.hrl").  % protocol constants
 
--define(TOUCH_POLL_PERIOD, 100).  % milliseconds between touch event queries
+-define(TOUCH_POLL_PERIOD, 10).  % milliseconds between touch event queries
 
 %
 % Types
@@ -296,8 +296,8 @@ init([Interface]) ->
     ok = grisp_devices:register(Interface, ?MODULE),
 
     Bus = grisp_spi:open(Interface),
+    ok = reset(Interface),
     State = #state{bus = Bus},
-    % NOTE: Reference driver toggles the reset pin, but we don't have access.
     {ok, SyncedState} = sync(State),
     {ok, StartedState, _Reply} = command(SyncedState, ?UTILITY_INIT),
 
@@ -306,6 +306,20 @@ init([Interface]) ->
     spawn_link(fun() -> poll_loop(Self) end),
 
     {ok, StartedState}.
+
+% Reset is active-low on pin 8 of the MTDS Pmod interface.  Holding the line
+% low for 1 ms follows the reference driver.  The MTDS firmware needs two
+% seconds to boot after reset before protocol synchronization can begin.
+?doc(false).
+-spec reset(grisp_spi:bus()) -> ok.
+reset(spi2) ->
+    Reset = grisp_gpio:open(spi2_pin8, #{mode => {output, 0}}),
+    timer:sleep(1),
+    ok = grisp_gpio:set(Reset, 1),
+    timer:sleep(2000),
+    ok;
+reset(_Interface) ->
+    ok.
 
 % Process a command directive.
 ?doc(false).
