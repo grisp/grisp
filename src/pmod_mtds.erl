@@ -15,8 +15,9 @@ https://github.com/Digilent/vivado-library/tree/master/ip/Pmods/PmodMTDS_v1_0
 """).
 
 % Erlang-facing touch event API
--export([register/0]).
--export([register/1]).
+-export([configure_touch/2]).
+-export([set_debug/1]).
+-export([touch_events/0]).
 
 % MTDS commands
 -export([bitmap/3]).
@@ -48,10 +49,20 @@ https://github.com/Digilent/vivado-library/tree/master/ip/Pmods/PmodMTDS_v1_0
 -export([handle_cast/2]).
 
 -behavior(gen_server).
+-include_lib("kernel/include/logger.hrl").
 -include("grisp_internal.hrl").  % for device record definition
 -include("pmod_mtds.hrl").  % protocol constants
 
--define(TOUCH_POLL_PERIOD, 10).  % milliseconds between touch event queries
+% Stop draining after this many microseconds. An in-flight SPI command cannot
+% be interrupted, so this is a best-effort deadline rather than a hard limit.
+-define(TOUCH_DRAIN_BUDGET_US, 16000).
+% Restore fine movement when the queue is empty or drains in less than half
+% the time budget. A timed-out drain immediately doubles the delta instead.
+-define(TOUCH_FAST_DRAIN_US, ?TOUCH_DRAIN_BUDGET_US div 2).
+% Minimum movement threshold in pixels. Callers may configure an initial value.
+-define(BASE_TOUCH_MOVE_DELTA, 2).
+% Maximum movement threshold; doubling under overload stops here.
+-define(MAX_TOUCH_MOVE_DELTA, 16).
 
 %
 % Types
@@ -67,6 +78,7 @@ https://github.com/Digilent/vivado-library/tree/master/ip/Pmods/PmodMTDS_v1_0
 -type window()  :: ?REGION_WINDOW  .. (?REGION_WINDOW  + ?HANDLE_SPACE).
 
 -type position() :: {X :: integer(), Y :: integer()}.
+-type touch_move_delta() :: {DeltaX :: 1..32767, DeltaY :: 1..32767}.
 
 % Shape of touch event messages sent to registered listeners.
 -type touch_event() :: {
@@ -88,13 +100,30 @@ https://github.com/Digilent/vivado-library/tree/master/ip/Pmods/PmodMTDS_v1_0
 % Public interface for MTDS
 %
 
-?doc("Registers the caller for touch events for the indicated window.").
--spec register(window()) -> ok.
-register() ->
-    pmod_mtds:register(?REGION_WINDOW bor ?STOCK_WINDOW).
-register(Window) ->
+?doc("Enable or disable MTDS diagnostic logging.").
+-spec set_debug(boolean()) -> ok.
+set_debug(Enabled) when is_boolean(Enabled) ->
     #device{pid = PID} = grisp_devices:default(?MODULE),
-    gen_server:call(PID, {register, self(), Window}).
+    gen_server:call(PID, {set_debug, Enabled});
+set_debug(_Enabled) ->
+    erlang:error(badarg).
+
+?doc("Configure touch sensitivity and movement-event resolution.").
+-spec configure_touch(1..7, touch_move_delta()) -> ok.
+configure_touch(Sensitivity, {DeltaX, DeltaY})
+        when is_integer(Sensitivity), Sensitivity >= 1, Sensitivity =< 7,
+             is_integer(DeltaX), DeltaX >= 1, DeltaX =< 32767,
+             is_integer(DeltaY), DeltaY >= 1, DeltaY =< 32767 ->
+    #device{pid = PID} = grisp_devices:default(?MODULE),
+    gen_server:call(PID, {configure_touch, Sensitivity, DeltaX, DeltaY});
+configure_touch(_Sensitivity, _MoveDelta) ->
+    erlang:error(badarg).
+
+?doc("Return all touch events popped within the drain time budget, in order.").
+-spec touch_events() -> [touch_event()].
+touch_events() ->
+    #device{pid = PID} = grisp_devices:default(?MODULE),
+    gen_server:call(PID, touch_events).
 
 ?doc("Blanks the MTDS to the indicated color.").
 -spec clear(Color :: color()) -> ok.
@@ -272,24 +301,18 @@ retain bytes received from the bus in a buffer for asynchronous processing.
     % link with MTDS
     bus,
     buffer = << >>,
-    % windowing system
-    listeners = #{}
+    move_delta = {?BASE_TOUCH_MOVE_DELTA, ?BASE_TOUCH_MOVE_DELTA},
+    debug = false
 }).
 -type state() :: #state{
     % link with MTDS
     bus :: grisp_spi:ref(),
     buffer :: binary(),
-    % windowing system
-    % TODO: I don't know what handle re-use guarantees MTDS provides.  If
-    %       Window A is released and a newly allocated Window B reoccupies its
-    %       handle, then events destined for Window A might be incorrectly
-    %       assigned to Window B.  We could handle this on the Erlang side by
-    %       translating through a dictionary of references.
-    listeners :: #{window() => sets:set(pid())}
+    move_delta :: {integer(), integer()},
+    debug :: boolean()
 }.
 
-% Initializes the bus object to form a driver state, syncs with the MTDS, and
-% launches the touch poll worker.
+% Initializes the bus object and syncs with the MTDS. The caller schedules polls.
 ?doc(false).
 init([Interface]) ->
     % NOTE: MTDS wants to put freq in 3.5–4 MHz, whereas GRiSP runs at 0.1 MHz.
@@ -300,10 +323,6 @@ init([Interface]) ->
     State = #state{bus = Bus},
     {ok, SyncedState} = sync(State),
     {ok, StartedState, _Reply} = command(SyncedState, ?UTILITY_INIT),
-
-    % set up touch poll
-    Self = self(),
-    spawn_link(fun() -> poll_loop(Self) end),
 
     {ok, StartedState}.
 
@@ -325,35 +344,70 @@ reset(_Interface) ->
 ?doc(false).
 handle_call({command, CommandPair, Parameters, Packet}, _From, State) ->
     {ok, NewState, Reply} = command(State, CommandPair, Parameters, Packet),
-    {reply, {ok, Reply}, NewState};
-% Process a touch enregistration.
-handle_call({register, PID, Window}, _From, State) ->
-    #state{listeners = Listeners} = State,
-    NewListeners = case Listeners of
-        #{Window := Registrants} ->
-            Listeners#{Window => sets:add_element(PID, Registrants)};
-        _ ->
-            Listeners#{Window => sets:from_list([PID])}
+    TrackedState = case {CommandPair, Parameters} of
+        {?UTILITY_TOUCH_MOVE_DELTA,
+         <<DeltaX:16/little-signed, DeltaY:16/little-signed>>} ->
+            NewState#state{
+                move_delta = {DeltaX, DeltaY}
+            };
+        _ -> NewState
     end,
-    NewState = State#state{listeners = NewListeners},
-    {reply, ok, NewState};
-% Poll for touch events, forward to registrants.
-handle_call(poll_touch_events, _From, State = #state{}) ->
-    {NewState, Replies} = poll_touch_events(State),
-    lists:foreach(
-        fun(Reply = {touch, WindowRef, _Action, _Position, _Speed, _Weight}) ->
-            case NewState#state.listeners of
-                #{WindowRef := Listeners} ->
-                    lists:foreach(
-                        fun(Listener) -> Listener ! Reply end,
-                        sets:to_list(Listeners)
-                    );
-                _ -> ok
-            end
-        end,
-        Replies
+    {reply, {ok, Reply}, TrackedState};
+handle_call({configure_touch, Sensitivity, DeltaX, DeltaY}, _From, State) ->
+    {ok, SensitivityState, <<>>} = command(
+        State, ?UTILITY_TOUCH_SENSITIVITY, <<Sensitivity:32/little>>
     ),
-    {reply, ok, NewState}.
+    {ok, DeltaState, <<>>} = command(
+        SensitivityState,
+        ?UTILITY_TOUCH_MOVE_DELTA,
+        <<DeltaX:16/little-signed, DeltaY:16/little-signed>>
+    ),
+    {reply, ok, DeltaState#state{move_delta = {DeltaX, DeltaY}}};
+handle_call({set_debug, Enabled}, _From, State) ->
+    {reply, ok, State#state{debug = Enabled}};
+% Return raw, ordered events to the caller; only the drain deadline controls
+% how many are read. Change the MTDS event rate before replying.
+handle_call(touch_events, _From, State) ->
+    Started = erlang:monotonic_time(microsecond),
+    Deadline = Started + ?TOUCH_DRAIN_BUDGET_US,
+    {DrainedState, Events, Outcome} = poll_touch_events(State, Deadline, []),
+    Elapsed = erlang:monotonic_time(microsecond) - Started,
+    {DeltaX, DeltaY} = DrainedState#state.move_delta,
+    DesiredDelta = case Outcome of
+        timed_out -> {
+            min(?MAX_TOUCH_MOVE_DELTA, DeltaX * 2),
+            min(?MAX_TOUCH_MOVE_DELTA, DeltaY * 2)
+        };
+        _ when Events =:= [] orelse Elapsed < ?TOUCH_FAST_DRAIN_US ->
+            {
+                max(?BASE_TOUCH_MOVE_DELTA, DeltaX div 2),
+                max(?BASE_TOUCH_MOVE_DELTA, DeltaY div 2)
+            };
+        _ -> {DeltaX, DeltaY}
+    end,
+    AdjustedState = set_touch_move_delta(DrainedState, DesiredDelta),
+    log_touch_poll_result(
+        DrainedState#state.debug, Outcome, Started, Elapsed, Events,
+        {DeltaX, DeltaY}, DesiredDelta
+    ),
+    {reply, Events, AdjustedState}.
+
+log_touch_poll_result(true, timed_out, Started, DrainTime, Events, PreviousDelta, NewDelta) ->
+    TotalTime = erlang:monotonic_time(microsecond) - Started,
+    ?LOG_DEBUG(
+        "MTDS touch poll timed out: drain=~B us total=~B us events=~B move_delta=~p -> ~p",
+        [DrainTime, TotalTime, length(Events), PreviousDelta, NewDelta]
+    );
+log_touch_poll_result(_Debug, _Outcome, _Started, _DrainTime, _Events, _PreviousDelta, _NewDelta) ->
+    ok.
+
+set_touch_move_delta(State = #state{move_delta = Delta}, Delta) -> State;
+set_touch_move_delta(State, {DeltaX, DeltaY} = Delta) ->
+    Parameters = <<DeltaX:16/little-signed, DeltaY:16/little-signed>>,
+    {ok, AdjustedState, <<>>} = command(
+        State, ?UTILITY_TOUCH_MOVE_DELTA, Parameters
+    ),
+    AdjustedState#state{move_delta = Delta}.
 
 ?doc(false).
 handle_cast(_Request, State) ->
@@ -366,16 +420,6 @@ code_change(_OldVsn, State, _Extra) ->
 ?doc(false).
 terminate(_Reason, _State) ->
     ok.
-
-% Side-process which prompts the main server to poll for touch events.
-?doc(false).
-poll_loop(PID) ->
-    receive
-        stop -> ok
-    after ?TOUCH_POLL_PERIOD ->
-        gen_server:call(PID, poll_touch_events),
-        poll_loop(PID)
-    end.
 
 %
 % Underlying device comms
@@ -394,7 +438,8 @@ command_payload(Command, Parameters) ->
 
 ?doc("Send a command to MTDS and confirm delivery.").
 -spec command(state(), command(), binary(), binary()) ->
-    {ok, state(), binary()} | {error, any()}.
+    {ok, state(), binary()} | {error, state(), {status, integer()}} |
+    {error, any()}.
 command(State, Command) ->
     command(State, Command, << >>).
 command(State, Command, Parameters) ->
@@ -416,6 +461,10 @@ command(State, Command, Parameters, DataPacket) ->
     case Header of
         <<?HEADER_STATUS:2, Command:14, ?STATUS_OK:8, ByteCount:8>> ->
             read(PostheaderState, ByteCount);
+        <<?HEADER_STATUS:2, ?UTILITY_EVENT_POP:14, Status:8, ByteCount:8>>
+                when Command =:= ?UTILITY_EVENT_POP ->
+            {ok, EmptyState, _Payload} = read(PostheaderState, ByteCount),
+            {error, EmptyState, {status, Status}};
         % TODO: could add more nuanced error accounting here,
         %       see eg ProtoDefs.h:staCmdNotSupported
         _ ->
@@ -484,20 +533,39 @@ sync_exit(State, TrialsToGo) ->
         <<?CONTROL_SYNCING>> -> sync_exit(PeeledState, TrialsToGo - 1)
     end.
 
-?doc("Drains the MTDS message queue of touch events.").
-% TODO: Could limit the recursion here if it interferes with draw commands.
--spec poll_touch_events(state()) -> {state(), [touch_event()]}.
-poll_touch_events(State) ->
-    {ok, QueriedState, Status} = command(State, ?UTILITY_EVENT_CHECK),
-    case Status of
-        <<0:32/little>> -> {QueriedState, []};
+?doc("Drain the MTDS queue until empty or the time budget is reached.").
+-spec poll_touch_events(state(), integer(), [touch_event()]) ->
+    {state(), [touch_event()], drained | timed_out | {empty_status, integer()}}.
+poll_touch_events(State, Deadline, Events) ->
+    case erlang:monotonic_time(microsecond) >= Deadline of
+        true -> {State, lists:reverse(Events), timed_out};
+        false -> poll_next_touch_event(State, Deadline, Events)
+    end.
+
+poll_next_touch_event(State, Deadline, Events) ->
+    case command(State, ?UTILITY_EVENT_POP) of
+        {error, PolledState, {status, Status}} ->
+            {PolledState, lists:reverse(Events), {empty_status, Status}};
+        {ok, PolledState, RawResult} ->
+            handle_touch_pop(PolledState, Deadline, Events, RawResult)
+    end.
+
+handle_touch_pop(PolledState, Deadline, Events, RawResult) ->
+    case RawResult of
+        <<>> -> {PolledState, lists:reverse(Events), drained};
+        <<0:128>> -> {PolledState, lists:reverse(Events), drained};
+        <<_Prefix:10/binary, 0:16/little, _Suffix:4/binary>> ->
+            {PolledState, lists:reverse(Events), drained};
+        <<_Prefix:10/binary, Kind:16/little, _Suffix:4/binary>>
+                when Kind >= 16#10, Kind =< 16#1E ->
+            Event = parse_touch_event(RawResult),
+            poll_touch_events(PolledState, Deadline, [Event | Events]);
         _ ->
-            {ok, PolledState, RawResult} = command(
-                QueriedState, ?UTILITY_EVENT_POP
-            ),
-            Result = parse_touch_event(RawResult),
-            {UltimateState, Results} = poll_touch_events(PolledState),
-            {UltimateState, [Result | Results]}
+            case PolledState#state.debug of
+                true -> ?LOG_DEBUG("MTDS touch pop returned an unexpected payload: ~p", [RawResult]);
+                false -> ok
+            end,
+            {PolledState, lists:reverse(Events), drained}
     end.
 
 ?doc("Parses an individual MTDS message into a touch_event() object.").
