@@ -16742,10 +16742,10 @@ index b9477af50e..fcde825130 100644
  #define S_REDZONE CP_SIZE
 diff --git a/erts/emulator/beam/jit/arm/32/beam_asm.hpp b/erts/emulator/beam/jit/arm/32/beam_asm.hpp
 new file mode 100644
-index 0000000000..1fa5487953
+index 0000000000..c1f7dcd0aa
 --- /dev/null
 +++ b/erts/emulator/beam/jit/arm/32/beam_asm.hpp
-@@ -0,0 +1,1641 @@
+@@ -0,0 +1,1643 @@
 +/*
 + * %CopyrightBegin%
 + *
@@ -18187,14 +18187,14 @@ index 0000000000..1fa5487953
 +    }
 +
 +    void mov_arg(const ArgRegister &To, const ArgVal &From) {
-+        auto from = load_source(From, TMP);
++        auto from = load_source(From, VAR);
 +        auto to = init_destination(To, from.reg);
 +        mov_var(to, from);
 +        flush_var(to);
 +    }
 +
 +    void mov_arg(const ArgRegister &To, a32::Mem From) {
-+        auto to = init_destination(To, TMP);
++        auto to = init_destination(To, VAR);
 +        a.ldr(to.reg, From);
 +        flush_var(to);
 +    }
@@ -18246,10 +18246,10 @@ index 0000000000..1fa5487953
 +        } else {
 +            /* Avoid clobbering the source register when materializing the
 +             * effective address. */
-+            a32::Gp addr = (gp != TMP) ? TMP : VAR;
-+            ASSERT(addr != gp);
-+            add(addr, a32::Gp::make_r(mem.base_id()), offset);
-+            a.str(gp, a32::Mem(addr));
++            a32::Gp base = a32::Gp::make_r(mem.base_id());
++            ASSERT(gp != TMP && base != TMP);
++            add(TMP, base, offset);
++            a.str(gp, a32::Mem(TMP));
 +        }
 +    }
 +
@@ -18292,7 +18292,9 @@ index 0000000000..1fa5487953
 +                    },
 +                    gp);
 +        } else {
-+            add(TMP, a32::Gp::make_r(mem.base_id()), offset);
++            a32::Gp base = a32::Gp::make_r(mem.base_id());
++            ASSERT(base != TMP);
++            add(TMP, base, offset);
 +            a.ldr(gp, a32::Mem(TMP));
 +        }
 +    }
@@ -25446,7 +25448,7 @@ index 0000000000..8bff6c4aeb
 +}
 diff --git a/erts/emulator/beam/jit/arm/32/instr_common.cpp b/erts/emulator/beam/jit/arm/32/instr_common.cpp
 new file mode 100644
-index 0000000000..94a05eae91
+index 0000000000..da751d40ff
 --- /dev/null
 +++ b/erts/emulator/beam/jit/arm/32/instr_common.cpp
 @@ -0,0 +1,2727 @@
@@ -26002,7 +26004,7 @@ index 0000000000..94a05eae91
 +        auto src_index = Src.as<ArgYRegister>().get();
 +        if (src_index == 0 && Support::is_int_n<9>(trim)) {
 +            const a32::Mem src_ref = a32::Mem(E).post(trim);
-+            auto dst = init_destination(Dst.trimmed(Words.get()), TMP);
++            auto dst = init_destination(Dst.trimmed(Words.get()), VAR);
 +            a.ldr(dst.reg, src_ref);
 +            flush_var(dst);
 +
@@ -26223,7 +26225,7 @@ index 0000000000..94a05eae91
 +        add(HTOP, HTOP, sizeof(Eterm));
 +    }
 +
-+    auto ptr = init_destination(Dst, TMP);
++    auto ptr = init_destination(Dst, VAR);
 +    sub(ptr.reg, HTOP, size * sizeof(Eterm) - TAG_PRIMARY_BOXED);
 +    flush_var(ptr);
 +}
