@@ -34,6 +34,8 @@
 -define(UTILITY_READ_STATUS, 16#101).  % cmdUtilReadStatusPacket
 -define(UTILITY_INIT,        16#102).  % cmdUtilInit
 -define(UTILITY_CLEAR,       16#10B).  % cmdUtilClearDisplay
+-define(UTILITY_TOUCH_SENSITIVITY, 16#10D).  % cmdUtilSetTouchSensitivity
+-define(UTILITY_TOUCH_MOVE_DELTA, 16#10F).  % cmdUtilSetTouchMoveDelta
 -define(UTILITY_EVENT_CHECK, 16#111).  % cmdUtilGetMsgStatus
 -define(UTILITY_EVENT_POP,   16#114).  % cmdUtilGetMsg
 
