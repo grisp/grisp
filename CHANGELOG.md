@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.12.2] - 2026-10-07
+
+### Fixed
+
+- Fix a rare ARM32 JIT bug caused by unsafe use of the r12 register on GRiSP 2 with OTP 29 [#215](https://github.com/grisp/grisp/pull/215)
+
 ## [2.12.1] - 2026-09-08
 
 ### Fixed
@@ -310,7 +316,8 @@ compatibility will get added in a later patch release.\*
 - Fixed wrong registers in rotation vector [\#9](https://github.com/grisp/grisp/pull/9) ([nextl00p](https://github.com/nextl00p))
 - Fix for \#2. Negative intervals are now treated by turning off leds [\#5](https://github.com/grisp/grisp/pull/5) ([nextl00p](https://github.com/nextl00p))
 
-[Unreleased]: https://github.com/grisp/grisp/compare/2.12.1...HEAD
+[Unreleased]: https://github.com/grisp/grisp/compare/2.12.2...HEAD
+[2.12.2]: https://github.com/grisp/grisp/compare/2.12.1...2.12.2
 [2.12.1]: https://github.com/grisp/grisp/compare/2.12.0...2.12.1
 [2.12.0]: https://github.com/grisp/grisp/compare/2.11.0...2.12.0
 [2.11.0]: https://github.com/grisp/grisp/compare/2.10.1...2.11.0
