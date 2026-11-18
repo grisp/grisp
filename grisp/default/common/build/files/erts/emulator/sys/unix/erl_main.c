@@ -45,6 +45,8 @@
 #include <assert.h>
 #include <bsp.h>
 #include <bsp/bootcard.h>
+#include <pthread.h>
+#include <sched.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sysexits.h>
@@ -882,6 +884,21 @@ static void Init(rtems_task_argument arg) {
 
   printf("[ERL] Heap information:\n");
   static_print_rtems_memory_info();
+
+  {
+    int policy;
+    struct sched_param param = {0};
+
+    /* BEAM threads inherit RR, preventing dirty CPU work from starving peers.
+       RR preserves its quantum across higher-priority preemption. */
+    rv = pthread_getschedparam(pthread_self(), &policy, &param);
+    if (rv == 0)
+      rv = pthread_setschedparam(pthread_self(), SCHED_RR, &param);
+    if (rv != 0) {
+      printf("[ERL] Failed to enable round-robin scheduling: %d\n", rv);
+      exit(1);
+    }
+  }
 
   printf("[ERL] Starting BEAM\n");
 
