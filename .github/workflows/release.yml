@@ -1,0 +1,329 @@
+name: Release
+
+on:
+  repository_dispatch:
+    types: [release]
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    name: Publish the release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    environment: release
+    permissions:
+      contents: write # Push the commit and tag. Create the GitHub release.
+      id-token: write # Request an OIDC token for Hex.
+    env:
+      RELEASE_BRANCH: ${{ github.event.repository.default_branch }}
+      TZ: ${{ vars.RELEASE_TIME_ZONE || 'Europe/Rome' }}
+    steps:
+      - name: Check the release inputs
+        env:
+          PACKAGE_OVERRIDE: ${{ vars.HEX_PACKAGE_NAME }}
+        run: |
+          if ! version=$(jq -er '.client_payload.version | strings |
+            select(test("\\A(0|[1-9][0-9]*)(\\.(0|[1-9][0-9]*)){2}\\z"))' "$GITHUB_EVENT_PATH"); then
+            echo 'Use a version in X.Y.Z format.' >&2
+            exit 1
+          fi
+          package=${PACKAGE_OVERRIDE:-${GITHUB_REPOSITORY##*/}}
+          if [[ ! $package =~ ^[a-z][a-z0-9_]*$ ]]; then
+            echo 'Set HEX_PACKAGE_NAME to the Hex package name.' >&2
+            exit 1
+          fi
+          echo "RELEASE_VERSION=$version" >> "$GITHUB_ENV"
+          echo "HEX_PACKAGE=$package" >> "$GITHUB_ENV"
+          echo "HEX_RELEASE_URL=https://hex.pm/api/packages/$package/releases/$version" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check the branch and tag
+        id: tag
+        run: |
+          if git show-ref --verify --quiet "refs/tags/$RELEASE_VERSION"; then
+            commit=$(git rev-parse "refs/tags/$RELEASE_VERSION^{commit}")
+            trailer=$(git log -1 --format='%(trailers:key=Release-Run,valueonly)' "$commit")
+            if [[ $trailer != "$GITHUB_RUN_ID" ]] ||
+               ! git merge-base --is-ancestor "$commit" "origin/$RELEASE_BRANCH"; then
+              echo 'The tag already exists.' >&2
+              exit 1
+            fi
+            git switch --detach "$commit"
+            echo 'exists=true' >> "$GITHUB_OUTPUT"
+          elif [[ $(git rev-parse "origin/$RELEASE_BRANCH") != "$GITHUB_SHA" ]]; then
+            echo 'The release branch changed. Send a new release request.' >&2
+            exit 1
+          else
+            previous=$(git describe --tags --abbrev=0 --first-parent \
+              --match '[0-9]*.[0-9]*.[0-9]*' --exclude '*[!0-9.]*')
+            if [[ ! $previous =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo 'The previous tag must use X.Y.Z format.' >&2
+              exit 1
+            fi
+            echo "previous=$previous" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate the changelog
+        if: steps.tag.outputs.exists != 'true'
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
+        env:
+          OUTPUT: ${{ runner.temp }}/generated-changelog.md
+        with:
+          config: .github/cliff.toml
+          args: ${{ steps.tag.outputs.previous }}..HEAD
+
+      - name: Check Hex for the release
+        id: hex
+        env:
+          TAG_EXISTS: ${{ steps.tag.outputs.exists }}
+        run: |
+          status=$(curl --silent --show-error --output "$RUNNER_TEMP/hex-release.json" \
+            --write-out '%{http_code}' "$HEX_RELEASE_URL")
+          case "$status" in
+            404) ;;
+            200)
+              if [[ $TAG_EXISTS != true ]] || ! jq -e --arg run "$GITHUB_RUN_ID" \
+                '(.oidc_claims.run_id | tostring) == $run' "$RUNNER_TEMP/hex-release.json" > /dev/null; then
+                echo 'The release already exists on Hex.' >&2
+                exit 1
+              fi
+              echo 'exists=true' >> "$GITHUB_OUTPUT"
+              jq -r '"has_docs=\(.has_docs == true)"' "$RUNNER_TEMP/hex-release.json" >> "$GITHUB_OUTPUT"
+              ;;
+            *) echo "Hex gave HTTP status $status." >&2; exit 1 ;;
+          esac
+
+      - name: Update the changelog
+        if: steps.tag.outputs.exists != 'true'
+        env:
+          PREVIOUS_TAG: ${{ steps.tag.outputs.previous }}
+        run: |
+          newest=$(printf '%s\n' "$PREVIOUS_TAG" "$RELEASE_VERSION" | sort -V | tail -n 1)
+          if [[ $RELEASE_VERSION == "$PREVIOUS_TAG" || $newest != "$RELEASE_VERSION" ]]; then
+            echo "Use a version greater than $PREVIOUS_TAG." >&2
+            exit 1
+          fi
+
+          compare="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare"
+          awk -v previous="$PREVIOUS_TAG" -v version="$RELEASE_VERSION" \
+            -v date="$(date +%F)" -v compare="$compare" '
+            FILENAME == ARGV[1] {
+              generated = generated $0 "\n"
+              next
+            }
+            $0 == "## [Unreleased]" {
+              unreleased++
+              collecting = 1
+              print
+              next
+            }
+            !release && /^## \[[0-9]+\.[0-9]+\.[0-9]+\] - / {
+              if (!collecting || index($0, "## [" previous "] - ") != 1) exit 1
+              collecting = 0
+              release++
+              if (notes !~ /[^[:space:]]/) notes = generated
+              sub(/^\n+/, "", notes)
+              sub(/\n+$/, "", notes)
+              printf "\n## [%s] - %s\n\n", version, date
+              if (notes ~ /[^[:space:]]/) printf "%s\n\n", notes
+            }
+            collecting {
+              notes = notes $0 "\n"
+              next
+            }
+            $0 == "[Unreleased]: " compare "/" previous "...HEAD" {
+              links++
+              printf "[Unreleased]: %s/%s...HEAD\n", compare, version
+              printf "[%s]: %s/%s...%s\n", version, compare, previous, version
+              next
+            }
+            { print }
+            END { if (unreleased != 1 || release != 1 || links != 1) exit 1 }
+          ' "$RUNNER_TEMP/generated-changelog.md" CHANGELOG.md > "$RUNNER_TEMP/CHANGELOG.md" || {
+            echo 'Check the release headings and comparison links in CHANGELOG.md.' >&2
+            exit 1
+          }
+          mv "$RUNNER_TEMP/CHANGELOG.md" CHANGELOG.md
+          git diff --check
+
+      - name: Commit and tag the release
+        if: steps.tag.outputs.exists != 'true'
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+          RELEASE_GPG_KEY_PASSPHRASE: ${{ secrets.RELEASE_GPG_KEY_PASSPHRASE }}
+          RELEASE_SIGNING_EMAIL: ${{ vars.RELEASE_SIGNING_EMAIL }}
+        run: |
+          : "${RELEASE_SIGNING_KEY:?Set RELEASE_SIGNING_KEY in the release environment.}"
+          : "${RELEASE_SIGNING_EMAIL:?Set RELEASE_SIGNING_EMAIL in the release environment.}"
+          export GNUPGHOME
+          GNUPGHOME=$(mktemp -d)
+          trap 'gpgconf --kill gpg-agent; rm -rf "$GNUPGHOME"' EXIT
+          printf '%s\n' "$RELEASE_SIGNING_KEY" | gpg --batch --import
+          unset RELEASE_SIGNING_KEY
+
+          cat > "$GNUPGHOME/git-gpg" <<'BASH'
+          #!/usr/bin/env bash
+          exec gpg --batch --pinentry-mode loopback --passphrase-fd 3 "$@" \
+            3< <(printf '%s\n' "$RELEASE_GPG_KEY_PASSPHRASE")
+          BASH
+          chmod 700 "$GNUPGHOME/git-gpg"
+
+          git config user.name "$GITHUB_REPOSITORY_OWNER Release"
+          git config user.email "$RELEASE_SIGNING_EMAIL"
+          git config user.signingkey "$RELEASE_SIGNING_EMAIL"
+
+          git add -- CHANGELOG.md
+          git -c gpg.program="$GNUPGHOME/git-gpg" commit --gpg-sign \
+            -m "Version $RELEASE_VERSION" -m "Release-Run: $GITHUB_RUN_ID"
+          git -c gpg.program="$GNUPGHOME/git-gpg" tag --sign \
+            -m "Version $RELEASE_VERSION" "$RELEASE_VERSION"
+
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
+        if: steps.hex.outputs.has_docs != 'true'
+        with:
+          otp-version: ${{ vars.RELEASE_OTP_VERSION || '29' }}
+          rebar3-version: ${{ vars.RELEASE_REBAR3_VERSION || '3.28.0' }}
+
+      - name: Set up the Hex plugin
+        if: steps.hex.outputs.has_docs != 'true'
+        run: |
+          config_root="$RUNNER_TEMP/rebar3-config"
+          config_dir="$config_root/.config/rebar3"
+          mkdir -p "$config_dir"
+          echo '{plugins, [{rebar3_hex, "7.5.0"}]}.' > "$config_dir/rebar.config"
+          echo "REBAR_GLOBAL_CONFIG_DIR=$config_root" >> "$GITHUB_ENV"
+
+      - name: Check the release package
+        if: steps.hex.outputs.has_docs != 'true'
+        run: |
+          rebar3 compile
+          output="$RUNNER_TEMP/hex-build"
+          # rebar3_hex 7.5.0 writes the archives to the tmp subdirectory.
+          mkdir -p "$output/tmp"
+          rebar3 hex build --output "$output"
+          package="$output/tmp/$HEX_PACKAGE-$RELEASE_VERSION.tar"
+          tar -xOf "$package" metadata.config
+          tar -xOf "$package" contents.tar.gz | tar -tzf -
+          tar -tf "${package%.tar}-docs.tar" > "$RUNNER_TEMP/docs-files"
+          grep -Fx 'index.html' "$RUNNER_TEMP/docs-files"
+          git diff --exit-code
+
+      - name: Push the commit and tag
+        if: steps.tag.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git -c credential.helper= -c 'credential.helper=!gh auth git-credential' \
+            push --atomic origin "HEAD:refs/heads/$RELEASE_BRANCH" "refs/tags/$RELEASE_VERSION"
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # Return 1 only for a confirmed absence, 2 for API/JSON errors, 3 for a conflict.
+          check_release() {
+            if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_VERSION" \
+                > "$RUNNER_TEMP/github-release.json" 2> "$RUNNER_TEMP/github-release-error"; then
+              if ! jq -e 'type == "object" and has("tag_name") and has("draft") and has("prerelease")' \
+                  "$RUNNER_TEMP/github-release.json" > /dev/null; then
+                echo 'GitHub returned an invalid release response.' >&2
+                return 2
+              fi
+              if ! jq -e --arg tag "$RELEASE_VERSION" \
+                  '.tag_name == $tag and .draft == false and .prerelease == false' \
+                  "$RUNNER_TEMP/github-release.json" > /dev/null; then
+                echo 'An unexpected draft, prerelease or tag exists on GitHub.' >&2
+                return 3
+              fi
+              return 0
+            fi
+            if grep -q '(HTTP 404)' "$RUNNER_TEMP/github-release-error"; then return 1; fi
+            cat "$RUNNER_TEMP/github-release-error" >&2
+            return 2
+          }
+
+          if check_release; then exit 0; else status=$?; fi
+          if (( status == 3 )); then exit 1; fi
+          notes="$RUNNER_TEMP/release-notes.md"
+          awk -v version="$RELEASE_VERSION" -v previous_file="$RUNNER_TEMP/previous-version" '
+            /^## \[[0-9]+\.[0-9]+\.[0-9]+\] - / {
+              if (!found) {
+                if (index($0, "## [" version "] - ") != 1) exit 1
+                found = 1
+                next
+              }
+              print substr($2, 2, length($2) - 2) > previous_file
+              done = 1
+              exit
+            }
+            found && NF {
+              printf "%s%s\n", blank, $0
+              blank = ""
+              started = 1
+              next
+            }
+            found && started { blank = blank "\n" }
+            END { if (!done) exit 1 }
+          ' CHANGELOG.md > "$notes"
+          previous_version=$(cat "$RUNNER_TEMP/previous-version")
+          for attempt in {1..5}; do
+            if gh api --method POST "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+                -f "tag_name=$RELEASE_VERSION" -f "previous_tag_name=$previous_version" \
+                > "$RUNNER_TEMP/generated-notes.json" &&
+                jq -er '.body | strings' "$RUNNER_TEMP/generated-notes.json" > "$RUNNER_TEMP/generated-notes.md"; then
+              break
+            fi
+            if (( attempt == 5 )); then
+              echo 'Could not generate GitHub release notes after 5 attempts.' >&2
+              exit 1
+            fi
+            echo "GitHub release notes request failed; retrying (attempt $attempt/5)." >&2
+            sleep "$((attempt * 5))"
+          done
+          if grep -qE '^## New Contributors[[:space:]]*$' "$RUNNER_TEMP/generated-notes.md"; then
+            printf '\n' >> "$notes"
+            sed -nE '/^## New Contributors[[:space:]]*$/,$p' "$RUNNER_TEMP/generated-notes.md" >> "$notes"
+          fi
+          for attempt in {1..5}; do
+            # Recheck before creating: a failed response may follow a successful creation.
+            if check_release; then exit 0; else status=$?; fi
+            if (( status == 1 )); then
+              if gh release create --repo "$GITHUB_REPOSITORY" "$RELEASE_VERSION" \
+                  --title "$RELEASE_VERSION" --verify-tag --notes-file "$notes"; then
+                if check_release; then exit 0; fi
+              fi
+            elif (( status == 3 )); then
+              exit 1
+            fi
+            if (( attempt < 5 )); then
+              echo "GitHub release request failed; retrying (attempt $attempt/5)." >&2
+              sleep "$((attempt * 5))"
+            fi
+          done
+          # Also recover when the last creation succeeded but its response was lost.
+          if check_release; then exit 0; fi
+          echo "Could not confirm GitHub release $RELEASE_VERSION after 5 attempts." >&2
+          exit 1
+
+      - name: Publish to Hex
+        if: steps.hex.outputs.exists != 'true'
+        run: rebar3 hex publish --yes
+
+      - name: Publish the Hex documentation
+        if: steps.hex.outputs.exists == 'true' && steps.hex.outputs.has_docs != 'true'
+        run: rebar3 hex publish docs --yes
