@@ -35,8 +35,17 @@ The job ends after the upload succeeds. Hex approval can happen later.
 
 ## Continue a release
 
-If Hex approval is pending after a successful run, use the link in the
-completed run to approve it. Approval completes the release on Hex.
+If Hex approval is pending after a successful run, give the approver the link
+from that run. After they approve it, replace `X.Y.Z` with the requested
+version and check the public Hex API.
+
+```sh
+curl --fail --silent --show-error --write-out '\nHTTP %{http_code}\n' \
+  https://hex.pm/api/packages/grisp/releases/X.Y.Z
+```
+
+Continue to the OTP builds once the API returns HTTP 200 with the requested
+version. If it returns HTTP 404, wait for the version to become public.
 
 If the run fails after pushing the tag, correct the cause and select
 **Re-run all jobs** on the original run. The workflow checks that the tag
@@ -44,10 +53,12 @@ belongs to that run.
 
 ## Generate prebuilt OTP packages
 
-After approving the GRiSP release on Hex, dispatch the existing OTP package
-workflow for the latest patch release in each of the four most recent major
-OTP series, starting at OTP 27. Use the [OTP versions table] and the same
-selection as the [GitHub release handler](.github/workflows/on_grisp_release.yaml).
+Once the requested GRiSP version is public on Hex, dispatch the existing OTP
+package workflow for the latest patch release in each of the four most
+recent major OTP series, starting at OTP 27. Use the [OTP versions table]
+and follow the [GitHub release handler][release handler].
+
+[release handler]: .github/workflows/on_grisp_release.yaml
 
 [OTP versions table]: https://raw.githubusercontent.com/erlang/otp/master/otp_versions.table
 
@@ -57,7 +68,14 @@ gh api --method POST repos/grisp/grisp/dispatches --input - <<'JSON'
 JSON
 ```
 
-Replace `OTP_VERSION` with a version such as `29.0.6`. Monitor the
-[OTP package runs](https://github.com/grisp/grisp/actions/workflows/otp_pkg_on_grisp_release.yaml).
+Replace `OTP_VERSION` with a version such as `29.0.6`. Find each dispatch in
+the [OTP package runs] and record its OTP version and individual run URL.
+Wait for all runs to finish and check their conclusions. In every
+`upload_artifacts` matrix job, confirm that either **Upload to S3** or
+**Download from S3 if artifact not found** succeeded. Report the run links
+and any failed jobs.
+
+[OTP package runs]: https://github.com/grisp/grisp/actions/workflows/otp_pkg_on_grisp_release.yaml
+
 Releases created by the workflow's `GITHUB_TOKEN` skip the automatic
 `release: published` trigger.
