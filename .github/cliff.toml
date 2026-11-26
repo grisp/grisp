@@ -1,0 +1,32 @@
+[changelog]
+body = """
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group }}
+
+{% for commit in commits -%}
+- {{ commit.message | upper_first }}
+{% endfor %}
+{% endfor %}
+"""
+trim = true
+
+[git]
+conventional_commits = false
+tag_pattern = '^[0-9]+\.[0-9]+\.[0-9]+$'
+sort_commits = "newest"
+commit_preprocessors = [
+  { pattern = '\r?\n[\s\S]*', replace = "" },
+]
+commit_parsers = [
+  { message = '^Version [0-9]+\.[0-9]+\.[0-9]+$', skip = true },
+  { message = '^Merge ', skip = true },
+  { message = '(?i)(\bsecurity\b|\bvulnerabilit|\bCVE-[0-9])', group = "Security" },
+  { message = '(?i)^(feat(?:\([^)]*\))?!?:|(?:add|implement|support|expose|enable|introduce)\b)', group = "Added" },
+  { message = '(?i)^deprecate\b', group = "Deprecated" },
+  { message = '(?i)^(remove|drop)\b', group = "Removed" },
+  { message = '(?i)^(fix(?:\([^)]*\))?!?:|(?:fix|correct|resolve|prevent|avoid|handle|ensure|clean|recreate|preserve)\b)', group = "Fixed" },
+  { message = '.*', group = "Changed" },
+]
+
+[remote]
+offline = true
