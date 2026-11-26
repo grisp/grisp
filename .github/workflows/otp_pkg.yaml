@@ -30,7 +30,7 @@ jobs:
       # This image is based on debian:bookworm
       # but we need to make  erlef/setup-beam@v1 happy
       # so we set 'ubuntu22' (jammy), which is the most similar, as ImageOS
-      image: grisp/grisp2-rtems-toolchain@sha256:15715504073056453763b16314e182c7c4e66f3b9d6e5ca96424fd408ad1a9c7
+      image: grisp/grisp2-rtems-toolchain:1.2.0@sha256:b8a832c0473c251a6843012ecb8870f382620739cd5a49de92001e1ea2415159
       env:
         ImageOS: 'ubuntu22'
     strategy:
@@ -45,7 +45,8 @@ jobs:
     steps:
       - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
         with:
-          otp-version: ${{matrix.otp}}
+          # rebar3_grisp dependencies require OTP 27+ on the runner.
+          otp-version: ${{ startsWith(matrix.otp, '26.') && '27' || matrix.otp }}
           rebar3-version: ${{ matrix.rebar3 }}
       - name: Install GRiSP Plugin
         run: |
@@ -120,7 +121,8 @@ jobs:
         if: ${{ steps.deploy-test.outcome == 'success' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: ${{env.pkg_name}}
+          # With no JIT patches, both variants have the same package hash.
+          name: ${{ env.pkg_name }}-jit-${{ matrix.jit }}
           path: robot/_grisp/grisp2/otp/${{matrix.otp}}/package/${{env.pkg_name}}
   upload_artifacts:
     runs-on: ubuntu-latest
@@ -139,7 +141,8 @@ jobs:
     steps:
       - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
         with:
-          otp-version: ${{matrix.otp}}
+          # rebar3_grisp dependencies require OTP 27+ on the runner.
+          otp-version: ${{ startsWith(matrix.otp, '26.') && '27' || matrix.otp }}
           rebar3-version: ${{ matrix.rebar3 }}
       - name: Install GRiSP Plugin
         run: |
@@ -183,7 +186,8 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         continue-on-error: true
         with:
-          name: ${{env.pkg_name}}
+          # With no JIT patches, both variants have the same package hash.
+          name: ${{ env.pkg_name }}-jit-${{ matrix.jit }}
       - name: Download from S3 if artifact not found
         id: download-s3
         if: steps.artifact-download.outcome == 'failure'
