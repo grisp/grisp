@@ -17,6 +17,10 @@ jobs:
       - name: Matrix Definition
         id: matrix-def
         run: |
+           if ! [ "${GITHUB_EVENT_CLIENT_PAYLOAD_OTP%%.*}" -ge 27 ] 2>/dev/null; then
+             echo 'Prebuilt OTP packages require OTP 27 or newer.' >&2
+             exit 1
+           fi
            echo "otp-version=${GITHUB_EVENT_CLIENT_PAYLOAD_OTP}" >> "$GITHUB_OUTPUT"
         env:
           GITHUB_EVENT_CLIENT_PAYLOAD_OTP: ${{ github.event.client_payload.otp }}
@@ -30,7 +34,7 @@ jobs:
       # This image is based on debian:bookworm
       # but we need to make  erlef/setup-beam@v1 happy
       # so we set 'ubuntu22' (jammy), which is the most similar, as ImageOS
-      image: grisp/grisp2-rtems-toolchain@sha256:15715504073056453763b16314e182c7c4e66f3b9d6e5ca96424fd408ad1a9c7
+      image: grisp/grisp2-rtems-toolchain:1.2.0@sha256:b8a832c0473c251a6843012ecb8870f382620739cd5a49de92001e1ea2415159
       env:
         ImageOS: 'ubuntu22'
     strategy:
