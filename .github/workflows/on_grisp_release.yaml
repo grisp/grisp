@@ -19,7 +19,7 @@ jobs:
           | cut -d' ' -f1 \
           | sed 's/OTP-//' \
           | sort -V \
-          | awk -F. '{
+          | awk -F. '$1 >= 27 {
             major_version = $1;
             latest[major_version] = $0;
           }

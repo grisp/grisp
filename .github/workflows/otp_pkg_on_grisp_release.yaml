@@ -48,8 +48,7 @@ jobs:
     steps:
       - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
         with:
-          # rebar3_grisp dependencies require OTP 27+ on the runner.
-          otp-version: ${{ startsWith(matrix.otp, '26.') && '27' || matrix.otp }}
+          otp-version: ${{matrix.otp}}
           rebar3-version: ${{ matrix.rebar3 }}
       - name: Install GRiSP Plugin
         run: |
@@ -143,8 +142,7 @@ jobs:
     steps:
       - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
         with:
-          # rebar3_grisp dependencies require OTP 27+ on the runner.
-          otp-version: ${{ startsWith(matrix.otp, '26.') && '27' || matrix.otp }}
+          otp-version: ${{matrix.otp}}
           rebar3-version: ${{ matrix.rebar3 }}
       - name: Install GRiSP Plugin
         run: |
