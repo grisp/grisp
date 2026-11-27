@@ -126,7 +126,7 @@ jobs:
           name: ${{env.pkg_name}}
           path: robot/_grisp/grisp2/otp/${{matrix.otp}}/package/${{env.pkg_name}}
   upload_artifacts:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [define-matrix, otp-gen-matrix]
     permissions:
       actions: read
