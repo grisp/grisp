@@ -8,6 +8,24 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [2.13.0] - 2026-11-27
+
+### Added
+
+- Add the GRiSP release workflow (#219)
+- Add platform-specific Rust build configuration
+
+
+### Changed
+
+- Use the Rust-enabled toolchain for prebuilt OTP packages (#218)
+- Set RTEMS startup task to round-robin scheduling
+
+
+### Fixed
+
+- Fix OTP release candidate checks when no candidate is found (#216)
+
 ## [2.12.2] - 2026-10-07
 
 ### Fixed
@@ -316,7 +334,8 @@ compatibility will get added in a later patch release.\*
 - Fixed wrong registers in rotation vector [\#9](https://github.com/grisp/grisp/pull/9) ([nextl00p](https://github.com/nextl00p))
 - Fix for \#2. Negative intervals are now treated by turning off leds [\#5](https://github.com/grisp/grisp/pull/5) ([nextl00p](https://github.com/nextl00p))
 
-[Unreleased]: https://github.com/grisp/grisp/compare/2.12.2...HEAD
+[Unreleased]: https://github.com/grisp/grisp/compare/2.13.0...HEAD
+[2.13.0]: https://github.com/grisp/grisp/compare/2.12.2...2.13.0
 [2.12.2]: https://github.com/grisp/grisp/compare/2.12.1...2.12.2
 [2.12.1]: https://github.com/grisp/grisp/compare/2.12.0...2.12.1
 [2.12.0]: https://github.com/grisp/grisp/compare/2.11.0...2.12.0
